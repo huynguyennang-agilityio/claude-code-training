@@ -8,7 +8,7 @@ StrideQuest is a running app where every run is a quest: runners complete challe
 
 - **Mobile:** Flutter (Dart), layered architecture (UI, logic, data), `go_router` for navigation, `flutter_test` for tests.
 - **Backend:** FastAPI on Python 3.12, async throughout (use `httpx.AsyncClient`, never block the event loop), Pydantic models for request and response schemas, errors returned as typed fields rather than free-form strings, `pytest` for tests.
-- **Data:** PostgreSQL. Medal images are static files in object storage (S3 or MinIO); the database stores only their URLs.
+- **Data:** PostgreSQL. Medal images are static files in S3-compatible object storage (AWS S3 in production, SeaweedFS locally); the database stores only their URLs.
 - **Health data:** the app reads steps from Apple Health or Health Connect on the device and syncs them to the backend.
 
 ## Planned structure
