@@ -105,6 +105,6 @@ Reading step data needs a real device or a simulator with Apple Health or Health
 ### Lint and test (planned)
 
 ```bash
-cd backend && ruff check . && pytest
-cd mobile && flutter analyze && flutter test
+(cd backend && ruff check . && pytest)
+(cd mobile && flutter analyze && flutter test)
 ```
