@@ -112,7 +112,7 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 | 401 | `not_authenticated` | A protected route was called without an `Authorization` header. |
 | 401 | `invalid_token` | The access token is malformed, has a bad signature, or its user no longer exists. |
 | 401 | `token_expired` | The access token has expired. Refresh and retry. |
-| 429 | `too_many_attempts` | Too many failed sign-ins for this email or device. Wait for the number of seconds in the `Retry-After` header. |
+| 429 | `rate_limited` | Too many failed sign-ins for this email or device. Wait for the number of seconds in the `Retry-After` header. |
 
 ## `POST /auth/signup`
 
@@ -145,7 +145,7 @@ Request:
 Responses:
 
 - `200 OK` with `AuthResponse`.
-- `401 invalid_credentials`, `422 validation_error`, `429 too_many_attempts`.
+- `401 invalid_credentials`, `422 validation_error`, `429 rate_limited`.
 
 Sign in is rate limited: after 5 failed attempts for the same email within 15 minutes, or 20 failed attempts from the same IP within 15 minutes, it returns `429` until the window passes, even with the right password. A successful sign-in clears the count for that email.
 
