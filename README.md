@@ -20,7 +20,7 @@ The first version focuses on one complete user journey rather than many features
 | Mobile app | Flutter (Dart), layered architecture (UI, logic, data), `go_router` for navigation |
 | Backend | FastAPI on Python 3.12, async throughout, Pydantic schemas |
 | Database | PostgreSQL |
-| Medal images | Object storage (S3 or MinIO) |
+| Medal images | S3-compatible object storage (AWS S3 in production, SeaweedFS locally) |
 | Health data | Apple Health (iOS) and Health Connect (Android), read on the device |
 
 ## Architecture
@@ -64,7 +64,7 @@ mobile/             Flutter app
     logic/          State and use cases
     data/           Repositories, API client, health data
   test/             flutter_test tests
-docker-compose.yml  Local PostgreSQL and MinIO
+docker-compose.yml  Local PostgreSQL and SeaweedFS (S3-compatible storage)
 ```
 
 ## Getting started

@@ -1,0 +1,21 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Flutter and Dart (mobile/.gitignore has the full list)
+.dart_tool/
+build/
+
+# IDE and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
