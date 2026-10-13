@@ -150,6 +150,6 @@ Ruff and pytest are configured in `backend/pyproject.toml`; Dart lints are confi
 3. Run lint and tests locally before pushing.
 4. Push the branch and open a merge request into `develop` using the default template. Link the issue with `Closes #<id>`.
 5. Review the merge request in this order: correctness, tests, readability, security basics, scope.
-6. Address review comments, keep CI green, then merge.
+6. Address review comments, make sure lint and tests pass locally, then merge.
 
 `develop` is the default branch and collects finished work. `main` holds released code and is updated only by merging `develop` into it. Both branches are protected, so changes land only through merge requests.

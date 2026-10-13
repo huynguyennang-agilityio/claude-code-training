@@ -38,7 +38,7 @@ mobile/test/                                flutter_test tests
 When asked to review an MR, walk these five steps in order and report findings under each step's heading. Write "No issues found" for a step with nothing to report. Don't skip ahead: a correctness problem matters more than a naming nit.
 
 1. **Correctness:** does the change do what the linked issue asks? Check edge cases, error handling and the issue's acceptance criteria.
-2. **Tests:** is new logic covered by tests, and do the tests check behavior rather than implementation? Is CI green?
+2. **Tests:** is new logic covered by tests, and do the tests check behavior rather than implementation? Do lint and tests pass locally?
 3. **Readability:** are names clear, functions short and code free of duplication? Does it follow the layered structure above?
 4. **Security basics:** are there leaked secrets, unvalidated inputs or missing authorization checks?
 5. **Scope:** does the MR cover exactly one issue? Flag unrelated changes.
