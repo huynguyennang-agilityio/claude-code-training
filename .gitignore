@@ -19,3 +19,6 @@ build/
 .vscode/
 *.iml
 .DS_Store
+
+# CI caches
+.cache/
