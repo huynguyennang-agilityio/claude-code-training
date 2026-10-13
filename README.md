@@ -112,12 +112,28 @@ flutter run
 
 Reading step data needs a real device or a simulator with Apple Health or Health Connect data available.
 
-### Lint and test (planned)
+### Lint and test
+
+Backend (with the virtual environment active):
 
 ```bash
-(cd backend && ruff check . && pytest)
-(cd mobile && flutter analyze && flutter test)
+cd backend
+pip install -r requirements-dev.txt
+ruff check .
+ruff format --check .
+pytest
 ```
+
+Mobile:
+
+```bash
+cd mobile
+flutter analyze
+dart format --output=none --set-exit-if-changed lib test
+flutter test
+```
+
+Ruff and pytest are configured in `backend/pyproject.toml`; Dart lints are configured in `mobile/analysis_options.yaml`.
 
 ## Development guidelines
 
