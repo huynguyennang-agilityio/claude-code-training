@@ -73,10 +73,20 @@ docker-compose.yml  Local PostgreSQL and MinIO
 
 ### Prerequisites
 
-- Python 3.12
-- Flutter SDK (stable channel)
-- Docker and Docker Compose
-- Xcode (iOS) or Android Studio (Android) for running the app on a simulator or device
+| Tool | Version |
+| --- | --- |
+| Python | 3.12.x |
+| Flutter SDK | 3.47.7 (stable channel, Dart 3.13.5) |
+| Docker and Docker Compose | Docker 24 or newer, Compose v2 |
+| Xcode (iOS builds) | Latest stable release from the Mac App Store |
+| Android Studio (Android builds) | Latest stable release |
+
+Supported platforms:
+
+| Platform | Minimum version | Health data source |
+| --- | --- | --- |
+| iOS | iOS 15.0 | Apple Health (HealthKit) |
+| Android | Android 9 (API level 28) | Health Connect |
 
 ### Run the backend (planned)
 
@@ -108,3 +118,20 @@ Reading step data needs a real device or a simulator with Apple Health or Health
 (cd backend && ruff check . && pytest)
 (cd mobile && flutter analyze && flutter test)
 ```
+
+## Development guidelines
+
+- **Backend:** async throughout. Use `httpx.AsyncClient` for outgoing calls and never block the event loop. Define request and response bodies as Pydantic models, and return errors as typed fields rather than free-form strings.
+- **Mobile:** keep the UI, logic and data layers separate, and use `go_router` for navigation.
+- **Tests:** add tests with every feature: `pytest` for the backend, `flutter_test` for the app.
+- **Language:** code, comments, docs, commit messages and merge requests are written in English.
+- **Secrets:** never commit secrets. Add new settings to `.env.example` with placeholder values.
+
+## Development workflow
+
+1. Pick a GitLab issue and create a branch from `main` named `<type>/<issue-id>-<short-name>`, for example `feat/1-readme`.
+2. Commit small, focused changes with messages such as `feat: add challenge list endpoint`.
+3. Run lint and tests locally before pushing.
+4. Push the branch and open a merge request into `main` using the default template. Link the issue with `Closes #<id>`.
+5. Review the merge request in this order: correctness, tests, readability, security basics, scope.
+6. Address review comments, keep CI green, then merge. `main` is protected, so changes land only through merge requests.
