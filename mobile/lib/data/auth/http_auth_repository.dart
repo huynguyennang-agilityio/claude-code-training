@@ -8,6 +8,9 @@ import 'auth_models.dart';
 import 'auth_repository.dart';
 
 /// [AuthRepository] backed by the StrideQuest REST API.
+///
+/// Paths are resolved relative to [baseUrl], so a base such as
+/// `https://example.com/api/` keeps its `/api/` prefix.
 class HttpAuthRepository implements AuthRepository {
   HttpAuthRepository({required this.baseUrl, required http.Client client})
     : _client = client;
@@ -23,7 +26,7 @@ class HttpAuthRepository implements AuthRepository {
     required String password,
     required String displayName,
   }) async {
-    final json = await _post('/auth/signup', {
+    final json = await _post('auth/signup', {
       'email': email,
       'password': password,
       'display_name': displayName,
@@ -36,7 +39,7 @@ class HttpAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
-    final json = await _post('/auth/signin', {
+    final json = await _post('auth/signin', {
       'email': email,
       'password': password,
     });
@@ -45,13 +48,13 @@ class HttpAuthRepository implements AuthRepository {
 
   @override
   Future<AuthTokens> refresh(String refreshToken) async {
-    final json = await _post('/auth/refresh', {'refresh_token': refreshToken});
+    final json = await _post('auth/refresh', {'refresh_token': refreshToken});
     return AuthTokens.fromJson(json!);
   }
 
   @override
   Future<void> signOut(String refreshToken) async {
-    await _post('/auth/signout', {'refresh_token': refreshToken});
+    await _post('auth/signout', {'refresh_token': refreshToken});
   }
 
   /// Posts [body] as JSON and returns the decoded response, or null when the

@@ -191,6 +191,21 @@ void main() {
     });
   });
 
+  test('keeps the path prefix of the base URL', () async {
+    late http.Request sent;
+    final repository = HttpAuthRepository(
+      baseUrl: Uri.parse('https://example.com/api/'),
+      client: MockClient((request) async {
+        sent = request;
+        return _json({'user': _user, 'tokens': _tokens}, 200);
+      }),
+    );
+
+    await repository.signIn(email: 'a@b.co', password: 'abc12345');
+
+    expect(sent.url.toString(), 'https://example.com/api/auth/signin');
+  });
+
   group('refresh', () {
     test('sends the refresh token and returns the new pair', () async {
       late http.Request sent;
