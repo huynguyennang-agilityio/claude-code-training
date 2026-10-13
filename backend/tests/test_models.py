@@ -78,7 +78,7 @@ async def test_run_keeps_its_samples(session: AsyncSession) -> None:
 
 
 @pytest.mark.anyio
-async def test_health_record_id_is_unique(session: AsyncSession) -> None:
+async def test_health_record_id_is_unique_per_run(session: AsyncSession) -> None:
     quest = make_quest()
     run = Run(user_id="user-1", challenge=quest.challenges[0], started_at=START)
     run.samples = [make_sample("same"), make_sample("same")]
@@ -96,3 +96,18 @@ async def test_challenge_rejects_inverted_window(session: AsyncSession) -> None:
 
     with pytest.raises(IntegrityError):
         await session.commit()
+
+
+@pytest.mark.anyio
+async def test_same_record_can_count_for_two_runs(session: AsyncSession) -> None:
+    quest = make_quest()
+    challenge = quest.challenges[0]
+    first = Run(user_id="user-1", challenge=challenge, started_at=START)
+    second = Run(user_id="user-1", challenge=challenge, started_at=START)
+    first.samples = [make_sample("shared")]
+    second.samples = [make_sample("shared")]
+    session.add_all([first, second])
+
+    await session.commit()
+
+    assert first.id != second.id
