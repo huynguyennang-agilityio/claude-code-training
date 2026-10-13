@@ -28,7 +28,8 @@ mobile/test/                                flutter_test tests
 ## Workflow
 
 - Work on one GitLab issue at a time, on its own branch named `<type>/<issue-id>-<short-name>` (for example `feat/1-readme`, `fix/12-step-sync`).
-- Never push directly to `main`. Open a merge request into `main` using the default template in `.gitlab/merge_request_templates/Default.md`, and link the issue with `Closes #<id>`.
+- Branch from `develop`, the default branch. `main` holds released code and only receives merges from `develop`.
+- Never push directly to `develop` or `main`. Open a merge request into `develop` using the default template in `.gitlab/merge_request_templates/Default.md`, and link the issue with `Closes #<id>`.
 - Add tests with every feature.
 - Don't commit unless asked. After each task, suggest a short commit message.
 

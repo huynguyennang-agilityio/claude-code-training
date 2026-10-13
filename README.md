@@ -145,9 +145,11 @@ Ruff and pytest are configured in `backend/pyproject.toml`; Dart lints are confi
 
 ## Development workflow
 
-1. Pick a GitLab issue and create a branch from `main` named `<type>/<issue-id>-<short-name>`, for example `feat/1-readme`.
+1. Pick a GitLab issue and create a branch from `develop` named `<type>/<issue-id>-<short-name>`, for example `feat/1-readme`.
 2. Commit small, focused changes with messages such as `feat: add challenge list endpoint`.
 3. Run lint and tests locally before pushing.
-4. Push the branch and open a merge request into `main` using the default template. Link the issue with `Closes #<id>`.
+4. Push the branch and open a merge request into `develop` using the default template. Link the issue with `Closes #<id>`.
 5. Review the merge request in this order: correctness, tests, readability, security basics, scope.
-6. Address review comments, keep CI green, then merge. `main` is protected, so changes land only through merge requests.
+6. Address review comments, keep CI green, then merge.
+
+`develop` is the default branch and collects finished work. `main` holds released code and is updated only by merging `develop` into it. Both branches are protected, so changes land only through merge requests.
