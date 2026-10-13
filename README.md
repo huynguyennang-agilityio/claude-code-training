@@ -1,4 +1,4 @@
-# Claude code training
+# Claude Code Training: StrideQuest
 
 
 
