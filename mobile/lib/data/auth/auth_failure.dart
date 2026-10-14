@@ -40,11 +40,15 @@ enum AuthFailureCode {
 
 /// A typed auth error. [message] is always safe to show the user.
 class AuthFailure implements Exception {
-  AuthFailure(this.code, {this.fieldErrors = const {}})
+  AuthFailure(this.code, {this.fieldErrors = const {}, this.retryAfter})
     : message = code.defaultMessage;
 
   final AuthFailureCode code;
   final String message;
+
+  /// How long to wait before trying again, from the `Retry-After` header of a
+  /// `rate_limited` response. Null when the backend did not send it.
+  final Duration? retryAfter;
 
   /// Per-field messages from a `validation_error`, keyed by field name
   /// (for example `password`).

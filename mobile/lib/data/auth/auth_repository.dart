@@ -1,3 +1,4 @@
+import 'auth_failure.dart';
 import 'auth_models.dart';
 
 /// Talks to the backend `/auth/*` endpoints.

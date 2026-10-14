@@ -142,4 +142,96 @@ void main() {
       throwsA(isA<AuthFailure>()),
     );
   });
+
+  test('issues tokens with the contract access token lifetime', () async {
+    final session = await repository.signUp(
+      email: 'runner@example.com',
+      password: 'run4medals',
+      displayName: 'Lan',
+    );
+
+    expect(session.tokens.expiresIn, const Duration(minutes: 15));
+  });
+
+  test('rejects a malformed sign in body with validation_error', () async {
+    final failure = repository.signIn(email: 'not-an-email', password: '');
+
+    await expectLater(
+      failure,
+      throwsA(
+        isA<AuthFailure>()
+            .having((f) => f.code, 'code', AuthFailureCode.validation)
+            .having((f) => f.fieldErrors.keys, 'fields', ['email', 'password']),
+      ),
+    );
+  });
+
+  group('sign in rate limit', () {
+    late DateTime now;
+
+    setUp(() async {
+      now = DateTime.utc(2026, 10, 14, 9);
+      repository = FakeAuthRepository(now: () => now);
+      await repository.signUp(
+        email: 'runner@example.com',
+        password: 'run4medals',
+        displayName: 'Lan',
+      );
+    });
+
+    Future<void> failSignIns(int times) async {
+      for (var i = 0; i < times; i++) {
+        await expectLater(
+          repository.signIn(email: 'runner@example.com', password: 'wrong123'),
+          throwsA(isA<AuthFailure>()),
+        );
+      }
+    }
+
+    test('blocks even the right password after 5 failures', () async {
+      await failSignIns(FakeAuthRepository.maxFailedSignIns);
+      now = now.add(const Duration(minutes: 5));
+
+      await expectLater(
+        repository.signIn(email: 'runner@example.com', password: 'run4medals'),
+        throwsA(
+          isA<AuthFailure>()
+              .having((f) => f.code, 'code', AuthFailureCode.rateLimited)
+              .having(
+                (f) => f.retryAfter,
+                'retryAfter',
+                const Duration(minutes: 10),
+              ),
+        ),
+      );
+    });
+
+    test('allows sign in again once the window passes', () async {
+      await failSignIns(FakeAuthRepository.maxFailedSignIns);
+      now = now.add(FakeAuthRepository.signInFailureWindow);
+
+      final session = await repository.signIn(
+        email: 'runner@example.com',
+        password: 'run4medals',
+      );
+
+      expect(session.user.email, 'runner@example.com');
+    });
+
+    test('a successful sign in clears the failure count', () async {
+      await failSignIns(FakeAuthRepository.maxFailedSignIns - 1);
+      await repository.signIn(
+        email: 'runner@example.com',
+        password: 'run4medals',
+      );
+      await failSignIns(FakeAuthRepository.maxFailedSignIns - 1);
+
+      final session = await repository.signIn(
+        email: 'runner@example.com',
+        password: 'run4medals',
+      );
+
+      expect(session.user.email, 'runner@example.com');
+    });
+  });
 }

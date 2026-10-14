@@ -42,26 +42,41 @@ class AuthUser {
 
 /// The access and refresh tokens issued by the backend (`TokenPair`).
 class AuthTokens {
-  const AuthTokens({required this.accessToken, required this.refreshToken});
+  const AuthTokens({
+    required this.accessToken,
+    required this.refreshToken,
+    required this.expiresIn,
+  });
 
+  /// Throws [FormatException] when `token_type` is not `bearer`.
   factory AuthTokens.fromJson(Map<String, dynamic> json) {
+    final tokenType = json['token_type'] as String;
+    if (tokenType.toLowerCase() != 'bearer') {
+      throw FormatException('Unsupported token_type: $tokenType');
+    }
     return AuthTokens(
       accessToken: json['access_token'] as String,
       refreshToken: json['refresh_token'] as String,
+      expiresIn: Duration(seconds: json['expires_in'] as int),
     );
   }
 
   final String accessToken;
   final String refreshToken;
 
+  /// How long the access token is valid from when it was issued, from
+  /// `expires_in`. The contract says to use this instead of a fixed lifetime.
+  final Duration expiresIn;
+
   @override
   bool operator ==(Object other) =>
       other is AuthTokens &&
       other.accessToken == accessToken &&
-      other.refreshToken == refreshToken;
+      other.refreshToken == refreshToken &&
+      other.expiresIn == expiresIn;
 
   @override
-  int get hashCode => Object.hash(accessToken, refreshToken);
+  int get hashCode => Object.hash(accessToken, refreshToken, expiresIn);
 }
 
 /// The result of signing up or signing in.

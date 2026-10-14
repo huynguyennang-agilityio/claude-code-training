@@ -10,14 +10,22 @@ import 'auth_repository.dart';
 /// [AuthRepository] backed by the StrideQuest REST API.
 ///
 /// Paths are resolved relative to [baseUrl], so a base such as
-/// `https://example.com/api/` keeps its `/api/` prefix.
+/// `https://example.com/api` keeps its `/api` prefix, with or without a
+/// trailing slash.
 class HttpAuthRepository implements AuthRepository {
-  HttpAuthRepository({required this.baseUrl, required http.Client client})
-    : _client = client;
-
-  static const _timeout = Duration(seconds: 15);
+  HttpAuthRepository({
+    required Uri baseUrl,
+    required http.Client client,
+    this.timeout = const Duration(seconds: 15),
+  }) : baseUrl = _withTrailingSlash(baseUrl),
+       _client = client;
 
   final Uri baseUrl;
+
+  /// How long to wait for a response before failing with
+  /// [AuthFailureCode.network].
+  final Duration timeout;
+
   final http.Client _client;
 
   @override
@@ -71,10 +79,14 @@ class HttpAuthRepository implements AuthRepository {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(body),
           )
-          .timeout(_timeout);
+          .timeout(timeout);
     } on http.ClientException {
       throw AuthFailure(AuthFailureCode.network);
     } on TimeoutException {
+      throw AuthFailure(AuthFailureCode.network);
+    } on Exception {
+      // Anything else the transport throws, such as a TLS HandshakeException,
+      // so callers only ever have to handle AuthFailure.
       throw AuthFailure(AuthFailureCode.network);
     }
 
@@ -82,7 +94,7 @@ class HttpAuthRepository implements AuthRepository {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return decoded;
     }
-    throw _failure(response.statusCode, decoded);
+    throw _failure(response, decoded);
   }
 
   /// Builds a model from a success body, treating a missing or malformed
@@ -94,6 +106,8 @@ class HttpAuthRepository implements AuthRepository {
     if (json == null) throw AuthFailure(AuthFailureCode.unknown);
     try {
       return fromJson(json);
+      // A wrong or missing field fails a cast, which throws TypeError (an
+      // Error, not an Exception), so it is caught explicitly here.
     } on TypeError {
       throw AuthFailure(AuthFailureCode.unknown);
     } on FormatException {
@@ -111,18 +125,31 @@ class HttpAuthRepository implements AuthRepository {
     }
   }
 
-  AuthFailure _failure(int status, Map<String, dynamic>? body) {
+  AuthFailure _failure(http.Response response, Map<String, dynamic>? body) {
+    final retryAfter = _retryAfter(response.headers['retry-after']);
     final error = body?['error'];
     if (error is! Map<String, dynamic> || error['code'] is! String) {
       // The body is not an ErrorResponse, for example a proxy error page.
-      return AuthFailure(
-        status == 429 ? AuthFailureCode.rateLimited : AuthFailureCode.unknown,
-      );
+      return response.statusCode == 429
+          ? AuthFailure(AuthFailureCode.rateLimited, retryAfter: retryAfter)
+          : AuthFailure(AuthFailureCode.unknown);
     }
     return AuthFailure(
       AuthFailureCode.fromWire(error['code'] as String),
       fieldErrors: _fieldErrors(error['fields']),
+      retryAfter: retryAfter,
     );
+  }
+
+  /// Reads `Retry-After` in seconds, the form the backend sends. Returns null
+  /// for a missing header or the HTTP-date form.
+  Duration? _retryAfter(String? header) {
+    final seconds = int.tryParse(header?.trim() ?? '');
+    return seconds == null || seconds < 0 ? null : Duration(seconds: seconds);
+  }
+
+  static Uri _withTrailingSlash(Uri url) {
+    return url.path.endsWith('/') ? url : url.replace(path: '${url.path}/');
   }
 
   Map<String, String> _fieldErrors(Object? fields) {

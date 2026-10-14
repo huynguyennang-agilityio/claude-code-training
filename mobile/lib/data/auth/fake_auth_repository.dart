@@ -5,14 +5,24 @@ import 'auth_repository.dart';
 /// In-memory [AuthRepository] that behaves like the backend.
 ///
 /// Used by tests, and by local app builds once the app wiring lands (#14),
-/// until the backend auth endpoints exist.
+/// until the backend auth endpoints exist. Like the backend, sign in returns
+/// `validation_error` for a malformed body and `rate_limited` after
+/// [maxFailedSignIns] failed attempts for one email within
+/// [signInFailureWindow]. The per-IP limit is not modelled.
 class FakeAuthRepository implements AuthRepository {
-  FakeAuthRepository({this.latency = Duration.zero});
+  FakeAuthRepository({this.latency = Duration.zero, DateTime Function()? now})
+    : _now = now ?? DateTime.now;
+
+  static const maxFailedSignIns = 5;
+  static const signInFailureWindow = Duration(minutes: 15);
+  static const _accessTokenLifetime = Duration(minutes: 15);
 
   /// Delay added to every call, so loading states can be seen in the UI.
   final Duration latency;
 
+  final DateTime Function() _now;
   final _users = <String, ({AuthUser user, String password})>{};
+  final _failedSignIns = <String, List<DateTime>>{};
   final _refreshTokens = <String, AuthUser>{};
   var _nextId = 1;
   var _tokenCounter = 0;
@@ -48,10 +58,28 @@ class FakeAuthRepository implements AuthRepository {
     required String password,
   }) async {
     await Future<void>.delayed(latency);
-    final account = _users[email.trim().toLowerCase()];
+    final key = email.trim().toLowerCase();
+    final fieldErrors = {
+      if (!_isValidEmail(key)) 'email': 'Enter a valid email address.',
+      if (password.isEmpty) 'password': 'Enter your password.',
+    };
+    if (fieldErrors.isNotEmpty) {
+      throw AuthFailure(AuthFailureCode.validation, fieldErrors: fieldErrors);
+    }
+
+    final failures = _recentFailures(key);
+    if (failures.length >= maxFailedSignIns) {
+      throw AuthFailure(
+        AuthFailureCode.rateLimited,
+        retryAfter: failures.first.add(signInFailureWindow).difference(_now()),
+      );
+    }
+    final account = _users[key];
     if (account == null || account.password != password) {
+      failures.add(_now());
       throw AuthFailure(AuthFailureCode.invalidCredentials);
     }
+    _failedSignIns.remove(key);
     return AuthSession(user: account.user, tokens: _issueTokens(account.user));
   }
 
@@ -79,9 +107,7 @@ class FakeAuthRepository implements AuthRepository {
     String displayName,
   ) {
     return {
-      if (email.length > 254 ||
-          !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email))
-        'email': 'Enter a valid email address.',
+      if (!_isValidEmail(email)) 'email': 'Enter a valid email address.',
       if (password.length < 8 ||
           password.length > 128 ||
           !password.contains(RegExp('[A-Za-z]')) ||
@@ -93,6 +119,18 @@ class FakeAuthRepository implements AuthRepository {
     };
   }
 
+  bool _isValidEmail(String email) {
+    return email.length <= 254 &&
+        RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+  }
+
+  /// Failed sign-ins for [email] inside the window, oldest first.
+  List<DateTime> _recentFailures(String email) {
+    final cutoff = _now().subtract(signInFailureWindow);
+    return (_failedSignIns[email] ??= [])
+      ..removeWhere((time) => !time.isAfter(cutoff));
+  }
+
   AuthTokens _issueTokens(AuthUser user) {
     _tokenCounter++;
     final refreshToken = 'fake-refresh-${user.id}-$_tokenCounter';
@@ -100,6 +138,7 @@ class FakeAuthRepository implements AuthRepository {
     return AuthTokens(
       accessToken: 'fake-access-${user.id}-$_tokenCounter',
       refreshToken: refreshToken,
+      expiresIn: _accessTokenLifetime,
     );
   }
 }
