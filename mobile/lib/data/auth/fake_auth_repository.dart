@@ -4,8 +4,8 @@ import 'auth_repository.dart';
 
 /// In-memory [AuthRepository] that behaves like the backend.
 ///
-/// Used by tests and by local builds started with
-/// `--dart-define=FAKE_AUTH=true` until the backend auth endpoints exist.
+/// Used by tests, and by local app builds once the app wiring lands (#14),
+/// until the backend auth endpoints exist.
 class FakeAuthRepository implements AuthRepository {
   FakeAuthRepository({this.latency = Duration.zero});
 
@@ -25,14 +25,12 @@ class FakeAuthRepository implements AuthRepository {
   }) async {
     await Future<void>.delayed(latency);
     final key = email.trim().toLowerCase();
+    final fieldErrors = _validateSignUp(key, password, displayName.trim());
+    if (fieldErrors.isNotEmpty) {
+      throw AuthFailure(AuthFailureCode.validation, fieldErrors: fieldErrors);
+    }
     if (_users.containsKey(key)) {
       throw AuthFailure(AuthFailureCode.emailTaken);
-    }
-    if (password.length < 8) {
-      throw AuthFailure(
-        AuthFailureCode.validation,
-        fieldErrors: {'password': 'Password must be at least 8 characters.'},
-      );
     }
     final user = AuthUser(
       id: 'fake-user-${_nextId++}',
@@ -71,6 +69,28 @@ class FakeAuthRepository implements AuthRepository {
   Future<void> signOut(String refreshToken) async {
     await Future<void>.delayed(latency);
     _refreshTokens.remove(refreshToken);
+  }
+
+  /// Applies the field rules from `docs/api/auth.md`, like the backend does
+  /// before it checks for a duplicate email.
+  Map<String, String> _validateSignUp(
+    String email,
+    String password,
+    String displayName,
+  ) {
+    return {
+      if (email.length > 254 ||
+          !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email))
+        'email': 'Enter a valid email address.',
+      if (password.length < 8 ||
+          password.length > 128 ||
+          !password.contains(RegExp('[A-Za-z]')) ||
+          !password.contains(RegExp('[0-9]')))
+        'password':
+            'Password must be 8 to 128 characters with a letter and a digit.',
+      if (displayName.isEmpty || displayName.length > 50)
+        'display_name': 'Display name must be 1 to 50 characters.',
+    };
   }
 
   AuthTokens _issueTokens(AuthUser user) {

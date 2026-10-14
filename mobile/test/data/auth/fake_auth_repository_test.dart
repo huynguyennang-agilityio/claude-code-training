@@ -46,6 +46,46 @@ void main() {
     );
   });
 
+  test('checks the contract field rules before duplicates', () async {
+    await repository.signUp(
+      email: 'runner@example.com',
+      password: 'run4medals',
+      displayName: 'Lan',
+    );
+
+    final failure = await repository
+        .signUp(
+          email: 'runner@example.com',
+          password: 'onlyletters',
+          displayName: '   ',
+        )
+        .then<AuthFailure?>(
+          (_) => null,
+          onError: (Object e) => e as AuthFailure,
+        );
+
+    expect(failure?.code, AuthFailureCode.validation);
+    expect(
+      failure?.fieldErrors.keys,
+      unorderedEquals(['password', 'display_name']),
+    );
+  });
+
+  test('rejects an invalid email', () async {
+    final failure = await repository
+        .signUp(
+          email: 'not-an-email',
+          password: 'run4medals',
+          displayName: 'Lan',
+        )
+        .then<AuthFailure?>(
+          (_) => null,
+          onError: (Object e) => e as AuthFailure,
+        );
+
+    expect(failure?.fieldErrors.keys, ['email']);
+  });
+
   test('rejects a wrong password', () async {
     await repository.signUp(
       email: 'runner@example.com',
