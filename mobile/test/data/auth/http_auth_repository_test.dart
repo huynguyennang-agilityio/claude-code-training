@@ -180,6 +180,26 @@ void main() {
       expect(failure.code, AuthFailureCode.unknown);
     });
 
+    test('maps a success body without tokens to unknown', () async {
+      final repository = _repository((_) async => _json({'user': _user}, 200));
+
+      final failure = await _failureOf(
+        repository.signIn(email: 'a@b.co', password: 'abc12345'),
+      );
+
+      expect(failure.code, AuthFailureCode.unknown);
+    });
+
+    test('maps an empty success body to unknown', () async {
+      final repository = _repository((_) async => http.Response('', 200));
+
+      final failure = await _failureOf(
+        repository.signIn(email: 'a@b.co', password: 'abc12345'),
+      );
+
+      expect(failure.code, AuthFailureCode.unknown);
+    });
+
     test('maps an unknown error code to unknown', () async {
       final repository = _repository((_) async => _error('brand_new', 400));
 

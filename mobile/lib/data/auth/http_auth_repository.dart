@@ -31,7 +31,7 @@ class HttpAuthRepository implements AuthRepository {
       'password': password,
       'display_name': displayName,
     });
-    return AuthSession.fromJson(json!);
+    return _parse(json, AuthSession.fromJson);
   }
 
   @override
@@ -43,13 +43,13 @@ class HttpAuthRepository implements AuthRepository {
       'email': email,
       'password': password,
     });
-    return AuthSession.fromJson(json!);
+    return _parse(json, AuthSession.fromJson);
   }
 
   @override
   Future<AuthTokens> refresh(String refreshToken) async {
     final json = await _post('auth/refresh', {'refresh_token': refreshToken});
-    return AuthTokens.fromJson(json!);
+    return _parse(json, AuthTokens.fromJson);
   }
 
   @override
@@ -83,6 +83,22 @@ class HttpAuthRepository implements AuthRepository {
       return decoded;
     }
     throw _failure(response.statusCode, decoded);
+  }
+
+  /// Builds a model from a success body, treating a missing or malformed
+  /// body as [AuthFailureCode.unknown] instead of a raw parsing error.
+  T _parse<T>(
+    Map<String, dynamic>? json,
+    T Function(Map<String, dynamic>) fromJson,
+  ) {
+    if (json == null) throw AuthFailure(AuthFailureCode.unknown);
+    try {
+      return fromJson(json);
+    } on TypeError {
+      throw AuthFailure(AuthFailureCode.unknown);
+    } on FormatException {
+      throw AuthFailure(AuthFailureCode.unknown);
+    }
   }
 
   Map<String, dynamic>? _decode(String body) {
