@@ -108,10 +108,44 @@ cd backend
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
 The API will be available at http://localhost:8000, with interactive docs at http://localhost:8000/docs and a health check at `GET /api/v1/health`. Every API route is under `/api/v1`.
+
+### Database migrations
+
+The schema is managed by Alembic in `backend/alembic/`. The database URL comes from `DATABASE_URL` (via `app/core/config.py`), never from `alembic.ini`. Run these from `backend/` with the virtual environment active:
+
+```bash
+alembic upgrade head
+```
+
+```bash
+alembic revision --autogenerate -m "add medal awards table"
+```
+
+```bash
+alembic check
+```
+
+- **Every schema change ships with a migration in the same merge request.** Review the generated file before committing: autogenerate misses some changes, such as renames.
+- **`alembic check` must report no new operations** before you open the merge request.
+
+**One-time reset for databases created before Alembic.** If your local database was created before migrations existed, recreate it instead of stamping it. This **deletes all local data** in the `db-data` volume:
+
+```bash
+docker compose down -v
+```
+
+```bash
+docker compose up -d db
+```
+
+```bash
+cd backend && alembic upgrade head
+```
 
 ### Run the mobile app (planned)
 
