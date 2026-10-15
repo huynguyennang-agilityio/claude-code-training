@@ -2,8 +2,10 @@
 
 This is the source of truth for sign up and sign in between the Flutter app and the FastAPI backend. Change this file first, in its own merge request, before changing either side.
 
-- Base URL: `http://localhost:8000` locally. Every path in this file is under the API prefix `/api/v1`, for example `http://localhost:8000/api/v1/auth/signin`.
-- The prefix was added in #26. Before that, the same routes were served without `/api/v1`.
+- Server: `http://localhost:8000` locally.
+- API base: `http://localhost:8000/api/v1`. Every path below is written from the server root and already includes `/api/v1`, for example `http://localhost:8000/api/v1/auth/signin`.
+- Clients that resolve relative paths, such as the app's `HttpAuthRepository`, must set their base URL to the API base, not the server.
+- The `/api/v1` prefix was added in #26. Earlier versions of this contract listed the same routes without it.
 - All bodies are JSON (`Content-Type: application/json`).
 - Field names are `snake_case`. Timestamps are ISO 8601 in UTC, for example `2026-10-13T09:55:00Z`.
 
