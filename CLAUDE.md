@@ -27,11 +27,63 @@ mobile/test/                                flutter_test tests
 
 ## Workflow
 
-- Work on one GitLab issue at a time, on its own branch named `<type>/<issue-id>-<short-name>` (for example `feat/1-readme`, `fix/12-step-sync`).
-- Branch from `develop`, the default branch. `main` holds released code and only receives merges from `develop`.
-- Never push directly to `develop` or `main`. Open a merge request into `develop` using the default template in `.gitlab/merge_request_templates/Default.md`, and link the issue with `Closes #<id>`.
-- Add tests with every feature.
+Every change goes through the phases below in order. Don't skip a gate. When a gate needs the user's approval, stop and ask.
+
+General rules:
+
+- Work on one GitLab issue at a time.
+- `develop` is the default branch. `main` holds released code and only receives merges from `develop`.
+- Never push directly to `develop` or `main`.
 - Don't commit unless asked. After each task, suggest a short commit message.
+
+### Phase 0: Project foundation
+
+Set these up once and update them when they change: architecture, tech stack, repo layout, Claude rules (this file) and local tooling (Docker Compose, linters, formatters, test runners).
+
+### Phase 1: Plan and issue
+
+1. Analyze the request and list open questions.
+2. Write acceptance criteria.
+3. Create or pick the GitLab issue, with the acceptance criteria in it.
+4. Branch from `develop` as `<type>/<issue-id>-<short-name>` (for example `feat/1-readme`, `fix/12-step-sync`).
+
+### Phase 2: Design gate
+
+1. Analyze the impact: the layers, files, database tables and mobile/backend interactions the change touches.
+2. Define or update the API and data contract (endpoints, Pydantic schemas, tables) in `docs/api/`.
+3. Get the user's approval before implementing if the change touches a public API, the database schema, auth, or more than one layer.
+
+### Phase 3: Implement and test
+
+Build in small steps. For each step:
+
+1. Write the code.
+2. Add or update tests. Every feature needs tests.
+3. Run lint.
+4. Run type checks.
+
+### Phase 4: Verification gate
+
+Before opening an MR, confirm:
+
+1. **Acceptance criteria:** each criterion is met, and you can say how it was checked.
+2. **Regression:** the full test suite passes.
+3. **Security:** no leaked secrets, inputs are validated and authorization checks are in place.
+4. **Git diff:** `git diff develop...HEAD` contains only changes for this issue.
+
+### Phase 5: MR and review
+
+1. Open an MR into `develop` using `.gitlab/merge_request_templates/Default.md`, and link the issue with `Closes #<id>`.
+2. Claude reviews the MR following [Reviewing merge requests](#reviewing-merge-requests).
+3. The user reviews the MR.
+4. Address the review comments, then repeat Phases 3 and 4.
+
+### Phase 6: Merge and close
+
+1. The user approves the MR.
+2. Claude merges only after the user explicitly authorizes merging that MR.
+3. Verify `develop` after the merge: the pipeline passes and the change is present.
+4. Close the issue if `Closes #<id>` did not close it.
 
 ## Reviewing merge requests
 
