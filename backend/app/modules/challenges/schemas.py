@@ -1,14 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field
 
-
-class MedalRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    name: str
-    image_url: HttpUrl
+from app.modules.medals.schemas import MedalRead
 
 
 class ChallengeRead(BaseModel):

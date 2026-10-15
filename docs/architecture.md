@@ -152,11 +152,14 @@ backend/
 │   │   │   ├── service.py     # Business rules, raises domain exceptions
 │   │   │   └── deps.py        # Depends() factories, get_current_user
 │   │   ├── challenges/        # Same files
-│   │   ├── runs/              # Same files
-│   │   └── medals/            # Same files
+│   │   ├── runs/              # Same files, plus validation.py (validate_run)
+│   │   ├── medals/            # Same files
+│   │   └── models.py          # Imports every module's models for Base.metadata
 │   ├── api/
-│   │   └── v1/router.py       # Mounts every module router under /api/v1
-│   └── main.py                # App factory, exception handlers, health route
+│   │   └── v1/
+│   │       ├── router.py      # Mounts every module router under /api/v1
+│   │       └── health.py      # GET /api/v1/health
+│   └── main.py                # App factory, exception handlers
 ├── tests/
 │   ├── conftest.py            # PostgreSQL test DB, AsyncClient, dependency_overrides
 │   ├── unit/                  # Services with AsyncMock repositories
@@ -226,7 +229,7 @@ sequenceDiagram
 
 This is the core MVP journey: steps synced from the device complete a challenge and unlock its medal. Presentation copy: [`diagrams/run-to-medal.svg`](diagrams/run-to-medal.svg).
 
-Validation follows `validate_run` in `backend/app/services/run_validation.py`:
+Validation follows `validate_run` in `backend/app/modules/runs/validation.py`:
 - it rejects duplicate and out-of-window samples before anything is stored;
 - only accepted samples are saved and counted.
 
@@ -262,7 +265,7 @@ sequenceDiagram
 
 ### Data model
 
-These are the current tables in `backend/app/models`. `users` is planned by the [auth contract](api/auth.md) and doesn't exist yet. `runs.user_id` will reference it.
+These are the current tables, defined in each module's `models.py` under `backend/app/modules/`. `users` is planned by the [auth contract](api/auth.md) and doesn't exist yet. `runs.user_id` will reference it.
 
 ```mermaid
 erDiagram

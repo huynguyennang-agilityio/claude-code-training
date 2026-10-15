@@ -3,8 +3,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.run import StepSampleIn
-from app.services.run_validation import ChallengeRule, RejectionReason, validate_run
+from app.modules.runs.schemas import StepSampleIn
+from app.modules.runs.validation import ChallengeRule, RejectionReason, validate_run
 
 START = datetime(2026, 10, 1, tzinfo=UTC)
 RULE = ChallengeRule(target_steps=1_000, starts_at=START, ends_at=START + timedelta(hours=2))

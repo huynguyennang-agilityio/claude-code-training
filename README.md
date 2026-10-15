@@ -36,7 +36,7 @@ StrideQuest is a modular monolith: one FastAPI app split into the modules `auth`
 The Mermaid source of this diagram, and the other architecture diagrams, are in [`docs/architecture.md`](docs/architecture.md).
 
 - The app reads step data on the device and syncs it to the backend.
-- Protected routes need a JWT access token. Sign up, sign in, refresh, sign out and `/health` don't; see [`docs/api/auth.md`](docs/api/auth.md).
+- Protected routes need a JWT access token. Sign up, sign in, refresh, sign out and `/api/v1/health` don't; see [`docs/api/auth.md`](docs/api/auth.md).
 - The `runs` module validates a run against the challenge rules from `challenges` and gets the medal from `medals` when the run passes.
 - Medal images are static files in object storage; PostgreSQL stores only their URLs.
 
@@ -111,7 +111,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-The API will be available at http://localhost:8000, with interactive docs at http://localhost:8000/docs and a health check at `GET /health`.
+The API will be available at http://localhost:8000, with interactive docs at http://localhost:8000/docs and a health check at `GET /api/v1/health`. Every API route is under `/api/v1`.
 
 ### Run the mobile app (planned)
 
