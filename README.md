@@ -17,54 +17,65 @@ The first version focuses on one complete user journey rather than many features
 
 | Part | Technology |
 | --- | --- |
-| Mobile app | Flutter (Dart), layered architecture (UI, logic, data), `go_router` for navigation |
-| Backend | FastAPI on Python 3.12, async throughout, Pydantic schemas |
+| Mobile app | Flutter (Dart), feature-first Clean Architecture |
+| Mobile state and DI | `flutter_bloc`, `get_it` + `injectable` |
+| Mobile networking and models | `dio`, `freezed` + `json_serializable` (generated with `build_runner`) |
+| Mobile navigation | `go_router` |
+| Backend | FastAPI on Python 3.12 as a modular monolith, async throughout, Pydantic schemas |
+| Backend data access | SQLAlchemy 2 (async) with Alembic migrations |
 | Database | PostgreSQL |
 | Medal images | S3-compatible object storage (AWS S3 in production, SeaweedFS locally) |
 | Health data | Apple Health (iOS) and Health Connect (Android), read on the device |
 
 ## Architecture
 
-StrideQuest is a modular monolith: one FastAPI app split into service modules that share one PostgreSQL database.
+StrideQuest is a modular monolith: one FastAPI app split into the modules `auth`, `challenges`, `runs` and `medals`, which share one PostgreSQL database. The Flutter app is organised by the same features.
 
-```mermaid
-flowchart TD
-    HK[Apple Health / Health Connect] --> A[Flutter Mobile App]
-    A --> B[FastAPI REST API]
-    B --> C[Authentication - JWT]
-    C --> D[Challenge Service]
-    C --> E[Running Session Service]
-    C --> F[Medal and Achievement Service]
-    D --> G[(PostgreSQL)]
-    E --> G
-    F --> G
-    S[(Object storage - medal images)] --> A
-```
+![StrideQuest system context](docs/diagrams/system-context.svg)
+
+The Mermaid source of this diagram, and the other architecture diagrams, are in [`docs/architecture.md`](docs/architecture.md).
 
 - The app reads step data on the device and syncs it to the backend.
-- Every API request passes through JWT authentication.
-- The Running Session Service validates a run against the challenge rules and asks the Medal Service to award a medal when the run passes.
+- Every API request except sign up and sign in needs a JWT access token.
+- The `runs` module validates a run against the challenge rules from `challenges` and gets the medal from `medals` when the run passes.
 - Medal images are static files in object storage; PostgreSQL stores only their URLs.
 
-Detailed design notes (run validation, deduplication, anti-cheat) live in issue #6.
+More detail:
+- [`docs/architecture.md`](docs/architecture.md): layers, module diagrams, request and run-sync flows, data model and test strategy.
+- [ADR 0001](docs/adr/0001-architecture.md): why we chose this architecture.
+- Issue #6: run validation, deduplication and anti-cheat.
 
 ## Project structure (planned)
 
+Some folders below don't exist yet; existing code is being moved to this layout.
+
 ```text
-backend/            FastAPI app
+backend/                    FastAPI app
+  alembic/                  Database migrations
   app/
-    api/            Route handlers
-    models/         Database models
-    schemas/        Pydantic request and response schemas
-    services/       Business logic (challenges, runs, medals)
-  tests/            pytest tests
-mobile/             Flutter app
+    core/                   Config, database, security, storage, errors
+    modules/
+      auth/                 router, schemas, models, repository, service, deps
+      challenges/           Same files
+      runs/                 Same files
+      medals/               Same files
+    api/v1/router.py        Mounts module routers under /api/v1
+    main.py                 App factory and exception handlers
+  tests/
+    unit/                   Services with mocked repositories
+    integration/            Routes against a PostgreSQL test database
+mobile/                     Flutter app
   lib/
-    ui/             Screens and widgets
-    logic/          State and use cases
-    data/           Repositories, API client, health data
-  test/             flutter_test tests
-docker-compose.yml  Local PostgreSQL and SeaweedFS (S3-compatible storage)
+    core/                   DI, router, network, error, theme, config
+    shared/                 Widgets and utils used by several features
+    features/
+      auth/                 data/, domain/, presentation/
+      challenges/           Same layers
+      runs/                 Same layers, plus the health data source
+      medals/               Same layers
+  test/                     Mirrors lib/
+docs/                       Architecture, workflow, ADRs, API contracts, diagrams
+docker-compose.yml          Local PostgreSQL and SeaweedFS (S3-compatible storage)
 ```
 
 ## Getting started
@@ -135,11 +146,21 @@ flutter test
 
 Ruff and pytest are configured in `backend/pyproject.toml`; Dart lints are configured in `mobile/analysis_options.yaml`.
 
+Once the target architecture lands:
+- **Generated models:** after changing a Freezed model or an injectable registration, regenerate the code with `dart run build_runner build --delete-conflicting-outputs`.
+- **Backend integration tests:** they need the database running, so start it first with `docker compose up -d db`.
+
 ## Development guidelines
 
-- **Backend:** async throughout. Use `httpx.AsyncClient` for outgoing calls and never block the event loop. Define request and response bodies as Pydantic models, and return errors as typed fields rather than free-form strings.
-- **Mobile:** keep the UI, logic and data layers separate, and use `go_router` for navigation.
-- **Tests:** add tests with every feature: `pytest` for the backend, `flutter_test` for the app.
+- **Backend:**
+  - Async throughout. Use `httpx.AsyncClient` for outgoing calls and never block the event loop.
+  - Keep each module's router → service → repository layers separate. Modules talk to each other only through services.
+  - Define request and response bodies as Pydantic models, and return errors as the typed `ErrorResponse` rather than free-form strings.
+- **Mobile:**
+  - Organise code by feature. Each feature has `data/`, `domain/` and `presentation/`; `domain/` stays pure Dart.
+  - Use blocs for state and `get_it` for DI.
+  - Navigate with `go_router`, passing only IDs in routes.
+- **Tests:** add tests with every feature. Backend: `pytest` unit tests for services and integration tests for routes. App: `flutter_test`, `bloc_test` and `mocktail`.
 - **Language:** code, comments, docs, commit messages and merge requests are written in English.
 - **Secrets:** never commit secrets. Add new settings to `.env.example` with placeholder values.
 
@@ -153,3 +174,5 @@ Ruff and pytest are configured in `backend/pyproject.toml`; Dart lints are confi
 6. Address review comments, make sure lint and tests pass locally, then merge.
 
 `develop` is the default branch and collects finished work. `main` holds released code and is updated only by merging `develop` into it. Both branches are protected, so changes land only through merge requests.
+
+The full workflow, with its gates, is in [`CLAUDE.md`](CLAUDE.md#workflow) and drawn in [`docs/workflow.md`](docs/workflow.md).

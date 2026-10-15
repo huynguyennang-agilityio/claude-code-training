@@ -4,21 +4,40 @@ Guidance for Claude when working in this repository.
 
 ## Project
 
-StrideQuest is a running app where every run is a quest: runners complete challenges to unlock medals. See `README.md` for the MVP scope and the architecture diagram.
+StrideQuest is a running app where every run is a quest: runners complete challenges to unlock medals. See `README.md` for the MVP scope.
 
-- **Mobile:** Flutter (Dart), layered architecture (UI, logic, data), `go_router` for navigation, `flutter_test` for tests.
-- **Backend:** FastAPI on Python 3.12, async throughout (use `httpx.AsyncClient`, never block the event loop), Pydantic models for request and response schemas, errors returned as typed fields rather than free-form strings, `pytest` for tests.
+The architecture is described, with diagrams, in [`docs/architecture.md`](docs/architecture.md); the decisions and their reasons are in [`docs/adr/0001-architecture.md`](docs/adr/0001-architecture.md). Existing code is still being moved to this layout, so follow the target layout for new code and don't copy older patterns.
+
+- **Mobile:** Flutter (Dart), feature-first Clean Architecture. Uses `flutter_bloc` for state, `get_it` + `injectable` for DI, `dio` for HTTP, `freezed` + `json_serializable` for models, `go_router` for navigation. Tests use `flutter_test`, `bloc_test` and `mocktail`.
+- **Backend:** FastAPI on Python 3.12 as a modular monolith (modules `auth`, `challenges`, `runs`, `medals`). Async throughout: use `httpx.AsyncClient`, never block the event loop. Pydantic schemas for requests and responses, SQLAlchemy 2 async, Alembic migrations. Errors use the typed `ErrorResponse` from `docs/api/`, not free-form strings. Tests use `pytest`: unit tests mock repositories, integration tests run against a PostgreSQL test database from `docker compose`.
 - **Data:** PostgreSQL. Medal images are static files in S3-compatible object storage (AWS S3 in production, SeaweedFS locally); the database stores only their URLs.
 - **Health data:** the app reads steps from Apple Health or Health Connect on the device and syncs them to the backend.
 
 ## Planned structure
 
 ```text
-backend/app/{api,models,schemas,services}   FastAPI app
-backend/tests/                              pytest tests
-mobile/lib/{ui,logic,data}                  Flutter app layers
-mobile/test/                                flutter_test tests
+mobile/lib/core/                                     DI, router, network, error, theme, config
+mobile/lib/shared/                                   widgets and utils used by several features
+mobile/lib/features/<feature>/{data,domain,presentation}
+mobile/test/                                         mirrors lib/
+backend/app/core/                                    config, database, security, storage, errors
+backend/app/modules/<module>/                        router, schemas, models, repository, service, deps
+backend/app/api/v1/router.py                         mounts module routers under /api/v1
+backend/alembic/                                     migrations
+backend/tests/{unit,integration}/                    pytest tests
 ```
+
+## Architecture rules
+
+- **Mobile dependency direction:** presentation → domain ← data. `domain/` is pure Dart: no Flutter, Dio or storage imports (`equatable` and `freezed_annotation` are allowed).
+- **Mobile use cases** are optional. Add one only when logic spans several repositories or is reused; otherwise a bloc calls the repository interface.
+- **Navigation:** sign-in and sign-out redirects come from the `GoRouter` `redirect`, driven by `AuthBloc` through a `refreshListenable` adapter. Routes pass IDs only, never objects through `state.extra`.
+- **Blocs** are registered with `registerFactory` and created in the route's `BlocProvider`, so they close with the route.
+- **Backend layers:** router → service → repository.
+  - Routers never touch the database session.
+  - Repositories only query and `flush`. The service, or the session dependency, commits or rolls back.
+- **Backend modules** call each other only through services, never another module's repository or models.
+- **Errors:** services raise typed domain exceptions. The global handler maps them to `ErrorResponse`.
 
 ## Language
 
@@ -27,7 +46,7 @@ mobile/test/                                flutter_test tests
 
 ## Workflow
 
-Every change goes through the phases below in order. Don't skip a gate. When a gate needs the user's approval, stop and ask.
+Every change goes through the phases below in order. Don't skip a gate. When a gate needs the user's approval, stop and ask. The phases, branching and review flow are drawn in [`docs/workflow.md`](docs/workflow.md); if it disagrees with this file, this file wins.
 
 General rules:
 
