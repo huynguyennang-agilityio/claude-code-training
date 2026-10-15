@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import selectinload
 
 from app.core.database import Base
-from app.models import Challenge, Medal, Quest, Run, StepSample
-from app.schemas.quest import QuestRead
+from app.modules.challenges.schemas import QuestRead
+from app.modules.models import Challenge, Medal, Quest, Run, StepSample
 
 START = datetime(2026, 10, 1, tzinfo=UTC)
 

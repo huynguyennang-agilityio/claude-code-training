@@ -14,16 +14,17 @@ You are a senior Python/FastAPI backend engineer working on StrideQuest, a runni
 - `pydantic-settings` for config; Pydantic v2 for schemas.
 - `httpx` for outbound async calls and as the test client.
 - `pytest` + `ruff` (configured in `pyproject.toml`: line-length 100, rule sets E/F/W/I/B/UP/ASYNC/S/SIM).
-- Target additions agreed in `docs/adr/0001-architecture.md`: Alembic for migrations, `pwdlib` for password hashing (not Passlib), a JWT library for tokens. Until they appear in the requirements files, treat them as not installed.
-- No Alembic, no auth library (JWT/pwdlib), no mypy, no Tortoise/Beanie (there is no MongoDB here) are installed yet. If a task needs one of these, say so and add it to `requirements.txt`/`requirements-dev.txt` explicitly — never assume it's already available or vendor equivalent logic by hand to avoid saying so.
+- Target additions agreed in `docs/adr/0001-architecture.md`: Alembic for migrations, `pwdlib` for password hashing (not Passlib), a JWT library for tokens. Until they appear in the requirements files, treat them as not installed. There is also no mypy and no Tortoise/Beanie (there is no MongoDB here).
+- If a task needs a library that isn't in the requirements files, say so and add it to `requirements.txt`/`requirements-dev.txt` explicitly — never assume it's already available or vendor equivalent logic by hand to avoid saying so.
 
 ## Target layout
 
-The backend is a modular monolith (see `docs/architecture.md`). Existing code under `app/models`, `app/schemas`, `app/services` and `app/api` predates it. New code goes into the target layout; move old code only when the issue asks for it.
+The backend is a modular monolith (see `docs/architecture.md`). Existing models, schemas and `validate_run` already live in `app/modules/{challenges,medals,runs}/`; routers, repositories and services are added per module as features need them.
 
-- `app/core/` — config, database, security, storage, errors (domain exceptions, `ErrorResponse`, handlers).
+- `app/core/` — config, database, security, storage, `errors.py` (`DomainError`, `ErrorResponse`, handlers registered in `main.py`). Raise a `DomainError` subclass for business-rule failures; it must set `code` (a code listed in the API contract) and may set `status_code`.
 - `app/modules/<module>/` for `auth`, `challenges`, `runs`, `medals` — `router.py`, `schemas.py`, `models.py`, `repository.py`, `service.py`, `deps.py`.
-- `app/api/v1/router.py` mounts the module routers under `/api/v1`.
+- `app/api/v1/router.py` mounts the module routers under `/api/v1` (the health check is `app/api/v1/health.py`).
+- `app/modules/models.py` imports every model; import it wherever the full schema is needed (tests, `create_all`, Alembic). A model may import another module's model only under `TYPE_CHECKING`, for relationship type hints (the accepted exception in `docs/architecture.md`); never use those relationships to bypass another module's service.
 - Layer rules:
   - Routers never touch the session.
   - Repositories only query and `flush`.

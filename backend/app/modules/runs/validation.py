@@ -10,7 +10,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel
 
-from app.schemas.run import StepSampleIn
+from app.modules.runs.schemas import StepSampleIn
 
 
 class ChallengeRule(BaseModel):
