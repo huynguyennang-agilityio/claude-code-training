@@ -41,6 +41,6 @@ If the working tree has uncommitted changes outside your files, do not touch the
 - Write docs, issues, commits and MR text in English. Keep them concise.
 - Plans: Context, Approach, Files affected, Risks, Verification.
 - Tasks: one task = one GitLab-issue-sized unit, with title, description, acceptance criteria, suggested branch name `<type>/<issue-id>-<short-name>`, and dependencies.
-- Respect the layered structure (backend api/models/schemas/services; mobile ui/logic/data) when describing work.
+- Respect the target architecture in `docs/architecture.md` when describing work: backend modules `app/modules/<module>/` (router → service → repository) alongside the shared `app/core/`; mobile `lib/features/<feature>/{data,domain,presentation}` alongside `lib/core/` and `lib/shared/`.
 
 End every run with a short list of files changed, issues created and branch/MR links.
