@@ -121,7 +121,7 @@ Before opening an MR, confirm:
 ### Phase 5: MR and review
 
 1. When the user asks, push the branch and open an MR into `develop` using `.gitlab/merge_request_templates/Default.md`, and link the issue with `Closes #<id>`.
-2. Claude reviews the MR following [Reviewing merge requests](#reviewing-merge-requests).
+2. As soon as the MR is open, Claude runs the `code-reviewer` subagent on it, following [Reviewing merge requests](#reviewing-merge-requests). This happens automatically — don't wait for the user to ask. This applies whether Claude opened the MR directly or a `fastapi-backend`/`flutter-dev` subagent did.
 3. The user reviews the MR.
 4. Address the review comments, then repeat Phases 3 and 4.
 
