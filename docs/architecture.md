@@ -34,7 +34,7 @@ mobile/lib/
 │   ├── di/                # get_it + injectable setup
 │   ├── error/             # Failure and exception types
 │   ├── network/           # Dio client, auth and refresh interceptors
-│   ├── router/            # GoRouter, redirect, AuthBloc listenable adapter
+│   ├── router/            # GoRouter, redirect, GoRouterRefreshStream adapter
 │   └── theme/             # Colors, typography, AppTheme
 ├── shared/                # Widgets, extensions and utils used by several features
 ├── features/
@@ -109,7 +109,7 @@ flowchart LR
 
 ### Auth redirect
 
-Screens never navigate on sign-in or sign-out themselves. The router listens to `AuthBloc` and redirects.
+Screens never navigate on sign-in or sign-out themselves. The router listens to `AuthBloc` and redirects. `GoRouterRefreshStream` is a small `ChangeNotifier` adapter we write in `core/router`; go_router does not ship it.
 
 ```mermaid
 sequenceDiagram
@@ -226,6 +226,12 @@ sequenceDiagram
 
 This is the core MVP journey: steps synced from the device complete a challenge and unlock its medal. Presentation copy: [`diagrams/run-to-medal.svg`](diagrams/run-to-medal.svg).
 
+Validation follows `validate_run` in `backend/app/services/run_validation.py`:
+- it rejects duplicate and out-of-window samples before anything is stored;
+- only accepted samples are saved and counted.
+
+The endpoint path is illustrative. Its contract still has to be written in `docs/api/runs.md` before it is built (CLAUDE.md Phase 2).
+
 ```mermaid
 sequenceDiagram
     participant HD as HealthDataSource
@@ -237,12 +243,14 @@ sequenceDiagram
     participant DB as PostgreSQL
     RB->>HD: read step samples since last sync
     HD-->>RB: samples with health_record_id
-    RB->>API: POST /api/v1/runs/{id}/samples
+    RB->>API: POST step samples (path to be defined in docs/api/runs.md)
     API->>RS: add_samples(run_id, samples)
-    RS->>DB: insert, skip duplicate health_record_id
-    RS->>CS: get rules (target_steps, window)
-    RS->>RS: total steps in window >= target?
-    opt challenge completed
+    RS->>CS: get rule (target_steps, window)
+    CS-->>RS: ChallengeRule
+    RS->>DB: read known health_record_ids
+    RS->>RS: validate_run: reject duplicates and out-of-window, sum accepted
+    RS->>DB: insert accepted samples
+    opt passed (counted steps >= target)
         RS->>DB: mark run completed
         RS->>MS: medal_for(challenge)
         MS-->>RS: medal (name, image_url)
@@ -296,7 +304,7 @@ erDiagram
         int run_id FK
         string health_record_id "unique per run"
         datetime start_time
-        datetime end_time
+        datetime end_time "not before start_time"
         int steps "0 or more"
     }
     USERS {
@@ -329,7 +337,7 @@ flowchart LR
 | --- | --- | --- |
 | Bloc / use case | `bloc_test`, `mocktail` | Events produce the right ordered states, for example loading → success. |
 | Widget / router | `flutter_test`, `mocktail` | A page renders each state, and navigation lands on the expected screen. |
-| Backend unit | `pytest`, `pytest-asyncio`, `AsyncMock` | Service rules and raised error codes, with no database. |
+| Backend unit | `pytest` with the anyio plugin (`@pytest.mark.anyio`), `AsyncMock` | Service rules and raised error codes, with no database. |
 | Backend integration | `pytest`, `httpx.AsyncClient`, PostgreSQL from `docker compose` | Request, response and error contract against a real database. |
 
 UI tests don't prove the screen matches the design, and backend tests don't prove the app-to-API flow works. See the verification rules in [`CLAUDE.md`](../CLAUDE.md).

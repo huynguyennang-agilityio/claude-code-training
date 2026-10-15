@@ -29,7 +29,7 @@
     <div class="diagram-container">
       <svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="phase-flow-title phase-flow-desc">
         <title id="phase-flow-title">StrideQuest development phases</title>
-        <desc id="phase-flow-desc">Flowchart of the development workflow from project foundation through plan, design, implementation, verification, merge request and merge, with the user gates that loop back when a check fails.</desc>
+        <desc id="phase-flow-desc">Flowchart of the development workflow for one change, from plan and issue through design, implementation, verification, merge request and merge, with the user gates that loop back when a check fails.</desc>
         <defs>
           <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
           <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#bf4520"/></marker>
@@ -71,8 +71,8 @@
 <!-- nodes -->
 <rect x="40" y="132" width="120" height="56" rx="20" fill="#f5f5f5"/>
 <rect x="40" y="132" width="120" height="56" rx="20" fill="rgba(79,93,117,0.10)" stroke="#5a6580" stroke-width="1"/>
-<text x="100.0" y="160.0" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Foundation</text>
-<text x="100.0" y="174.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">phase 0</text>
+<text x="100.0" y="160.0" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">New change</text>
+<text x="100.0" y="174.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">ticket</text>
 <rect x="230" y="132" width="120" height="56" rx="6" fill="#f5f5f5"/>
 <rect x="230" y="132" width="120" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
 <text x="290.0" y="160.0" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Plan + issue</text>
@@ -80,7 +80,7 @@
 <polygon points="480,120.0 536.0,160 480,200.0 424.0,160" fill="#f5f5f5"/>
 <polygon points="480,120.0 536.0,160 480,200.0 424.0,160" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
 <text x="480" y="160" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Ready?</text>
-<text x="480" y="174" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">evidence, AC</text>
+<text x="480" y="174" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">AC + issue</text>
 <rect x="610" y="132" width="120" height="56" rx="6" fill="#f5f5f5"/>
 <rect x="610" y="132" width="120" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
 <text x="670.0" y="160.0" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Design</text>
@@ -99,8 +99,8 @@
 <text x="670" y="414" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">phase 4 gate</text>
 <rect x="420" y="372" width="120" height="56" rx="6" fill="#f5f5f5"/>
 <rect x="420" y="372" width="120" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-<text x="480.0" y="400.0" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">MR + review</text>
-<text x="480.0" y="415.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">phase 5 · agent</text>
+<text x="480.0" y="400.0" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Push + MR</text>
+<text x="480.0" y="415.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">phase 5 · review</text>
 <polygon points="290,360.0 346.0,400 290,440.0 234.0,400" fill="#f5f5f5"/>
 <polygon points="290,360.0 346.0,400 290,440.0 234.0,400" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
 <text x="290" y="400" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">User OK?</text>

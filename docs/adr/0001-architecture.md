@@ -23,14 +23,14 @@ The detailed design, with diagrams, is in [`docs/architecture.md`](../architectu
 | Mobile models | `freezed` + `json_serializable`, generated with `build_runner`. Data models map to domain entities. |
 | Mobile navigation | `go_router`. Auth redirects come from `AuthBloc` through a stream-to-`Listenable` adapter passed to `refreshListenable`. Routes pass IDs only. |
 | Mobile domain | Pure Dart. It may import `equatable` and `freezed_annotation`, nothing from Flutter or IO. Use cases are optional: add one only when logic spans several repositories or is reused. |
-| Backend layout | Modular monolith: `app/core/` for shared infrastructure, `app/modules/{auth,challenges,runs,medals}/` each with `router.py`, `schemas.py`, `models.py`, `repository.py`, `service.py`, and `app/api/v1/router.py` to mount them. |
+| Backend layout | Modular monolith: `app/core/` for shared infrastructure, `app/modules/{auth,challenges,runs,medals}/` each with `router.py`, `schemas.py`, `models.py`, `repository.py`, `service.py`, `deps.py`, and `app/api/v1/router.py` to mount them. |
 | Backend layering | Router → service → repository. Routers never touch the session. Repositories only `flush`. The service, or the request's session dependency, commits or rolls back. Modules call each other only through services. |
 | Backend errors | Services raise typed domain exceptions. A global handler maps them to the `ErrorResponse` shape in [`docs/api/auth.md`](../api/auth.md). |
 | Backend migrations | Alembic. |
 | Password hashing | `pwdlib` (Argon2 or bcrypt), not Passlib. |
-| Backend tests | `tests/unit/` for services with `AsyncMock` repositories, and `tests/integration/` for routes against a PostgreSQL test database from `docker compose`, rolled back after each test. |
+| Backend tests | `pytest` with the anyio plugin. `tests/unit/` for services with `AsyncMock` repositories, and `tests/integration/` for routes against a PostgreSQL test database from `docker compose`, rolled back after each test. |
 | Mobile tests | `flutter_test`, `bloc_test`, `mocktail`. Router tests build a real `GoRouter` and assert which screen is shown. |
-| Diagrams | Mermaid in Markdown is the source. SVG/PNG exports live in `docs/diagrams/`. |
+| Diagrams | Mermaid in Markdown is the source. SVG exports of the key diagrams live in `docs/diagrams/`. |
 
 ## Alternatives considered
 
@@ -41,8 +41,8 @@ The detailed design, with diagrams, is in [`docs/architecture.md`](../architectu
 
 ## Consequences
 
-- New mobile dependencies: `flutter_bloc`, `get_it`, `injectable`, `dio`, `freezed`, `json_serializable`, `build_runner`, `bloc_test`, `mocktail`.
-- New backend dependencies: `alembic`, `pwdlib`.
+- New mobile dependencies: `flutter_bloc`, `get_it`, `injectable`, `dio`, `freezed`, `freezed_annotation`, `json_serializable`, `equatable`, `build_runner`, `injectable_generator`, `flutter_secure_storage`, `bloc_test`, `mocktail`, and a health data plugin.
+- New backend dependencies: `alembic`, `pwdlib`, and a JWT library (to be chosen with the auth implementation).
 - Existing code does not follow this layout yet. It will move in follow-up issues:
   - `mobile/lib/data/auth` moves to `features/auth`;
   - the backend models and services move into `app/modules/*`;
