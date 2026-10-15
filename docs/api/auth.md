@@ -2,7 +2,8 @@
 
 This is the source of truth for sign up and sign in between the Flutter app and the FastAPI backend. Change this file first, in its own merge request, before changing either side.
 
-- Base URL: `http://localhost:8000` locally.
+- Base URL: `http://localhost:8000` locally. Every path in this file is under the API prefix `/api/v1`, for example `http://localhost:8000/api/v1/auth/signin`.
+- The prefix was added in #26. Before that, the same routes were served without `/api/v1`.
 - All bodies are JSON (`Content-Type: application/json`).
 - Field names are `snake_case`. Timestamps are ISO 8601 in UTC, for example `2026-10-13T09:55:00Z`.
 
@@ -10,19 +11,19 @@ This is the source of truth for sign up and sign in between the Flutter app and 
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
-| `POST` | `/auth/signup` | none | Create an account and sign in |
-| `POST` | `/auth/signin` | none | Sign in with email and password |
-| `POST` | `/auth/refresh` | none (refresh token in body) | Swap a refresh token for a new token pair |
-| `POST` | `/auth/signout` | none (refresh token in body) | Revoke a refresh token |
-| `GET` | `/users/me` | access token | Read the signed-in user |
+| `POST` | `/api/v1/auth/signup` | none | Create an account and sign in |
+| `POST` | `/api/v1/auth/signin` | none | Sign in with email and password |
+| `POST` | `/api/v1/auth/refresh` | none (refresh token in body) | Swap a refresh token for a new token pair |
+| `POST` | `/api/v1/auth/signout` | none (refresh token in body) | Revoke a refresh token |
+| `GET` | `/api/v1/users/me` | access token | Read the signed-in user |
 
 ## Tokens
 
 - **Access token:** a JWT, valid for 15 minutes. Send it on protected routes as `Authorization: Bearer <access_token>`. The app must treat it as opaque and must not read its claims.
-- **Refresh token:** an opaque random string, valid for 30 days. Send it only to `/auth/refresh` and `/auth/signout`.
+- **Refresh token:** an opaque random string, valid for 30 days. Send it only to `/api/v1/auth/refresh` and `/api/v1/auth/signout`.
 - **Rotation:** every successful refresh returns a new refresh token and revokes the old one. Store the new pair and discard the old one. Using a revoked refresh token returns `401 invalid_refresh_token`.
 - Store both tokens in secure storage (Keychain or Keystore), never in plain preferences.
-- When a protected route returns `401` with `token_expired` or `invalid_token`, call `/auth/refresh` once and retry the request. If the refresh fails, clear the tokens and go to Sign in.
+- When a protected route returns `401` with `token_expired` or `invalid_token`, call `/api/v1/auth/refresh` once and retry the request. If the refresh fails, clear the tokens and go to Sign in.
 
 Lifetimes are configurable on the backend (`ACCESS_TOKEN_TTL_MINUTES`, `REFRESH_TOKEN_TTL_DAYS`). Use `expires_in` from the response instead of hard-coding 15 minutes.
 
@@ -114,7 +115,7 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 | 401 | `token_expired` | The access token has expired. Refresh and retry. |
 | 429 | `rate_limited` | Too many failed sign-ins for this email or device. Wait for the number of seconds in the `Retry-After` header. |
 
-## `POST /auth/signup`
+## `POST /api/v1/auth/signup`
 
 Request:
 
@@ -131,7 +132,7 @@ Responses:
 - `201 Created` with `AuthResponse`.
 - `409 email_taken`, `422 validation_error`.
 
-## `POST /auth/signin`
+## `POST /api/v1/auth/signin`
 
 Request:
 
@@ -149,7 +150,7 @@ Responses:
 
 Sign in is rate limited: after 5 failed attempts for the same email within 15 minutes, or 20 failed attempts from the same IP within 15 minutes, it returns `429` until the window passes, even with the right password. A successful sign-in clears the count for that email.
 
-## `POST /auth/refresh`
+## `POST /api/v1/auth/refresh`
 
 Request:
 
@@ -164,7 +165,7 @@ Responses:
 - `200 OK` with `TokenPair` (a new access token and a new refresh token).
 - `401 invalid_refresh_token`, `422 validation_error`.
 
-## `POST /auth/signout`
+## `POST /api/v1/auth/signout`
 
 Request:
 
@@ -181,7 +182,7 @@ Responses:
 
 The access token stays valid until it expires (at most 15 minutes). The app should delete both tokens locally when signing out.
 
-## `GET /users/me`
+## `GET /api/v1/users/me`
 
 Header: `Authorization: Bearer <access_token>`.
 
