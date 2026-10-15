@@ -169,7 +169,7 @@ backend/
 
 ### Modules and layers
 
-Modules talk to each other only through services, never through another module's repository or models. Presentation copy: [`diagrams/backend-modules.svg`](diagrams/backend-modules.svg).
+Modules talk to each other only through services, never through another module's repository or models. One accepted exception: the existing ORM relationships between models (`Run.challenge`, `Challenge.medal`, `Challenge.runs`) cross modules, with the import under `TYPE_CHECKING`. They map the foreign keys; don't use them to reach into another module instead of calling its service. Presentation copy: [`diagrams/backend-modules.svg`](diagrams/backend-modules.svg).
 
 ```mermaid
 flowchart TB

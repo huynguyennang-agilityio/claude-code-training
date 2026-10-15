@@ -5,13 +5,17 @@ it, and request validation errors, into the shared error body so clients
 can branch on `error.code` instead of parsing messages.
 """
 
+from typing import Any, ClassVar
+
 from fastapi import FastAPI, Request
-from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 VALIDATION_ERROR_CODE = "validation_error"
+VALIDATION_ERROR_MESSAGE = "Request is invalid."
+
+_LOCATIONS = {"body", "query", "path", "header", "cookie"}
 
 
 class FieldError(BaseModel):
@@ -32,11 +36,18 @@ class ErrorResponse(BaseModel):
 class DomainError(Exception):
     """A business-rule failure with a stable, machine-readable code.
 
-    Subclasses set `status_code` and `code`; the message is for logs and may change.
+    Raise a subclass, never this class: each subclass must set `code` (listed in
+    the API contract) and may override `status_code`. The message is for logs
+    and may change.
     """
 
-    status_code: int = 400
-    code: str = "domain_error"
+    status_code: ClassVar[int] = 400
+    code: ClassVar[str]
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if not isinstance(getattr(cls, "code", None), str):
+            raise TypeError(f"{cls.__name__} must set a string `code`")
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
@@ -44,8 +55,8 @@ class DomainError(Exception):
 
 
 def _error_response(status_code: int, body: ErrorBody) -> JSONResponse:
-    content = ErrorResponse(error=body).model_dump()
-    return JSONResponse(status_code=status_code, content=jsonable_encoder(content))
+    content = ErrorResponse(error=body).model_dump(mode="json")
+    return JSONResponse(status_code=status_code, content=content)
 
 
 async def domain_error_handler(_: Request, exc: DomainError) -> JSONResponse:
@@ -54,18 +65,32 @@ async def domain_error_handler(_: Request, exc: DomainError) -> JSONResponse:
 
 async def validation_error_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
     fields = [
-        FieldError(field=_field_name(error["loc"]), message=error["msg"]) for error in exc.errors()
+        FieldError(field=_field_name(error), message=_field_message(error))
+        for error in exc.errors()
     ]
-    body = ErrorBody(code=VALIDATION_ERROR_CODE, message="Request body is invalid.", fields=fields)
+    body = ErrorBody(code=VALIDATION_ERROR_CODE, message=VALIDATION_ERROR_MESSAGE, fields=fields)
     return _error_response(422, body)
 
 
-def _field_name(loc: tuple[int | str, ...]) -> str:
-    """`("body", "password")` becomes `"password"`; nested paths are dotted."""
-    parts = [str(part) for part in loc]
-    if parts and parts[0] in {"body", "query", "path", "header", "cookie"}:
-        parts = parts[1:]
-    return ".".join(parts)
+def _field_name(error: dict[str, Any]) -> str:
+    """Name the failing input: `("body", "items", 0, "n")` becomes `"items.0.n"`.
+
+    When there is no field below the location (missing body, a body of the
+    wrong type, malformed JSON), the location itself is named, e.g. `"body"`.
+    """
+    loc = [str(part) for part in error["loc"]]
+    if error["type"] == "json_invalid":
+        return loc[0] if loc else "body"
+    if loc and loc[0] in _LOCATIONS:
+        return ".".join(loc[1:]) or loc[0]
+    return ".".join(loc) or "body"
+
+
+def _field_message(error: dict[str, Any]) -> str:
+    """Pydantic prefixes custom validator messages with "Value error, "; drop it."""
+    if error["type"] == "value_error" and "error" in error.get("ctx", {}):
+        return str(error["ctx"]["error"])
+    return error["msg"]
 
 
 def register_exception_handlers(app: FastAPI) -> None:

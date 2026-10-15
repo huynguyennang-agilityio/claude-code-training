@@ -96,7 +96,7 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 {
   "error": {
     "code": "validation_error",
-    "message": "Request body is invalid.",
+    "message": "Request is invalid.",
     "fields": [
       { "field": "password", "message": "Password must contain at least one digit." }
     ]

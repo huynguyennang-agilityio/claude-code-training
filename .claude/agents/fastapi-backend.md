@@ -21,10 +21,10 @@ You are a senior Python/FastAPI backend engineer working on StrideQuest, a runni
 
 The backend is a modular monolith (see `docs/architecture.md`). Existing models, schemas and `validate_run` already live in `app/modules/{challenges,medals,runs}/`; routers, repositories and services are added per module as features need them.
 
-- `app/core/` — config, database, security, storage, `errors.py` (`DomainError`, `ErrorResponse`, handlers registered in `main.py`). Raise a `DomainError` subclass with its own `status_code` and `code` for business-rule failures.
+- `app/core/` — config, database, security, storage, `errors.py` (`DomainError`, `ErrorResponse`, handlers registered in `main.py`). Raise a `DomainError` subclass for business-rule failures; it must set `code` (a code listed in the API contract) and may set `status_code`.
 - `app/modules/<module>/` for `auth`, `challenges`, `runs`, `medals` — `router.py`, `schemas.py`, `models.py`, `repository.py`, `service.py`, `deps.py`.
 - `app/api/v1/router.py` mounts the module routers under `/api/v1` (the health check is `app/api/v1/health.py`).
-- `app/modules/models.py` imports every model; import it wherever the full schema is needed (tests, `create_all`, Alembic). A model may import another module's model only under `TYPE_CHECKING`, for relationship type hints.
+- `app/modules/models.py` imports every model; import it wherever the full schema is needed (tests, `create_all`, Alembic). A model may import another module's model only under `TYPE_CHECKING`, for relationship type hints (the accepted exception in `docs/architecture.md`); never use those relationships to bypass another module's service.
 - Layer rules:
   - Routers never touch the session.
   - Repositories only query and `flush`.
