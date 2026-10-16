@@ -189,6 +189,19 @@ ruff format --check .
 pytest
 ```
 
+Backend tests are split in two:
+
+- **`tests/unit/`** needs no database or Docker. Run it alone with `pytest tests/unit`.
+- **`tests/integration/`** runs against PostgreSQL. Start the database before running `pytest`:
+
+  ```bash
+  docker compose up -d --wait db
+  ```
+
+  The tests use `TEST_DATABASE_URL` from `.env` (see `.env.example`):
+  - the database name must be letters, digits and underscores ending in `_test`, because each run wipes its `public` schema;
+  - the database is created if it doesn't exist, migrated with `alembic upgrade head`, and each test is rolled back.
+
 Mobile:
 
 ```bash
@@ -200,9 +213,11 @@ flutter test
 
 Ruff and pytest are configured in `backend/pyproject.toml`; Dart lints are configured in `mobile/analysis_options.yaml`.
 
-Once the target architecture lands:
-- **Generated models:** after changing a Freezed model or an injectable registration, regenerate the code with `dart run build_runner build --delete-conflicting-outputs`.
-- **Backend integration tests:** they need the database running, so start it first with `docker compose up -d --wait db`.
+Once the target architecture lands on mobile, regenerate code after changing a Freezed model or an injectable registration:
+
+```bash
+dart run build_runner build --delete-conflicting-outputs
+```
 
 ## Development guidelines
 
