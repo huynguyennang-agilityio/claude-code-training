@@ -48,6 +48,10 @@ def app_with_test_routes() -> FastAPI:
     async def teapot() -> None:
         raise HTTPException(status_code=418, detail="I'm a teapot.")
 
+    @app.get("/test/structured-detail")
+    async def structured_detail() -> None:
+        raise HTTPException(status_code=400, detail={"a": 1})
+
     @app.get("/test/protected", dependencies=[Depends(HTTPBearer())])
     async def protected() -> None:
         return None
@@ -179,6 +183,17 @@ async def test_other_http_exception_keeps_status_and_uses_http_error(
     assert response.status_code == 418
     assert error_of(response)["code"] == "http_error"
     assert error_of(response)["message"] == "I'm a teapot."
+
+
+@pytest.mark.anyio
+async def test_http_error_with_non_string_detail_uses_a_fixed_message(
+    client: AsyncClient,
+) -> None:
+    response = await client.get("/test/structured-detail")
+
+    assert response.status_code == 400
+    assert error_of(response)["code"] == "http_error"
+    assert error_of(response)["message"] == "Request failed."
 
 
 @pytest.mark.anyio

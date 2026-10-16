@@ -109,7 +109,8 @@ def _http_error_body(exc: StarletteHTTPException) -> tuple[str, str]:
         return METHOD_NOT_ALLOWED_CODE, "Method not allowed."
     if exc.status_code == 401 and exc.detail == _MISSING_CREDENTIAL_DETAIL:
         return NOT_AUTHENTICATED_CODE, "Authentication is required."
-    return HTTP_ERROR_CODE, str(exc.detail)
+    message = exc.detail if isinstance(exc.detail, str) else "Request failed."
+    return HTTP_ERROR_CODE, message
 
 
 def _field_name(error: dict[str, Any]) -> str:
