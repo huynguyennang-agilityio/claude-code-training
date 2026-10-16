@@ -102,8 +102,12 @@ abstract class ChallengeModel with _$ChallengeModel {
 **On `authenticatedDio`, don't copy `_post`.** With `validateStatus: (_) => true` a 401 never reaches `AuthInterceptor.onError`, and with `ResponseType.plain` its `_isExpiredToken` can't read the body. Either way the token is never refreshed. No feature uses `authenticatedDio` yet, so this pattern comes from reading `lib/core/network/auth_interceptor.dart`, not from working code:
 
 - keep Dio's default `validateStatus` and JSON response type, so a 401 raises a `DioException` that the interceptor can refresh and retry;
-- an error that is still raised after that is a `DioException`. With `type == DioExceptionType.badResponse` and a response, map it through `fromWire` (or `unknown`/429) like the `publicDio` case, using `err.response`. Every other type (connection, timeout, cancel) becomes `network`. Never map a `badResponse` to `network`;
-- a malformed success body still becomes `unknown`.
+- an error that is still raised after that is a `DioException`. Map it in this order:
+  1. `type == DioExceptionType.badResponse` with a response: go through `fromWire` (or `unknown`/429) like the `publicDio` case, using `err.response`. Never map a `badResponse` to `network`.
+  2. `err.error is FormatException`: becomes `unknown`. Dio decodes a JSON body before it checks the status, so a malformed body, on a 2xx or an error status, arrives as type `unknown` with this error and no response. It is a server or proxy fault, not a connection problem.
+  3. Everything else becomes `network`: timeouts, `connectionError`, `badCertificate`, `cancel`, and `unknown` wrapping a socket error.
+- a body that decodes but doesn't fit the model still fails in `fromJson` and becomes `unknown`, as on `publicDio`;
+- after a refresh is rejected or fails, the interceptor passes the original 401 on, so the feature still sees `token_expired`/`invalid_token`. Give the feature's failure enum `not_authenticated`, `token_expired` and `invalid_token` codes, with the same messages as `AuthFailureCode`. Otherwise the user sees "Something went wrong". Signing the user out is not the feature's job: `AuthBloc` and the router redirect handle that.
 
 If a second feature needs the same helpers, propose moving them to `lib/core/network/` in their own issue instead of copying them.
 
@@ -187,7 +191,7 @@ GoRoute(
 | Layer | Pattern | Reference |
 | --- | --- | --- |
 | Bloc | `blocTest` with a `mocktail` mock of the repository interface; assert the ordered states, including the failure state | `test/features/auth/presentation/bloc/auth_bloc_test.dart` |
-| Remote data source | A real `Dio` from `createDio(baseUrl: 'http://api.test/', adapter: FakeHttpAdapter(...))`, so no network is used; cover success, each mapped error code, a non-`ErrorResponse` body, a malformed body and a transport error. On `authenticatedDio`, also: a 401 `token_expired` is refreshed and retried, and a 4xx `ErrorResponse` doesn't become `network` | `test/features/auth/data/datasources/auth_remote_data_source_test.dart`, `test/helpers/fake_http_adapter.dart` |
+| Remote data source | A real `Dio` from `createDio(baseUrl: 'http://api.test/', adapter: FakeHttpAdapter(...))`, so no network is used; cover success, each mapped error code, a non-`ErrorResponse` body, a malformed body and a transport error. On `authenticatedDio`, also: a 401 `token_expired` is refreshed and retried, a 4xx `ErrorResponse` doesn't become `network`, and a malformed JSON body (on 200 and on 400) becomes `unknown` | `test/features/auth/data/datasources/auth_remote_data_source_test.dart`, `test/helpers/fake_http_adapter.dart` |
 | Repository | Mocked data sources; check the model-to-entity mapping and that failures pass through | `test/features/auth/data/repositories/auth_repository_impl_test.dart` |
 | Page | `MockBloc` from `bloc_test`; the page renders each state, and taps add the right events | `docs/architecture.md`, section on tests |
 | Route | The path builds the page; a protected path redirects to sign in when signed out, using a concrete location (`/challenges/abc`), not the pattern | `test/core/router/app_router_test.dart` |
@@ -212,7 +216,7 @@ Commit the generated `*.freezed.dart`, `*.g.dart` and `injection.config.dart` fi
 - [ ] `domain/` imports nothing from Flutter, Dio or storage.
 - [ ] The bloc depends on the repository interface, not the implementation.
 - [ ] Every data source error becomes the feature's typed failure; no catch-all in the bloc.
-- [ ] Data sources on `authenticatedDio` keep the default `validateStatus`, so the token refresh still runs.
+- [ ] Data sources on `authenticatedDio` keep the default `validateStatus`, so the token refresh still runs. A malformed body becomes `unknown`, not `network`, and the failure enum has the session codes.
 - [ ] No path with parameters was added to `protectedPaths`.
 - [ ] Events and states are sealed/final, `const` and `Equatable`.
 - [ ] The bloc is `@injectable` and created in the route's `BlocProvider`; routes pass IDs only.
