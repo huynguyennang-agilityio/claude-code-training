@@ -2,7 +2,8 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
-from fastapi import FastAPI, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.security import HTTPBearer
 from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel, Field, field_validator
 
@@ -42,6 +43,22 @@ def app_with_test_routes() -> FastAPI:
     @app.post("/test/validate")
     async def validate(body: SignupBody) -> SignupBody:
         return body
+
+    @app.get("/test/teapot")
+    async def teapot() -> None:
+        raise HTTPException(status_code=418, detail="I'm a teapot.")
+
+    @app.get("/test/structured-detail")
+    async def structured_detail() -> None:
+        raise HTTPException(status_code=400, detail={"a": 1})
+
+    @app.get("/test/protected", dependencies=[Depends(HTTPBearer())])
+    async def protected() -> None:
+        return None
+
+    @app.get("/test/boom")
+    async def boom() -> None:
+        raise RuntimeError("secret database password")
 
     @app.get("/test/query")
     async def query(limit: int = Query(ge=1)) -> int:
@@ -128,3 +145,77 @@ async def test_custom_validator_message_has_no_pydantic_prefix(client: AsyncClie
     assert response.json()["error"]["fields"] == [
         {"field": "password", "message": "Password must contain at least one digit."}
     ]
+
+
+def error_of(response: Any) -> dict[str, Any]:
+    return response.json()["error"]
+
+
+@pytest.mark.anyio
+async def test_unknown_route_returns_not_found(client: AsyncClient) -> None:
+    response = await client.get("/health")
+
+    assert response.status_code == 404
+    assert error_of(response) == {
+        "code": "not_found",
+        "message": "Resource not found.",
+        "fields": [],
+    }
+
+
+@pytest.mark.anyio
+async def test_wrong_method_returns_method_not_allowed_with_allow_header(
+    client: AsyncClient,
+) -> None:
+    response = await client.post("/api/v1/health")
+
+    assert response.status_code == 405
+    assert error_of(response)["code"] == "method_not_allowed"
+    assert "GET" in response.headers["allow"]
+
+
+@pytest.mark.anyio
+async def test_other_http_exception_keeps_status_and_uses_http_error(
+    client: AsyncClient,
+) -> None:
+    response = await client.get("/test/teapot")
+
+    assert response.status_code == 418
+    assert error_of(response)["code"] == "http_error"
+    assert error_of(response)["message"] == "I'm a teapot."
+
+
+@pytest.mark.anyio
+async def test_http_error_with_non_string_detail_uses_a_fixed_message(
+    client: AsyncClient,
+) -> None:
+    response = await client.get("/test/structured-detail")
+
+    assert response.status_code == 400
+    assert error_of(response)["code"] == "http_error"
+    assert error_of(response)["message"] == "Request failed."
+
+
+@pytest.mark.anyio
+async def test_missing_authorization_header_returns_not_authenticated(
+    client: AsyncClient,
+) -> None:
+    response = await client.get("/test/protected")
+
+    assert response.status_code == 401
+    assert error_of(response)["code"] == "not_authenticated"
+    assert response.headers["www-authenticate"] == "Bearer"
+
+
+@pytest.mark.anyio
+async def test_unexpected_exception_returns_internal_error_without_its_text(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    transport = ASGITransport(app=app_with_test_routes(), raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/test/boom")
+
+    assert response.status_code == 500
+    assert error_of(response)["code"] == "internal_error"
+    assert "secret database password" not in response.text
+    assert "secret database password" in caplog.text
