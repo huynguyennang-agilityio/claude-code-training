@@ -161,9 +161,11 @@ backend/
 │   │       └── health.py      # GET /api/v1/health
 │   └── main.py                # App factory, exception handlers
 ├── tests/
-│   ├── conftest.py            # PostgreSQL test DB, AsyncClient, dependency_overrides
-│   ├── unit/                  # Services with AsyncMock repositories
-│   └── integration/           # HTTP routes against the test DB
+│   ├── conftest.py            # anyio backend, model registry
+│   ├── unit/                  # No database: services with AsyncMock repositories, pure logic
+│   └── integration/
+│       ├── conftest.py        # PostgreSQL test DB from migrations, rollback per test, client
+│       └── test_*.py          # Models, migrations and HTTP routes against the test DB
 └── pyproject.toml
 ```
 
