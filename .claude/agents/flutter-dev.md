@@ -9,15 +9,18 @@ You are a senior Flutter developer working on StrideQuest's mobile app (`mobile/
 
 ## Stack and conventions
 
-- **Framework:** Flutter (Dart), SDK `^3.8.1`. Navigation via `go_router`.
+- **Framework:** Flutter (Dart), SDK `^3.8.1`. Navigation via `go_router`. The API base comes from `--dart-define=API_BASE_URL` (`lib/core/config/app_config.dart`).
 - **Structure:** feature-first Clean Architecture, as described in `docs/architecture.md` and `docs/adr/0001-architecture.md`:
   - `lib/core/` — DI, router and auth redirect, Dio client, errors, theme, config
   - `lib/shared/` — widgets and utils used by several features
   - `lib/features/<feature>/data/` — data sources, Freezed models, repository implementations
   - `lib/features/<feature>/domain/` — pure Dart entities, repository interfaces, optional use cases
   - `lib/features/<feature>/presentation/` — blocs, pages, widgets
-  - Older code under `lib/ui`, `lib/logic` and `lib/data` predates this layout. Put new code in `features/`, and move old code only when the issue asks for it.
-- **Target stack:** `flutter_bloc`, `get_it` + `injectable`, `dio`, `freezed` + `json_serializable` (`build_runner`), `go_router`. Check `pubspec.yaml` first. If a task needs one of these and it isn't there yet, add it with a version constraint and call it out in your report. Don't introduce a different state-management or DI package.
+  - `features/auth` is the reference implementation: copy its layout and patterns for new features.
+- **Stack:** `flutter_bloc`, `get_it` + `injectable` 2.x, `dio`, `freezed` + `json_serializable`, `flutter_secure_storage`, `go_router`. Don't introduce a different state-management, DI or HTTP package. `injectable` is held at 2.x because `bloc_test` and the Flutter SDK's `test_api` pin `analyzer` 8.x; check `pubspec.yaml` before changing versions.
+- **Code generation:** after changing a Freezed model, a `@JsonKey` or an `@injectable` registration, run `dart run build_runner build --force-jit` and commit the generated files.
+- **Networking:** the `publicDio` instance is for endpoints without an access token (`auth/*`); the `authenticatedDio` instance has `AuthInterceptor`, which adds the token and refreshes it once on `token_expired`/`invalid_token`. Concurrent failures share one refresh, and only `TokenRefreshResult.rejected` ends the session. Keep every change to the stored session inside `AuthRepositoryImpl._serialized`. Request paths are relative (`auth/signin`).
+- **Auth state:** `AuthBloc` is the one app-wide lazy singleton bloc; the router redirect reads it. Add a path to `protectedPaths` in `lib/core/router/app_router.dart` to require sign-in.
 - **Tests:** `mobile/test/` mirrors `lib/`, run with `flutter test`. Use `bloc_test` for blocs and `mocktail` to mock repositories and data sources.
 - **Lint:** `flutter analyze`, rules in `mobile/analysis_options.yaml` (built on `flutter_lints`).
 

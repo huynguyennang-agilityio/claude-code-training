@@ -172,8 +172,10 @@ This **deletes all local database data** (the `db-data` volume). It keeps the me
 ```bash
 cd mobile
 flutter pub get
-flutter run
+flutter run --dart-define=API_BASE_URL=http://localhost:8000/api/v1/
 ```
+
+`API_BASE_URL` is the API base including `/api/v1/` (see `docs/api/auth.md`); the value above is also the default. On the Android emulator, use `http://10.0.2.2:8000/api/v1/` to reach the host machine.
 
 Reading step data needs a real device or a simulator with Apple Health or Health Connect data available.
 
@@ -213,11 +215,13 @@ flutter test
 
 Ruff and pytest are configured in `backend/pyproject.toml`; Dart lints are configured in `mobile/analysis_options.yaml`.
 
-Once the target architecture lands on mobile, regenerate code after changing a Freezed model or an injectable registration:
+Regenerate code after changing a Freezed model, a `@JsonKey` or an `@injectable` registration, and commit the generated `*.g.dart`, `*.freezed.dart` and `injection.config.dart` files with the change:
 
 ```bash
-dart run build_runner build --delete-conflicting-outputs
+cd mobile && dart run build_runner build --force-jit
 ```
+
+`--force-jit` is needed because a dependency uses Dart build hooks, which the default AOT build script does not support.
 
 ## Development guidelines
 

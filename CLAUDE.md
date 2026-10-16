@@ -8,7 +8,7 @@ StrideQuest is a running app where every run is a quest: runners complete challe
 
 The architecture is described, with diagrams, in [`docs/architecture.md`](docs/architecture.md); the decisions and their reasons are in [`docs/adr/0001-architecture.md`](docs/adr/0001-architecture.md). Existing code is still being moved to this layout, so follow the target layout for new code and don't copy older patterns.
 
-- **Mobile:** Flutter (Dart), feature-first Clean Architecture, `go_router` for navigation, `flutter_test` for tests. Target packages, not all installed yet (check `pubspec.yaml`): `flutter_bloc` for state, `get_it` + `injectable` for DI, `dio` for HTTP, `freezed` + `json_serializable` for models, `bloc_test` and `mocktail` for tests.
+- **Mobile:** Flutter (Dart), feature-first Clean Architecture, `go_router` for navigation, `flutter_bloc` for state, `get_it` + `injectable` for DI (`lib/core/di/`), `dio` for HTTP, `freezed` + `json_serializable` for models (regenerate with `dart run build_runner build --force-jit` and commit the generated files), `flutter_secure_storage` for tokens. Tests use `flutter_test`, `bloc_test` and `mocktail`.
 - **Backend:** FastAPI on Python 3.12 as a modular monolith (modules `auth`, `challenges`, `runs`, `medals`). Async throughout: use `httpx.AsyncClient`, never block the event loop. Pydantic schemas for requests and responses, SQLAlchemy 2 async, Alembic migrations in `backend/alembic/` (every schema change ships with a migration). Errors use the typed `ErrorResponse` from `docs/api/`, not free-form strings. Tests use `pytest` with the anyio plugin: `backend/tests/unit/` mock repositories and need no database; `backend/tests/integration/` run against a PostgreSQL test database from `docker compose` (`TEST_DATABASE_URL`), built from the migrations and rolled back after each test.
 - **Data:** PostgreSQL. Medal images are static files in S3-compatible object storage (AWS S3 in production, SeaweedFS locally); the database stores only their URLs.
 - **Health data:** the app reads steps from Apple Health or Health Connect on the device and syncs them to the backend.
@@ -32,7 +32,7 @@ backend/tests/{unit,integration}/                    pytest tests
 - **Mobile dependency direction:** presentation → domain ← data. `domain/` is pure Dart: no Flutter, Dio or storage imports (`equatable` and `freezed_annotation` are allowed).
 - **Mobile use cases** are optional. Add one only when logic spans several repositories or is reused; otherwise a bloc calls the repository interface.
 - **Navigation:** sign-in and sign-out redirects come from the `GoRouter` `redirect`, driven by `AuthBloc` through a `refreshListenable` adapter. Routes pass IDs only, never objects through `state.extra`.
-- **Blocs** are registered with `registerFactory` and created in the route's `BlocProvider`, so they close with the route.
+- **Blocs** are registered with `registerFactory` and created in the route's `BlocProvider`, so they close with the route. The one exception is `AuthBloc`: an app-wide `@lazySingleton`, because the router redirect and every screen need the same auth state. Don't add other app-wide blocs without the user's approval.
 - **Backend layers:** router → service → repository.
   - Routers never touch the database session.
   - Repositories only query and `flush`. The service, or the session dependency, commits or rolls back.

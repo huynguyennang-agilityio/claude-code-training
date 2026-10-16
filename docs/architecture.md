@@ -128,6 +128,7 @@ sequenceDiagram
 
 - Routes carry IDs only, for example `/challenges/:id`. The page's bloc fetches the data. Don't pass objects through `state.extra`.
 - Blocs are registered with `registerFactory` and created in the route's `BlocProvider(create: ...)`, so they close when the route is popped.
+- Exception: `AuthBloc` is an app-wide `@lazySingleton`, provided once above `MaterialApp.router`, because the router's `redirect` and every screen read the same auth state. It lives as long as the app.
 
 ## 3. Backend
 

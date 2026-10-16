@@ -17,7 +17,7 @@ The detailed design, with diagrams, is in [`docs/architecture.md`](../architectu
 | Area | Decision |
 | --- | --- |
 | Mobile layout | Feature-first Clean Architecture: `lib/core/`, `lib/shared/`, `lib/features/<feature>/{data,domain,presentation}`. |
-| Mobile state | `flutter_bloc`. Blocs are registered as factories and scoped to the route that uses them. |
+| Mobile state | `flutter_bloc`. Blocs are registered as factories and scoped to the route that uses them. Exception, approved in #29: `AuthBloc` is an app-wide lazy singleton, because the router redirect depends on it. |
 | Mobile DI | `get_it` + `injectable`. |
 | Mobile HTTP | `dio`, with interceptors for the access token and the refresh flow in [`docs/api/auth.md`](../api/auth.md). |
 | Mobile models | `freezed` + `json_serializable`, generated with `build_runner`. Data models map to domain entities. |
