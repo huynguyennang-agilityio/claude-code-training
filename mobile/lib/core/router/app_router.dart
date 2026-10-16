@@ -5,11 +5,12 @@ import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/pages/sign_in_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 
-/// Route patterns that need a signed-in user, written exactly as the
-/// [GoRoute.path] they guard (for example `/challenges/:id`, not
-/// `/challenges/abc`). Routes nested under a protected pattern are protected
-/// too. Home stays public for now; screens that need an account add their
-/// pattern here.
+/// Route patterns that need a signed-in user, written as the full pattern
+/// from the root (`GoRouterState.fullPath`, for example `/challenges/:id` or
+/// `/challenges/:id/edit`), not as concrete locations like `/challenges/abc`
+/// or as a nested route's relative `path` like `edit`. Routes nested under a
+/// protected pattern are protected too. Home stays public for now; screens
+/// that need an account add their pattern here.
 const protectedPaths = <String>{};
 
 final appRoutes = <RouteBase>[
