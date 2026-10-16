@@ -112,10 +112,14 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 | 409 | `email_taken` | Sign up with an email that already has an account. |
 | 401 | `invalid_credentials` | Sign in with a wrong email or a wrong password. Both cases return the same code on purpose. |
 | 401 | `invalid_refresh_token` | Refresh with a token that is unknown, expired or already revoked. |
-| 401 | `not_authenticated` | A protected route was called without an `Authorization` header. |
+| 401 | `not_authenticated` | A protected route was called without an `Authorization` header, whatever dependency guards it. |
 | 401 | `invalid_token` | The access token is malformed, has a bad signature, or its user no longer exists. |
 | 401 | `token_expired` | The access token has expired. Refresh and retry. |
 | 429 | `rate_limited` | Too many failed sign-ins for this email or device. Wait for the number of seconds in the `Retry-After` header. |
+| 404 | `not_found` | No route matches the path. |
+| 405 | `method_not_allowed` | The path exists but not for this method. The `Allow` header lists the valid methods. |
+| any 4xx/5xx | `http_error` | Any other HTTP error with no more specific code. The status code is kept. |
+| 500 | `internal_error` | Unexpected server error. The message never contains the exception text. |
 
 ## `POST /api/v1/auth/signup`
 
