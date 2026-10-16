@@ -183,6 +183,8 @@ Reading through those relationships is allowed in one case ([ADR 0002](adr/0002-
 
 Adding a new cross-module relationship needs the user's approval.
 
+The ORM cascade on `Challenge.medal` (`all, delete-orphan`) is not a write path: medals are created and changed only through `medals.service`, so don't assign or clear `challenge.medal`. Deleting a challenge may still remove its medal through that cascade, because the `medals.challenge_id` foreign key already has `ON DELETE CASCADE`.
+
 Presentation copy: [`diagrams/backend-modules.svg`](diagrams/backend-modules.svg).
 
 ```mermaid
