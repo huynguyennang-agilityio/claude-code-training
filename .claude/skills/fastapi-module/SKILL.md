@@ -323,11 +323,12 @@ From `backend/`, with the project's `.venv`:
 ```bash
 ruff check .
 ruff format --check .
+mypy
 pytest tests/unit
 pytest
 ```
 
-There is no type checker configured yet, so the type-check step is `Not verified: no type checker configured`. Don't invent one. Then record the verification evidence (CLAUDE.md, Phase 3) using the rows that apply:
+`mypy` runs in strict mode on `app/` with the Pydantic plugin (`[tool.mypy]` in `pyproject.toml`). A `# type: ignore` needs an error code and a comment saying why. Then record the verification evidence (CLAUDE.md, Phase 3) using the rows that apply:
 
 - **Backend service / repository:** the `pytest` commands and their summaries.
 - **Database schema:** the Alembic round trip from step 1 and `\d <table>`, against the local docker-compose database only.

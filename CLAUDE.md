@@ -116,8 +116,8 @@ Build in small steps. For each step:
 
 1. Write the code.
 2. Add or update tests. Every feature needs tests.
-3. Run lint.
-4. Run type checks.
+3. Run lint: `flutter analyze` in `mobile/`; `ruff check .` and `ruff format --check .` in `backend/`.
+4. Run type checks: `flutter analyze` covers Dart; `mypy` in `backend/` (strict, configured in `pyproject.toml`).
 
 Passing tests don't prove everything works: `flutter_test` doesn't show the UI matches the design, and `pytest` doesn't show the mobile-backend flow works. Also verify by ticket type:
 
