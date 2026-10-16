@@ -77,6 +77,8 @@ def test_constraint_names_follow_the_convention(database_url: str) -> None:
 
 
 def test_downgrade_restores_postgres_names_and_upgrade_renames_again(database_url: str) -> None:
+    # This changes the shared session database and puts it back in `finally`, so
+    # it must not run in parallel with other integration tests.
     config = Config(str(ALEMBIC_INI))
 
     command.downgrade(config, "-1")
