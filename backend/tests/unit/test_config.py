@@ -5,7 +5,8 @@ from alembic.config import Config
 from pydantic import ValidationError
 
 from alembic import command
-from app.core.config import DatabaseSettings, Settings, get_database_settings
+from app.core.config import DatabaseSettings, Settings, get_database_settings, get_settings
+from app.main import create_app
 
 
 def test_settings_read_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -67,3 +68,39 @@ def test_alembic_runs_with_only_database_url(
 
     assert "CREATE TABLE" in capsys.readouterr().out
     get_database_settings.cache_clear()
+
+
+@pytest.fixture
+def bare_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> pytest.MonkeyPatch:
+    """Only DATABASE_URL is set, and there is no `.env` to fall back on."""
+    for name in ("S3_ENDPOINT_URL", "S3_BUCKET", "JWT_SECRET"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost/db")
+    monkeypatch.chdir(tmp_path)
+    get_settings.cache_clear()
+    yield monkeypatch
+    get_settings.cache_clear()
+
+
+@pytest.mark.anyio
+async def test_app_startup_fails_when_a_required_setting_is_missing(
+    bare_environment: pytest.MonkeyPatch,
+) -> None:
+    app = create_app()
+
+    with pytest.raises(ValidationError, match="jwt_secret"):
+        async with app.router.lifespan_context(app):
+            pass
+
+
+@pytest.mark.anyio
+async def test_app_starts_when_all_settings_are_present(
+    bare_environment: pytest.MonkeyPatch,
+) -> None:
+    bare_environment.setenv("S3_ENDPOINT_URL", "http://localhost:8333")
+    bare_environment.setenv("S3_BUCKET", "medals")
+    bare_environment.setenv("JWT_SECRET", "s3cr3t-value")
+    app = create_app()
+
+    async with app.router.lifespan_context(app):
+        pass

@@ -1,8 +1,8 @@
 """Alembic environment for the StrideQuest backend.
 
 The database URL comes from `app.core.config.DatabaseSettings` (the `DATABASE_URL`
-environment variable or `.env`; no other setting is needed), never from `alembic.ini`. The target
-metadata comes from `app.modules.models`, which imports every module's models.
+environment variable or `.env`; no other setting is needed), never from `alembic.ini`.
+The target metadata comes from `app.modules.models`, which imports every module's models.
 """
 
 import asyncio
