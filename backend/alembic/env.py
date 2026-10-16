@@ -1,7 +1,7 @@
 """Alembic environment for the StrideQuest backend.
 
-The database URL comes from `app.core.config.Settings` (the `DATABASE_URL`
-environment variable or `.env`), never from `alembic.ini`. The target
+The database URL comes from `app.core.config.DatabaseSettings` (the `DATABASE_URL`
+environment variable or `.env`; no other setting is needed), never from `alembic.ini`. The target
 metadata comes from `app.modules.models`, which imports every module's models.
 """
 
@@ -14,19 +14,19 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 import app.modules.models  # noqa: F401 - registers every table on Base.metadata
 from alembic import context
-from app.core.config import get_settings
+from app.core.config import get_database_settings
 from app.core.database import Base
 
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
 
 def _database_url() -> str:
-    return get_settings().database_url
+    return get_database_settings().database_url
 
 
 def run_migrations_offline() -> None:

@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engin
 from sqlalchemy.pool import NullPool
 
 from alembic import command
-from app.core.config import get_settings
+from app.core.config import get_database_settings, get_settings
 from app.core.database import get_session
 from app.main import create_app
 
@@ -110,16 +110,13 @@ def database_url() -> Iterator[str]:
     url_text = url.render_as_string(hide_password=False)
 
     with pytest.MonkeyPatch.context() as mp:
-        # alembic/env.py reads the URL through app.core.config.Settings, which
-        # also requires the S3 and JWT settings (#31 removes that need).
         mp.setenv("DATABASE_URL", url_text)
-        mp.setenv("S3_ENDPOINT_URL", "http://localhost:8333")
-        mp.setenv("S3_BUCKET", "medals-test")
-        mp.setenv("JWT_SECRET", "test-only-secret")
         get_settings.cache_clear()
+        get_database_settings.cache_clear()
         command.upgrade(Config(str(BACKEND_DIR / "alembic.ini")), "head")
         yield url_text
     get_settings.cache_clear()
+    get_database_settings.cache_clear()
 
 
 @pytest.fixture(scope="session")

@@ -116,7 +116,7 @@ The API will be available at http://localhost:8000, with interactive docs at htt
 
 ### Database migrations
 
-The schema is managed by Alembic in `backend/alembic/`. The database URL comes from `DATABASE_URL` (via `app/core/config.py`), never from `alembic.ini`. Run these from `backend/` with the virtual environment active:
+The schema is managed by Alembic in `backend/alembic/`. The database URL comes from `DATABASE_URL` (via `DatabaseSettings` in `app/core/config.py`), never from `alembic.ini`. Migrations need only `DATABASE_URL`: the S3 and JWT settings are not required, so a migration job in CI or a deploy doesn't need them. Run these from `backend/` with the virtual environment active:
 
 ```bash
 alembic upgrade head
