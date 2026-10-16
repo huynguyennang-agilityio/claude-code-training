@@ -73,10 +73,8 @@ References: `lib/features/auth/data/`, `lib/core/di/network_module.dart` and `mo
 ```dart
 @freezed
 abstract class ChallengeModel with _$ChallengeModel {
-  const factory ChallengeModel({
-    required String id,
-    required String title,
-  }) = _ChallengeModel;
+  const factory ChallengeModel({required String id, required String title}) =
+      _ChallengeModel;
 
   const ChallengeModel._();
 
@@ -90,14 +88,24 @@ abstract class ChallengeModel with _$ChallengeModel {
 **Remote data source:** an interface plus a Dio implementation registered with `@LazySingleton(as: ...)`. See `datasources/auth_remote_data_source.dart`.
 
 - Inject the right `Dio` by name:
-  - `@Named('authenticatedDio')` for endpoints that need a signed-in user. Its `AuthInterceptor` adds the token and refreshes it.
+  - `@Named('authenticatedDio')` for endpoints that need a signed-in user. Its `AuthInterceptor` adds the token and, on a 401 `token_expired`/`invalid_token`, refreshes it once and retries.
   - `@Named('publicDio')` only for endpoints that take no token.
 - Request paths are relative (`challenges/$id`), with no leading slash.
-- Map every error to the feature's failure. Never let a raw `DioException`, `TypeError` or `FormatException` escape:
-  - `DioException` and `TimeoutException` become `network`;
-  - a non-2xx response with an `ErrorResponse` body becomes `fromWire(error.code)`. Any other non-2xx body (a proxy error page, for example) becomes `unknown`, unless the status alone says more: auth maps a bare 429 to `rate_limited`;
-  - a missing or malformed success body becomes `unknown`. Catch `TypeError` explicitly, because a failed cast is an `Error`, not an `Exception`.
-- Follow the auth implementation's `_post`/`_parse`/`_failure` structure. If a second feature needs the same helpers, propose moving them to `lib/core/network/` instead of copying them a third time. That change needs its own issue.
+- Map every error to the feature's failure. Never let a raw `DioException`, `TypeError` or `FormatException` escape. How you get there depends on the `Dio`, because the interceptor only sees errors that Dio raises.
+
+**On `publicDio`**, follow auth's `_post`/`_parse`/`_failure` structure in `auth_remote_data_source.dart`. It accepts every status (`validateStatus: (_) => true`) and decodes the body itself (`ResponseType.plain`):
+
+- `DioException` and `TimeoutException` are transport errors and become `network`;
+- a non-2xx response with an `ErrorResponse` body becomes `fromWire(error.code)`. Any other non-2xx body (a proxy error page, for example) becomes `unknown`, unless the status alone says more: auth maps a bare 429 to `rate_limited`;
+- a missing or malformed success body becomes `unknown`. Catch `TypeError` explicitly, because a failed cast is an `Error`, not an `Exception`.
+
+**On `authenticatedDio`, don't copy `_post`.** With `validateStatus: (_) => true` a 401 never reaches `AuthInterceptor.onError`, and with `ResponseType.plain` its `_isExpiredToken` can't read the body. Either way the token is never refreshed. No feature uses `authenticatedDio` yet, so this pattern comes from reading `lib/core/network/auth_interceptor.dart`, not from working code:
+
+- keep Dio's default `validateStatus` and JSON response type, so a 401 raises a `DioException` that the interceptor can refresh and retry;
+- an error that is still raised after that is a `DioException`. With `type == DioExceptionType.badResponse` and a response, map it through `fromWire` (or `unknown`/429) like the `publicDio` case, using `err.response`. Every other type (connection, timeout, cancel) becomes `network`. Never map a `badResponse` to `network`;
+- a malformed success body still becomes `unknown`.
+
+If a second feature needs the same helpers, propose moving them to `lib/core/network/` in their own issue instead of copying them.
 
 **Repository implementation** implements the domain interface and is registered with `@LazySingleton(as: ChallengeRepository)`. It calls data sources, maps models to entities and holds no UI state. See `repositories/auth_repository_impl.dart`.
 
@@ -149,7 +157,7 @@ class ChallengeDetailBloc
 - Take colors and text styles from `Theme.of(context)` (`colorScheme`, `textTheme`). No `Color(0x…)`, `Colors.*` or inline `TextStyle(fontSize: …)` in features. The app has no design tokens yet; adding them is a separate Phase 0 issue.
 - Give each page a `static const path`, like `HomePage.path`.
 - Prefer `const` constructors and small widgets in `presentation/widgets/`. A widget used by several features goes in `lib/shared/widgets/`, which CLAUDE.md plans but nobody has created yet. Create it the first time it's needed.
-- UI needs a design reference (CLAUDE.md ticket evidence gate). Without one, build a placeholder page like `sign_in_page.dart` and say so.
+- If the ticket needs a design reference and has none, ask for it before writing UI (CLAUDE.md ticket evidence gate). Build a placeholder page like `sign_in_page.dart` only when the issue explicitly scopes the UI out.
 
 ### 4. Routing
 
@@ -170,6 +178,7 @@ GoRoute(
 ```
 
 - If the page needs a signed-in user, add its path to `protectedPaths`. Never navigate on sign-in or sign-out from a widget; the router redirect does that.
+- **`protectedPaths` only matches exact, static locations.** `authRedirect` checks `protected.contains(state.matchedLocation)`, and `matchedLocation` is the concrete location (`/challenges/abc`), not the pattern. Adding `'/challenges/:id'` protects nothing: a signed-out user can still open the page. Before protecting a route with path parameters, `authRedirect` has to change. That is a security boundary, so it needs its own issue and the user's approval (CLAUDE.md, Phase 2). Stop and say so; don't work around it in the feature.
 
 ### 5. Tests
 
@@ -178,10 +187,10 @@ GoRoute(
 | Layer | Pattern | Reference |
 | --- | --- | --- |
 | Bloc | `blocTest` with a `mocktail` mock of the repository interface; assert the ordered states, including the failure state | `test/features/auth/presentation/bloc/auth_bloc_test.dart` |
-| Remote data source | A real `Dio` from `createDio(baseUrl: 'http://api.test/', adapter: FakeHttpAdapter(...))`, so no network is used; cover success, each mapped error code, a non-`ErrorResponse` body, a malformed body and a transport error | `test/features/auth/data/datasources/auth_remote_data_source_test.dart`, `test/helpers/fake_http_adapter.dart` |
+| Remote data source | A real `Dio` from `createDio(baseUrl: 'http://api.test/', adapter: FakeHttpAdapter(...))`, so no network is used; cover success, each mapped error code, a non-`ErrorResponse` body, a malformed body and a transport error. On `authenticatedDio`, also: a 401 `token_expired` is refreshed and retried, and a 4xx `ErrorResponse` doesn't become `network` | `test/features/auth/data/datasources/auth_remote_data_source_test.dart`, `test/helpers/fake_http_adapter.dart` |
 | Repository | Mocked data sources; check the model-to-entity mapping and that failures pass through | `test/features/auth/data/repositories/auth_repository_impl_test.dart` |
 | Page | `MockBloc` from `bloc_test`; the page renders each state, and taps add the right events | `docs/architecture.md`, section on tests |
-| Route | The path builds the page and protected paths redirect | `test/core/router/app_router_test.dart` |
+| Route | The path builds the page; a protected path redirects to sign in when signed out, using a concrete location (`/challenges/abc`), not the pattern | `test/core/router/app_router_test.dart` |
 | DI | `getIt` resolves the new repository, and returns a new bloc instance on each call (a factory, unlike `AuthBloc`) | `test/core/di/injection_test.dart` |
 
 Put shared test data in `test/helpers/<feature>_fixtures.dart`, like `auth_fixtures.dart`.
@@ -203,6 +212,8 @@ Commit the generated `*.freezed.dart`, `*.g.dart` and `injection.config.dart` fi
 - [ ] `domain/` imports nothing from Flutter, Dio or storage.
 - [ ] The bloc depends on the repository interface, not the implementation.
 - [ ] Every data source error becomes the feature's typed failure; no catch-all in the bloc.
+- [ ] Data sources on `authenticatedDio` keep the default `validateStatus`, so the token refresh still runs.
+- [ ] No path with parameters was added to `protectedPaths`.
 - [ ] Events and states are sealed/final, `const` and `Equatable`.
 - [ ] The bloc is `@injectable` and created in the route's `BlocProvider`; routes pass IDs only.
 - [ ] No hard-coded colors or text styles in the feature.
