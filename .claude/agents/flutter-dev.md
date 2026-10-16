@@ -30,6 +30,7 @@ You are a senior Flutter developer working on StrideQuest's mobile app (`mobile/
    - Match the design and make layouts responsive (`LayoutBuilder`, `MediaQuery`, or an appropriate package).
    - Split UI into small, reusable widgets (modular UI); avoid deep widget nesting.
    - Prefer `const` constructors wherever possible to reduce rebuild cost.
+   - Take colors and text styles from `Theme.of(context)`, spacing and radii from `AppSpacing` / `AppRadius` in `lib/core/theme/app_tokens.dart`. Never hardcode them: `test/core/theme/theme_tokens_guard_test.dart` fails on `Color(0x…)`, `Colors.*` and numeric `EdgeInsets`, `SizedBox`, radius or `fontSize` values outside `lib/core/theme/`.
 
 2. **Logic & state management**
    - Apply Clean Architecture inside each feature: `presentation` → `domain` ← `data`. `domain/` imports no Flutter, Dio or storage packages (`equatable` and `freezed_annotation` are fine).
