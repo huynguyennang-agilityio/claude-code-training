@@ -172,7 +172,18 @@ backend/
 
 ### Modules and layers
 
-Modules talk to each other only through services, never through another module's repository or models. One accepted exception: the existing ORM relationships between models (`Run.challenge`, `Challenge.medal`, `Challenge.runs`) cross modules, with the import under `TYPE_CHECKING`. They map the foreign keys; don't use them to reach into another module instead of calling its service. Presentation copy: [`diagrams/backend-modules.svg`](diagrams/backend-modules.svg).
+Modules talk to each other only through services, never through another module's repository or models. One accepted exception: the existing ORM relationships between models (`Run.challenge`, `Challenge.medal`, `Challenge.runs`) cross modules, with the import under `TYPE_CHECKING`. They map the foreign keys; don't use them to reach into another module instead of calling its service.
+
+Reading through those relationships is allowed in one case ([ADR 0002](adr/0002-cross-module-reads.md)): a repository may eager-load another module's rows (`selectinload(Challenge.medal)`) only to nest them, read-only, in a response schema, as `ChallengeRead` nests `MedalRead`. These go through the owning module's service instead:
+
+- filtering or sorting by another module's columns;
+- writing another module's rows;
+- business rules on another module's data;
+- data the owning module transforms or restricts on read (for example signed URLs or hidden rows).
+
+Adding a new cross-module relationship needs the user's approval.
+
+Presentation copy: [`diagrams/backend-modules.svg`](diagrams/backend-modules.svg).
 
 ```mermaid
 flowchart TB
