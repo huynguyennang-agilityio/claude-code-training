@@ -14,13 +14,27 @@ import '../../helpers/auth_fixtures.dart';
 class _MockRepository extends Mock implements AuthRepository {}
 
 const _runsPath = '/runs';
+const _challengePath = '/challenges/:id';
 
-/// The app routes plus one protected route, since the app has none yet.
+/// The app routes plus protected routes, since the app has none yet: a static
+/// one, and one with a path parameter and a nested child.
 final _routes = [
   ...appRoutes,
   GoRoute(
     path: _runsPath,
     builder: (context, state) => const Scaffold(body: Text('Runs page')),
+  ),
+  GoRoute(
+    path: _challengePath,
+    builder: (context, state) =>
+        Scaffold(body: Text('Challenge ${state.pathParameters['id']}')),
+    routes: [
+      GoRoute(
+        path: 'edit',
+        builder: (context, state) =>
+            Scaffold(body: Text('Edit ${state.pathParameters['id']}')),
+      ),
+    ],
   ),
 ];
 
@@ -46,7 +60,7 @@ void main() {
       authBloc: bloc,
       refreshListenable: authChanges,
       routes: _routes,
-      protected: const {_runsPath},
+      protected: const {_runsPath, _challengePath},
       initialLocation: at,
     );
     addTearDown(() {
@@ -129,6 +143,43 @@ void main() {
     expect(find.text('Sign in to continue.'), findsOneWidget);
   });
 
+  testWidgets('a signed-out user cannot open a protected page with a path '
+      'parameter', (tester) async {
+    await pumpRouter(tester, signedIn: false, at: '/challenges/abc');
+
+    expect(find.text('Sign in to continue.'), findsOneWidget);
+    expect(find.text('Challenge abc'), findsNothing);
+  });
+
+  testWidgets('a signed-in user sees a protected page with a path parameter', (
+    tester,
+  ) async {
+    await pumpRouter(tester, signedIn: true, at: '/challenges/abc');
+
+    expect(find.text('Challenge abc'), findsOneWidget);
+  });
+
+  testWidgets('a deep link with a path parameter survives a slow session '
+      'restore', (tester) async {
+    await pumpRouter(
+      tester,
+      signedIn: true,
+      at: '/challenges/abc',
+      restoreDelay: const Duration(milliseconds: 50),
+    );
+
+    expect(find.text('Challenge abc'), findsOneWidget);
+  });
+
+  testWidgets('a route nested under a protected route is protected', (
+    tester,
+  ) async {
+    await pumpRouter(tester, signedIn: false, at: '/challenges/abc/edit');
+
+    expect(find.text('Sign in to continue.'), findsOneWidget);
+    expect(find.text('Edit abc'), findsNothing);
+  });
+
   testWidgets('home stays public', (tester) async {
     await pumpRouter(tester, signedIn: false, at: '/');
 
@@ -139,5 +190,22 @@ void main() {
     await pumpRouter(tester, signedIn: true, at: '/sign-in');
 
     expect(find.text('Every run is a quest.'), findsOneWidget);
+  });
+
+  group('isProtectedRoute', () {
+    const protected = {'/challenges'};
+
+    test('matches the pattern and routes nested under it', () {
+      expect(isProtectedRoute('/challenges', protected), isTrue);
+      expect(isProtectedRoute('/challenges/:id', protected), isTrue);
+    });
+
+    test('does not match a sibling that shares a prefix', () {
+      expect(isProtectedRoute('/challenges-archive', protected), isFalse);
+    });
+
+    test('does not match an unmatched location', () {
+      expect(isProtectedRoute(null, protected), isFalse);
+    });
   });
 }
