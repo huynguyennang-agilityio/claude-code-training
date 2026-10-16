@@ -4,7 +4,7 @@ This is the source of truth for sign up and sign in between the Flutter app and 
 
 - Server: `http://localhost:8000` locally.
 - API base: `http://localhost:8000/api/v1`. Every path below is written from the server root and already includes `/api/v1`, for example `http://localhost:8000/api/v1/auth/signin`.
-- Clients that resolve relative paths, such as the app's `HttpAuthRepository`, must set their base URL to the API base, not the server.
+- Clients that resolve relative paths, such as the app's Dio client (`createDio` in `mobile/lib/core/network/dio_client.dart`), must set their base URL to the API base, not the server.
 - The `/api/v1` prefix was added in #26. Earlier versions of this contract listed the same routes without it.
 - All bodies are JSON (`Content-Type: application/json`).
 - Field names are `snake_case`. Timestamps are ISO 8601 in UTC, for example `2026-10-13T09:55:00Z`.

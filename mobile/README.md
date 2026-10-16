@@ -2,7 +2,7 @@
 
 Flutter app for StrideQuest. See the [root README](../README.md) for setup and [`docs/architecture.md`](../docs/architecture.md) for the diagrams.
 
-Code is organised by feature (Clean Architecture). Older code under `lib/ui`, `lib/data` and `lib/logic` is being moved to this layout.
+Code is organised by feature (Clean Architecture). `features/auth` is the reference implementation; `features/home` holds the home page.
 
 - `lib/core/`: app-wide setup: DI (`get_it` + `injectable`), `go_router` config and auth redirect, Dio client, errors, theme, config.
 - `lib/shared/`: widgets, extensions and utils used by several features.
@@ -12,3 +12,10 @@ Code is organised by feature (Clean Architecture). Older code under `lib/ui`, `l
   - `presentation/`: blocs, pages and widgets.
 
 Dependencies point inward: `presentation` and `data` depend on `domain`, and `domain` depends on neither.
+
+Auth today:
+- **Session:** `AuthRepositoryImpl` keeps it (user and tokens) in secure storage.
+- **Networking:** the `authenticatedDio` instance adds the access token and refreshes it once on `token_expired` / `invalid_token`.
+- **Redirects:** the router redirects to `/sign-in` for paths in `protectedPaths`. Home is public, and `/sign-in` is a placeholder until the sign-in screen has its own issue.
+
+Generated files (`*.g.dart`, `*.freezed.dart`, `lib/core/di/injection.config.dart`) are committed. Regenerate them with `dart run build_runner build --force-jit`.
