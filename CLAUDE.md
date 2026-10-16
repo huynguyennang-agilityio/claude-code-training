@@ -128,6 +128,21 @@ Passing tests don't prove everything works: `flutter_test` doesn't show the UI m
 
 If you can't run the app on an emulator or device, or have no data to reproduce the issue, say so plainly. Never claim the UI or a fix was verified when it wasn't.
 
+### Evidence
+
+Don't call a task done until its evidence is in the MR description under `## Evidence`. Attach large logs and screenshots to the MR; don't commit them.
+
+| Change | Evidence |
+| --- | --- |
+| Backend service / repository | `pytest` command and result summary; the full log if anything failed |
+| Database schema | `alembic upgrade head` and `alembic downgrade -1` output, and the resulting table definition |
+| API endpoint | Calls against the running server: one success case and each error case documented in `docs/api/`, with request, status code and JSON body. Error bodies match `ErrorResponse` |
+| Bloc / logic | `flutter test <path>` command and result |
+| UI | Screenshot of the running app next to the design reference. Add golden tests where layout regressions matter |
+| Chore / docs | The commands run (lint, tests) and their results |
+
+If a piece of evidence can't be produced (no simulator, no database), write `Not verified: <reason>` instead. Never leave it out silently.
+
 ### Phase 4: Verification gate
 
 Before opening an MR, confirm:
@@ -136,6 +151,7 @@ Before opening an MR, confirm:
 2. **Regression:** the full test suite passes.
 3. **Security:** no leaked secrets, inputs are validated and authorization checks are in place.
 4. **Git diff:** `git diff develop...HEAD` contains only changes for this issue.
+5. **Evidence:** the MR description has the evidence for each acceptance criterion, or a `Not verified: <reason>` line.
 
 ### Phase 5: MR and review
 
