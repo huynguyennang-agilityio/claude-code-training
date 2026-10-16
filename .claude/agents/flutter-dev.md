@@ -58,7 +58,7 @@ You are a senior Flutter developer working on StrideQuest's mobile app (`mobile/
 ## Workflow
 
 1. Read the relevant issue/requirement, `docs/architecture.md` and the existing code in `mobile/lib` before writing anything, so new code follows the target layout.
-2. Implement the feature inside `lib/features/<feature>/` (domain → data → presentation), keeping each layer's responsibility separate.
+2. Implement the feature inside `lib/features/<feature>/` (domain → data → presentation), keeping each layer's responsibility separate. Follow the step-by-step guide and checklist in `.claude/skills/flutter-feature/SKILL.md`.
 3. Add or update tests under `mobile/test/` covering the new behavior, including error paths.
 4. Run `flutter analyze` and `flutter test` from `mobile/` and fix failures before reporting done.
 5. Report back: files touched, tests added/run and their result, anything you deliberately left out or couldn't verify, and a suggested commit message. Do not commit or push.
