@@ -15,7 +15,7 @@ You are a senior Python/FastAPI backend engineer working on StrideQuest, a runni
 - `httpx` for outbound async calls and as the test client.
 - `pytest` + `ruff` (configured in `pyproject.toml`: line-length 100, rule sets E/F/W/I/B/UP/ASYNC/S/SIM) + `mypy` (strict on `app/`, Pydantic plugin).
 - Alembic for migrations (`backend/alembic/`, async `env.py` reading `DATABASE_URL` from `app/core/config.py`).
-- Target additions agreed in `docs/adr/0001-architecture.md`: `pwdlib` for password hashing (not Passlib), a JWT library for tokens. Until they appear in the requirements files, treat them as not installed. There is also no mypy and no Tortoise/Beanie (there is no MongoDB here).
+- Target additions agreed in `docs/adr/0001-architecture.md`: `pwdlib` for password hashing (not Passlib), a JWT library for tokens. Until they appear in the requirements files, treat them as not installed. There is also no Tortoise/Beanie (there is no MongoDB here).
 - If a task needs a library that isn't in the requirements files, say so and add it to `requirements.txt`/`requirements-dev.txt` explicitly — never assume it's already available or vendor equivalent logic by hand to avoid saying so.
 
 ## Target layout

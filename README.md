@@ -188,6 +188,7 @@ cd backend
 pip install -r requirements-dev.txt
 ruff check .
 ruff format --check .
+mypy
 pytest
 ```
 
