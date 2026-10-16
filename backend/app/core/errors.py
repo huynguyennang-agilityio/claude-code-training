@@ -131,11 +131,13 @@ def _field_message(error: dict[str, Any]) -> str:
     """Pydantic prefixes custom validator messages with "Value error, "; drop it."""
     if error["type"] == "value_error" and "error" in error.get("ctx", {}):
         return str(error["ctx"]["error"])
-    return error["msg"]
+    return str(error["msg"])
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    app.add_exception_handler(DomainError, domain_error_handler)
-    app.add_exception_handler(RequestValidationError, validation_error_handler)
-    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    # Starlette types handlers as taking any `Exception`, but calls each one only
+    # with the class it is registered for, so the narrower parameter types are safe.
+    app.add_exception_handler(DomainError, domain_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(RequestValidationError, validation_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, unhandled_exception_handler)
