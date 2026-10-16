@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:stridequest/core/network/auth_token_handler.dart';
 import 'package:stridequest/features/auth/data/datasources/auth_remote_data_source.dart';
+import 'package:stridequest/features/auth/data/models/token_pair_model.dart';
 import 'package:stridequest/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 
@@ -94,22 +98,69 @@ void main() {
       () => remote.refresh('refresh-1'),
     ).thenAnswer((_) async => testTokens(2));
 
-    expect(await repository.refreshTokens(), isTrue);
+    expect(await repository.refreshTokens(), TokenRefreshResult.refreshed);
     expect(local.session, testSession(2));
   });
 
-  test('refreshTokens returns false when the backend rejects it', () async {
-    local.session = testSession();
-    when(
-      () => remote.refresh(any()),
-    ).thenThrow(AuthFailure(AuthFailureCode.invalidRefreshToken));
+  for (final code in [
+    AuthFailureCode.invalidRefreshToken,
+    AuthFailureCode.validation,
+  ]) {
+    test('refreshTokens reports ${code.wireCode} as rejected', () async {
+      local.session = testSession();
+      when(() => remote.refresh(any())).thenThrow(AuthFailure(code));
 
-    expect(await repository.refreshTokens(), isFalse);
-    expect(local.session, testSession());
+      expect(await repository.refreshTokens(), TokenRefreshResult.rejected);
+      expect(local.session, testSession());
+    });
+  }
+
+  for (final code in [
+    AuthFailureCode.network,
+    AuthFailureCode.rateLimited,
+    AuthFailureCode.unknown,
+  ]) {
+    test('refreshTokens keeps the session after ${code.wireCode}', () async {
+      local.session = testSession();
+      when(() => remote.refresh(any())).thenThrow(AuthFailure(code));
+
+      expect(await repository.refreshTokens(), TokenRefreshResult.notRefreshed);
+      expect(local.session, testSession());
+    });
+  }
+
+  test('refreshTokens does nothing without a session', () async {
+    expect(await repository.refreshTokens(), TokenRefreshResult.notRefreshed);
+    verifyNever(() => remote.refresh(any()));
   });
 
-  test('refreshTokens returns false without a session', () async {
-    expect(await repository.refreshTokens(), isFalse);
+  test('a sign-out during a refresh revokes the new token and keeps '
+      'nothing', () async {
+    local.session = testSession();
+    final refresh = Completer<TokenPairModel>();
+    when(() => remote.refresh('refresh-1')).thenAnswer((_) => refresh.future);
+    when(() => remote.signOut(any())).thenAnswer((_) async {});
+
+    final refreshing = repository.refreshTokens();
+    final signingOut = repository.signOut();
+    refresh.complete(testTokens(2));
+    await Future.wait([refreshing, signingOut]);
+
+    expect(local.session, isNull);
+    verify(() => remote.signOut('refresh-2')).called(1);
+    verifyNever(() => remote.signOut('refresh-1'));
+  });
+
+  test('a refresh queued after a sign-out stores nothing', () async {
+    local.session = testSession();
+    when(() => remote.signOut(any())).thenAnswer((_) async {});
+
+    final signingOut = repository.signOut();
+    final refreshing = repository.refreshTokens();
+    await signingOut;
+
+    expect(await refreshing, TokenRefreshResult.notRefreshed);
+    expect(local.session, isNull);
     verifyNever(() => remote.refresh(any()));
   });
 

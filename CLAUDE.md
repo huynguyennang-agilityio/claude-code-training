@@ -32,7 +32,7 @@ backend/tests/{unit,integration}/                    pytest tests
 - **Mobile dependency direction:** presentation → domain ← data. `domain/` is pure Dart: no Flutter, Dio or storage imports (`equatable` and `freezed_annotation` are allowed).
 - **Mobile use cases** are optional. Add one only when logic spans several repositories or is reused; otherwise a bloc calls the repository interface.
 - **Navigation:** sign-in and sign-out redirects come from the `GoRouter` `redirect`, driven by `AuthBloc` through a `refreshListenable` adapter. Routes pass IDs only, never objects through `state.extra`.
-- **Blocs** are registered with `registerFactory` and created in the route's `BlocProvider`, so they close with the route.
+- **Blocs** are registered with `registerFactory` and created in the route's `BlocProvider`, so they close with the route. The one exception is `AuthBloc`: an app-wide `@lazySingleton`, because the router redirect and every screen need the same auth state. Don't add other app-wide blocs without the user's approval.
 - **Backend layers:** router → service → repository.
   - Routers never touch the database session.
   - Repositories only query and `flush`. The service, or the session dependency, commits or rolls back.

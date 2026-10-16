@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/router/app_router.dart';
+import 'core/router/go_router_refresh_stream.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 
@@ -16,11 +17,16 @@ class StrideQuestApp extends StatefulWidget {
 }
 
 class _StrideQuestAppState extends State<StrideQuestApp> {
-  late final GoRouter _router = createAppRouter(authBloc: widget.authBloc);
+  late final _authChanges = GoRouterRefreshStream(widget.authBloc.stream);
+  late final GoRouter _router = createAppRouter(
+    authBloc: widget.authBloc,
+    refreshListenable: _authChanges,
+  );
 
   @override
   void dispose() {
     _router.dispose();
+    _authChanges.dispose();
     super.dispose();
   }
 

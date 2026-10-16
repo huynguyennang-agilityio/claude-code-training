@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -58,6 +59,16 @@ void main() {
 
   test('drops a corrupt entry and reads it as signed out', () async {
     stored[SecureAuthLocalDataSource.sessionKey] = '{"user": 1}';
+
+    expect(await local.readSession(), isNull);
+    expect(stored, isEmpty);
+  });
+
+  test('reads an unreadable Keystore entry as signed out', () async {
+    stored[SecureAuthLocalDataSource.sessionKey] = 'unreadable';
+    when(
+      () => storage.read(key: any(named: 'key')),
+    ).thenThrow(PlatformException(code: 'BadPaddingException'));
 
     expect(await local.readSession(), isNull);
     expect(stored, isEmpty);

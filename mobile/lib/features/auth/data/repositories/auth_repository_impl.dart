@@ -15,13 +15,23 @@ import '../datasources/auth_remote_data_source.dart';
 /// It is also the [AuthTokenHandler] the network layer uses to attach and
 /// refresh tokens, so the session has a single owner. `auth_module.dart`
 /// registers it under both interfaces.
+///
+/// Every change to the stored session runs one at a time, so a refresh that
+/// is still in flight can never write tokens back after a sign-out.
 @lazySingleton
 class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   AuthRepositoryImpl(this._remote, this._local);
 
+  /// Refresh failures that mean the refresh token itself is no good.
+  static const _rejectedRefreshCodes = {
+    AuthFailureCode.invalidRefreshToken,
+    AuthFailureCode.validation,
+  };
+
   final AuthRemoteDataSource _remote;
   final AuthLocalDataSource _local;
   final _sessionExpired = StreamController<void>.broadcast();
+  Future<void> _lastChange = Future.value();
 
   @override
   Stream<void> get sessionExpired => _sessionExpired.stream;
@@ -37,37 +47,40 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
     required String email,
     required String password,
     required String displayName,
-  }) async {
-    final session = await _remote.signUp(
-      email: email,
-      password: password,
-      displayName: displayName,
-    );
-    await _local.saveSession(session);
-    return session.user.toEntity();
+  }) {
+    return _serialized(() async {
+      final session = await _remote.signUp(
+        email: email,
+        password: password,
+        displayName: displayName,
+      );
+      await _local.saveSession(session);
+      return session.user.toEntity();
+    });
   }
 
   @override
-  Future<AuthUser> signIn({
-    required String email,
-    required String password,
-  }) async {
-    final session = await _remote.signIn(email: email, password: password);
-    await _local.saveSession(session);
-    return session.user.toEntity();
+  Future<AuthUser> signIn({required String email, required String password}) {
+    return _serialized(() async {
+      final session = await _remote.signIn(email: email, password: password);
+      await _local.saveSession(session);
+      return session.user.toEntity();
+    });
   }
 
   @override
-  Future<void> signOut() async {
-    final session = await _local.readSession();
-    await _local.clear();
-    if (session == null) return;
-    try {
-      await _remote.signOut(session.tokens.refreshToken);
-    } on AuthFailure {
-      // The user is signed out on this device either way. A token the backend
-      // could not revoke expires on its own (30 days).
-    }
+  Future<void> signOut() {
+    return _serialized(() async {
+      final session = await _local.readSession();
+      await _local.clear();
+      if (session == null) return;
+      try {
+        await _remote.signOut(session.tokens.refreshToken);
+      } on AuthFailure {
+        // The user is signed out on this device either way. A token the
+        // backend could not revoke expires on its own (30 days).
+      }
+    });
   }
 
   @override
@@ -77,22 +90,35 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   }
 
   @override
-  Future<bool> refreshTokens() async {
-    final session = await _local.readSession();
-    if (session == null) return false;
-    try {
-      final tokens = await _remote.refresh(session.tokens.refreshToken);
-      await _local.saveSession(session.copyWith(tokens: tokens));
-      return true;
-    } on AuthFailure {
-      return false;
-    }
+  Future<TokenRefreshResult> refreshTokens() {
+    return _serialized(() async {
+      final session = await _local.readSession();
+      if (session == null) return TokenRefreshResult.notRefreshed;
+      try {
+        final tokens = await _remote.refresh(session.tokens.refreshToken);
+        await _local.saveSession(session.copyWith(tokens: tokens));
+        return TokenRefreshResult.refreshed;
+      } on AuthFailure catch (failure) {
+        return _rejectedRefreshCodes.contains(failure.code)
+            ? TokenRefreshResult.rejected
+            : TokenRefreshResult.notRefreshed;
+      }
+    });
   }
 
   @override
-  Future<void> expireSession() async {
-    await _local.clear();
-    _sessionExpired.add(null);
+  Future<void> expireSession() {
+    return _serialized(() async {
+      await _local.clear();
+      _sessionExpired.add(null);
+    });
+  }
+
+  /// Runs [change] after every earlier session change has finished.
+  Future<T> _serialized<T>(Future<T> Function() change) {
+    final result = _lastChange.then((_) => change());
+    _lastChange = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
   }
 
   @disposeMethod

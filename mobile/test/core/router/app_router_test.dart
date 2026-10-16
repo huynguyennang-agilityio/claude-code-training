@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:stridequest/core/router/app_router.dart';
+import 'package:stridequest/core/router/go_router_refresh_stream.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 
@@ -32,21 +33,28 @@ void main() {
     WidgetTester tester, {
     required bool signedIn,
     required String at,
+    Duration restoreDelay = Duration.zero,
   }) async {
-    when(
-      () => repository.restoreSession(),
-    ).thenAnswer((_) async => signedIn ? testUser.toEntity() : null);
+    when(() => repository.restoreSession()).thenAnswer((_) async {
+      // A real secure-storage read finishes after the first redirect.
+      await Future<void>.delayed(restoreDelay);
+      return signedIn ? testUser.toEntity() : null;
+    });
     bloc = AuthBloc(repository)..add(const AuthStarted());
-    await tester.pumpWidget(
-      MaterialApp.router(
-        routerConfig: createAppRouter(
-          authBloc: bloc,
-          routes: _routes,
-          protected: const {_runsPath},
-          initialLocation: at,
-        ),
-      ),
+    final authChanges = GoRouterRefreshStream(bloc.stream);
+    final router = createAppRouter(
+      authBloc: bloc,
+      refreshListenable: authChanges,
+      routes: _routes,
+      protected: const {_runsPath},
+      initialLocation: at,
     );
+    addTearDown(() {
+      router.dispose();
+      authChanges.dispose();
+    });
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pump(restoreDelay);
     await tester.pumpAndSettle();
   }
 
@@ -94,6 +102,31 @@ void main() {
 
     expect(find.text('Sign in to continue.'), findsOneWidget);
     expect(find.text('Runs page'), findsNothing);
+  });
+
+  testWidgets('a deep link to a protected page survives a slow session '
+      'restore', (tester) async {
+    await pumpRouter(
+      tester,
+      signedIn: true,
+      at: _runsPath,
+      restoreDelay: const Duration(milliseconds: 50),
+    );
+
+    expect(find.text('Runs page'), findsOneWidget);
+  });
+
+  testWidgets('a slow restore without a session still ends on sign in', (
+    tester,
+  ) async {
+    await pumpRouter(
+      tester,
+      signedIn: false,
+      at: _runsPath,
+      restoreDelay: const Duration(milliseconds: 50),
+    );
+
+    expect(find.text('Sign in to continue.'), findsOneWidget);
   });
 
   testWidgets('home stays public', (tester) async {

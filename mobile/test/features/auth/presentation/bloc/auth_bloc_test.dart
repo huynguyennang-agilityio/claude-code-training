@@ -26,8 +26,11 @@ void main() {
 
   tearDown(() => sessionExpired.close());
 
-  test('starts unknown', () {
-    expect(AuthBloc(repository).state, const AuthUnknown());
+  test('starts unknown', () async {
+    final bloc = AuthBloc(repository);
+    addTearDown(bloc.close);
+
+    expect(bloc.state, const AuthUnknown());
   });
 
   blocTest<AuthBloc, AuthState>(
@@ -98,6 +101,29 @@ void main() {
       ),
     ),
     expect: () => [const AuthInProgress(), AuthAuthenticated(user)],
+  );
+
+  blocTest<AuthBloc, AuthState>(
+    'reports a failed sign up with its field errors',
+    setUp: () => when(
+      () => repository.signUp(
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+        displayName: any(named: 'displayName'),
+      ),
+    ).thenThrow(AuthFailure(AuthFailureCode.emailTaken)),
+    build: () => AuthBloc(repository),
+    act: (bloc) => bloc.add(
+      const AuthSignUpRequested(
+        email: 'a@b.co',
+        password: 'abc12345',
+        displayName: 'A',
+      ),
+    ),
+    expect: () => [
+      const AuthInProgress(),
+      AuthUnauthenticated(failure: AuthFailure(AuthFailureCode.emailTaken)),
+    ],
   );
 
   blocTest<AuthBloc, AuthState>(

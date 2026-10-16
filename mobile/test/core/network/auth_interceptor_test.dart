@@ -64,7 +64,7 @@ void main() {
     test('refreshes once and retries after $code', () async {
       when(() => tokens.refreshTokens()).thenAnswer((_) async {
         accessToken = 'access-2';
-        return true;
+        return TokenRefreshResult.refreshed;
       });
       dio = buildDio(
         (request) async => request.headers['Authorization'] == 'Bearer access-2'
@@ -82,8 +82,10 @@ void main() {
     });
   }
 
-  test('expires the session when the refresh fails', () async {
-    when(() => tokens.refreshTokens()).thenAnswer((_) async => false);
+  test('expires the session when the refresh token is rejected', () async {
+    when(
+      () => tokens.refreshTokens(),
+    ).thenAnswer((_) async => TokenRefreshResult.rejected);
     dio = buildDio((_) async => _expired('token_expired'));
 
     await expectLater(
@@ -100,8 +102,60 @@ void main() {
     verify(() => tokens.expireSession()).called(1);
   });
 
+  test('keeps the session when the refresh fails for another reason', () async {
+    when(
+      () => tokens.refreshTokens(),
+    ).thenAnswer((_) async => TokenRefreshResult.notRefreshed);
+    dio = buildDio((_) async => _expired('token_expired'));
+
+    await expectLater(
+      dio.get<dynamic>('runs'),
+      throwsA(
+        isA<DioException>().having(
+          (error) => error.response?.statusCode,
+          'status',
+          401,
+        ),
+      ),
+    );
+    verifyNever(() => tokens.expireSession());
+    expect(adapter.requests, hasLength(1));
+  });
+
+  test('refreshes once for requests that fail at the same time', () async {
+    when(() => tokens.refreshTokens()).thenAnswer((_) async {
+      accessToken = 'access-2';
+      return TokenRefreshResult.refreshed;
+    });
+    dio = buildDio(
+      (request) async => request.headers['Authorization'] == 'Bearer access-2'
+          ? jsonBody({'ok': true}, 200)
+          : _expired('token_expired'),
+    );
+
+    final responses = await Future.wait([
+      dio.get<dynamic>('runs'),
+      dio.get<dynamic>('medals'),
+    ]);
+
+    expect(responses.map((r) => r.statusCode), [200, 200]);
+    verify(() => tokens.refreshTokens()).called(1);
+    expect(adapter.requests, hasLength(4));
+  });
+
+  test('passes the error on when signed out meanwhile', () async {
+    dio = buildDio((_) async => _expired('token_expired'));
+    when(() => tokens.accessToken()).thenAnswer((_) async => null);
+
+    await expectLater(dio.get<dynamic>('runs'), throwsA(isA<DioException>()));
+    verifyNever(() => tokens.refreshTokens());
+  });
+
   test('does not refresh a second time when the retry is rejected', () async {
-    when(() => tokens.refreshTokens()).thenAnswer((_) async => true);
+    when(() => tokens.refreshTokens()).thenAnswer((_) async {
+      accessToken = 'access-2';
+      return TokenRefreshResult.refreshed;
+    });
     dio = buildDio((_) async => _expired('token_expired'));
 
     await expectLater(dio.get<dynamic>('runs'), throwsA(isA<DioException>()));
