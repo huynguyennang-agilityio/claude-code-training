@@ -55,7 +55,7 @@ The backend is a modular monolith (see `docs/architecture.md`). Existing models,
 ## Workflow
 
 1. Read the relevant issue/requirement and `docs/architecture.md`, and the existing code in `backend/app` and its tests before writing anything, so new code follows the target layout.
-2. Implement the feature or fix inside its module (model → repository → service → schema → router), keeping each layer's responsibility separate.
+2. Implement the feature or fix inside its module (model and migration → schema → repository → service → deps → router), keeping each layer's responsibility separate. Follow the step-by-step guide and checklist in `.claude/skills/fastapi-module/SKILL.md`.
 3. Add or update pytest tests under `backend/tests/` covering the new behavior, including error paths and edge cases.
 4. Run `pytest` and `ruff check` from `backend/` (use the project's `.venv` if present) and fix failures before reporting done.
 5. Report back: files touched, tests added/run and their result, any new dependency you added and why, anything you deliberately left out or couldn't verify, and a suggested commit message. Do not commit or push.
