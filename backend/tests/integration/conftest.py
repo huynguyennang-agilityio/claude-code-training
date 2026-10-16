@@ -1,12 +1,14 @@
 """Fixtures for tests that need PostgreSQL.
 
 Start the database first with `docker compose up -d --wait db`. The tests use
-the database named in `TEST_DATABASE_URL` (environment or `.env`): it is
-created if missing, rebuilt from the Alembic migrations once per session, and
-every test runs inside a transaction that is rolled back afterwards.
+the database named in `TEST_DATABASE_URL` (environment or `.env`). Once per
+session it is created if missing, its `public` schema is dropped and recreated,
+and `alembic upgrade head` builds the schema. Every test then runs inside a
+transaction that is rolled back afterwards.
 """
 
 import asyncio
+import re
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
@@ -14,6 +16,7 @@ import asyncpg
 import pytest
 from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
+from pydantic import ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
@@ -26,46 +29,84 @@ from app.main import create_app
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
+# The session fixture wipes this database, so only accept names that are
+# plainly throwaway test databases, and only simple identifiers.
+_TEST_DATABASE_NAME = re.compile(r"^[A-Za-z0-9_]+_test$")
 
-class TestSettings(BaseSettings):
+
+class _TestDatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
 
     test_database_url: str
 
 
 def _test_database_url() -> URL:
-    url = make_url(TestSettings().test_database_url)  # type: ignore[call-arg]
-    # The session fixture drops every table, so refuse anything that isn't
-    # clearly a throwaway test database (for example the dev database).
-    if not (url.database or "").endswith("_test"):
-        raise RuntimeError(
-            f"TEST_DATABASE_URL must point to a database whose name ends in '_test', "
-            f"got {url.database!r}."
+    try:
+        raw_url = _TestDatabaseSettings().test_database_url  # type: ignore[call-arg]
+    except ValidationError:
+        pytest.fail(
+            "TEST_DATABASE_URL is not set. Copy it from .env.example into .env, "
+            "or set it in the environment.",
+            pytrace=False,
+        )
+    url = make_url(raw_url)
+    if not _TEST_DATABASE_NAME.fullmatch(url.database or ""):
+        pytest.fail(
+            "TEST_DATABASE_URL must name a database made of letters, digits and "
+            f"underscores and ending in '_test' (the tests wipe it); got {url.database!r}.",
+            pytrace=False,
+        )
+    if url.query:
+        pytest.fail(
+            "TEST_DATABASE_URL must not have query options; the test setup connects "
+            "with host, port, user and password only.",
+            pytrace=False,
         )
     return url
 
 
-async def _create_database_if_missing(url: URL) -> None:
-    conn = await asyncpg.connect(
-        user=url.username,
-        password=url.password,
-        host=url.host,
-        port=url.port,
-        database="postgres",
-    )
+async def _connect(url: URL, database: str) -> asyncpg.Connection:
     try:
-        exists = await conn.fetchval("SELECT 1 FROM pg_database WHERE datname = $1", url.database)
+        return await asyncpg.connect(
+            user=url.username,
+            password=url.password,
+            host=url.host,
+            port=url.port,
+            database=database,
+        )
+    except (OSError, asyncpg.PostgresError) as exc:
+        pytest.fail(
+            f"Cannot connect to PostgreSQL at {url.host}:{url.port} ({exc}). "
+            "Start it with `docker compose up -d --wait db` and check TEST_DATABASE_URL.",
+            pytrace=False,
+        )
+
+
+async def _reset_database(url: URL) -> None:
+    """Create the test database if needed and leave it with an empty `public` schema."""
+    server = await _connect(url, "postgres")
+    try:
+        exists = await server.fetchval("SELECT 1 FROM pg_database WHERE datname = $1", url.database)
         if not exists:
-            await conn.execute(f'CREATE DATABASE "{url.database}"')
+            # Safe to interpolate: the name was checked against _TEST_DATABASE_NAME.
+            await server.execute(f'CREATE DATABASE "{url.database}"')
     finally:
-        await conn.close()
+        await server.close()
+
+    # Drop everything instead of running `alembic downgrade base`: a downgrade
+    # fails when the database is stamped with a revision this branch doesn't have.
+    database = await _connect(url, url.database or "")
+    try:
+        await database.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+    finally:
+        await database.close()
 
 
 @pytest.fixture(scope="session")
 def database_url() -> Iterator[str]:
-    """Build the test schema from the migrations, from scratch, once per session."""
+    """Rebuild the test schema from the migrations, from scratch, once per session."""
     url = _test_database_url()
-    asyncio.run(_create_database_if_missing(url))
+    asyncio.run(_reset_database(url))
     url_text = url.render_as_string(hide_password=False)
 
     with pytest.MonkeyPatch.context() as mp:
@@ -76,9 +117,7 @@ def database_url() -> Iterator[str]:
         mp.setenv("S3_BUCKET", "medals-test")
         mp.setenv("JWT_SECRET", "test-only-secret")
         get_settings.cache_clear()
-        config = Config(str(BACKEND_DIR / "alembic.ini"))
-        command.downgrade(config, "base")
-        command.upgrade(config, "head")
+        command.upgrade(Config(str(BACKEND_DIR / "alembic.ini")), "head")
         yield url_text
     get_settings.cache_clear()
 

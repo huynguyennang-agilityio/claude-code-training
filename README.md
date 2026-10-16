@@ -199,7 +199,7 @@ Backend tests are split in two:
   ```
 
   The tests use `TEST_DATABASE_URL` from `.env` (see `.env.example`):
-  - the database name must end in `_test`, because the tests drop and rebuild its tables;
+  - the database name must be letters, digits and underscores ending in `_test`, because each run wipes its `public` schema;
   - the database is created if it doesn't exist, migrated with `alembic upgrade head`, and each test is rolled back.
 
 Mobile:
