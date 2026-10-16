@@ -9,8 +9,9 @@ Closes #
 ## Evidence
 
 <!-- For each acceptance criterion: the command run, request/response or screenshot, and the result.
+     Redact tokens, passwords, Authorization headers, cookies and connection strings.
      Attach large logs and screenshots here instead of committing them.
-     Write `Not verified: <reason>` for anything you couldn't check. See "Evidence" in CLAUDE.md. -->
+     Write `Not verified: <reason>` for anything you couldn't check. See "Verification evidence" in CLAUDE.md. -->
 
 ## Review checklist
 
