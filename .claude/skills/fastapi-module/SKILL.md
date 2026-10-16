@@ -68,22 +68,27 @@ References: `app/modules/challenges/schemas.py`, `app/modules/runs/schemas.py`.
 
 - Pydantic v2 `BaseModel`s. Keep request (`...Create`, `...In`) and response (`...Read`) models separate, even when the fields overlap.
 - Response models read from ORM objects with `model_config = ConfigDict(from_attributes=True)`.
-- Put field rules in `Field(...)` and cross-field rules in validators. A `ValueError` raised in a validator becomes a `422 validation_error` with the field named, through the handler in `app/core/errors.py`.
-- Field names are `snake_case`, timestamps are timezone-aware `datetime`s, as `docs/api/auth.md` requires.
+- Put field rules in `Field(...)` and other rules in validators. A `ValueError` raised in a validator becomes a `422 validation_error` through the handler in `app/core/errors.py`.
+  - A `field_validator` names its field in `fields`. For a rule across fields, put it on the later field and read the earlier one from `ValidationInfo.data`, as below; a field that failed its own validation is missing from `data`.
+  - A `model_validator` has no field, so the error is reported as `"field": "body"`. Use one only when no single field is to blame.
+  - Raise `ValueError`, never let another exception escape: Pydantic turns only `ValueError` and `AssertionError` into validation errors, and anything else becomes `500 internal_error`.
+- Field names are `snake_case`. Request timestamps are `AwareDatetime`, so a timestamp without a timezone is a `422` instead of being stored without one (`docs/api/auth.md` requires ISO 8601 in UTC). Comparing a naive and an aware `datetime` raises `TypeError`, which would be a `500`.
 
 ```python
 class ChallengeCreate(BaseModel):
     quest_id: int
     title: str = Field(min_length=1, max_length=120)
     target_steps: int = Field(gt=0)
-    starts_at: datetime
-    ends_at: datetime
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
 
-    @model_validator(mode="after")
-    def window_is_valid(self) -> Self:
-        if self.ends_at <= self.starts_at:
+    @field_validator("ends_at")
+    @classmethod
+    def ends_after_start(cls, ends_at: AwareDatetime, info: ValidationInfo) -> AwareDatetime:
+        starts_at = info.data.get("starts_at")
+        if starts_at is not None and ends_at <= starts_at:
             raise ValueError("ends_at must be after starts_at.")
-        return self
+        return ends_at
 ```
 
 ### 3. Repository (pattern from CLAUDE.md and ADR 0001)
@@ -102,6 +107,9 @@ class ChallengeRepository:
             .options(selectinload(Challenge.medal))
         )
 
+    async def quest_exists(self, quest_id: int) -> bool:
+        return await self._session.scalar(select(exists().where(Quest.id == quest_id)))
+
     async def add(self, challenge: Challenge) -> Challenge:
         self._session.add(challenge)
         await self._session.flush()  # assigns challenge.id; the service commits
@@ -109,7 +117,8 @@ class ChallengeRepository:
 ```
 
 - Queries only this module's models. Data owned by another module comes from that module's service.
-- Eager-load every relationship the response schema reads (`selectinload`). An async session can't lazy-load: touching an unloaded relationship raises `MissingGreenlet` during serialization. Loading the existing `Challenge.medal` relationship for `ChallengeRead.medal` is the read-only foreign-key mapping that `docs/architecture.md` accepts; anything beyond reading it goes through `medals.service`.
+- Eager-load every relationship the response schema reads (`selectinload`). An async session can't lazy-load: touching an unloaded relationship raises `MissingGreenlet` during serialization.
+- **Open question: loading another module's rows through a relationship.** The example loads `Challenge.medal` because the existing `ChallengeRead` nests `MedalRead`. `docs/architecture.md` accepts the cross-module relationships only because they map the foreign keys, and says not to use them to reach into another module instead of calling its service. Whether eager-loading them for a response counts as that is not decided. The example's `selectinload(Challenge.medal)` is this skill's reading, not a documented rule. Before relying on it in a real module, ask the user and record the answer in `docs/architecture.md`. The alternative is to get the medal from `medals.service` and build the response from both results.
 - Return ORM objects or `None`. Raising "not found" is the service's decision.
 - No abstract base class or `I`-prefixed interface: unit tests replace the class with `AsyncMock(spec=ChallengeRepository)`.
 
@@ -144,18 +153,17 @@ class ChallengeService:
         return challenge
 
     async def create(self, data: ChallengeCreate) -> Challenge:
+        if not await self._repository.quest_exists(data.quest_id):
+            raise QuestNotFoundError(f"Quest {data.quest_id} does not exist.")
         challenge = Challenge(**data.model_dump())
-        try:
-            await self._repository.add(challenge)
-        except IntegrityError as exc:
-            await self._session.rollback()
-            raise QuestNotFoundError(f"Quest {data.quest_id} does not exist.") from exc
+        await self._repository.add(challenge)
         await self._session.commit()
         return await self.get(challenge.id)  # reload what ChallengeRead needs
 ```
 
 - The global handler turns a `DomainError` into `ErrorResponse` with its `status_code`; the message is for logs and may change. Never raise `HTTPException` from a service or router, and never return error dicts.
-- Commit once, after the last write of the use case. A `DomainError` raised before the commit needs no rollback: `get_session` closes the session, and uncommitted work is discarded. Roll back explicitly when you catch a database error and carry on, as above.
+- Commit once, after the last write of the use case. A `DomainError` raised before the commit needs no rollback: `get_session` closes the session, and uncommitted work is discarded.
+- Check business rules (the quest exists, the name is free) through the repository before writing, and raise the matching `DomainError`. Don't map every `IntegrityError` to one code: once the table gets another constraint, every violation would come back with the wrong code. If you must catch one (a race between check and insert), roll back explicitly and map it only after checking which constraint failed; otherwise let it become a `500`.
 - `get_session` builds the session with `expire_on_commit=False`, so a new object's columns are still readable after the commit. Its relationships were never loaded, though, and `ChallengeRead.model_validate` on it fails with `MissingGreenlet` when it reads `medal`. That is why `create` reloads the row through the repository's eager-loading query.
 - Don't catch broad exceptions. Anything that isn't a `DomainError` becomes `500 internal_error` with a generic message, which is what you want for bugs.
 
@@ -239,9 +247,19 @@ Mounting a new path changes the public API. The contract in `docs/api/` must alr
 | Pure logic | Plain function tests | `tests/unit/test_run_validation.py` |
 | Routes (`tests/integration/test_<module>_api.py`) | The `client` fixture against PostgreSQL; one success case and every error code in the contract, asserting the status and the full `ErrorResponse` body | `tests/integration/test_health.py`, `tests/unit/test_errors.py` |
 | Repository and model | The `session` fixture: constraints, eager loading, `flush` assigning ids | `tests/integration/test_models.py` |
-| Migration | Covered by the session fixture building the schema with `alembic upgrade head`; add a check when a migration moves data | `tests/integration/test_migrations.py` |
+| Migration | Covered by the session-scoped `database_url` fixture building the schema with `alembic upgrade head`; add a check when a migration moves data | `tests/integration/test_migrations.py` |
 
 ```python
+def challenge_create() -> ChallengeCreate:
+    return ChallengeCreate(
+        quest_id=1,
+        title="5k",
+        target_steps=5000,
+        starts_at=datetime(2026, 1, 1, tzinfo=UTC),
+        ends_at=datetime(2026, 1, 2, tzinfo=UTC),
+    )
+
+
 @pytest.mark.anyio
 async def test_get_raises_not_found_for_unknown_id() -> None:
     repository = AsyncMock(spec=ChallengeRepository)
@@ -256,6 +274,7 @@ async def test_get_raises_not_found_for_unknown_id() -> None:
 async def test_create_commits_once() -> None:
     session = AsyncMock(spec=AsyncSession)
     repository = AsyncMock(spec=ChallengeRepository)
+    repository.quest_exists.return_value = True
     service = ChallengeService(session, repository)
 
     created = await service.create(challenge_create())
@@ -263,7 +282,20 @@ async def test_create_commits_once() -> None:
     assert created is repository.get.return_value
     repository.add.assert_awaited_once()
     session.commit.assert_awaited_once()
-    session.rollback.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_create_rejects_unknown_quest_without_writing() -> None:
+    session = AsyncMock(spec=AsyncSession)
+    repository = AsyncMock(spec=ChallengeRepository)
+    repository.quest_exists.return_value = False
+    service = ChallengeService(session, repository)
+
+    with pytest.raises(QuestNotFoundError):
+        await service.create(challenge_create())
+
+    repository.add.assert_not_awaited()
+    session.commit.assert_not_awaited()
 ```
 
 Integration tests need PostgreSQL from `docker compose up -d --wait db` and `TEST_DATABASE_URL` naming a database that ends in `_test` (each session wipes its `public` schema). See the docstring of `tests/integration/conftest.py`:
@@ -305,7 +337,7 @@ If the database or server can't be run, write `Not verified: <reason>`.
 
 ## Common pitfalls
 
-- `HTTPException` in a router or service instead of a `DomainError` subclass. The global handler would still produce an `ErrorResponse`, but with the generic `http_error` code the client can't branch on.
+- `HTTPException` in a router or service instead of a `DomainError` subclass. The global handler would still produce an `ErrorResponse`, but with a generic code (`not_found`, `http_error`, ...) instead of the contract code the client branches on.
 - A repository that commits, or a router that takes `AsyncSession`. Both break the transaction rules and make the service impossible to unit test.
 - Committing inside a service method that another module calls, so a later failure in the caller leaves half the use case saved.
 - Importing another module's `repository.py` or `models.py` (outside `TYPE_CHECKING` relationship hints) to skip its service.
