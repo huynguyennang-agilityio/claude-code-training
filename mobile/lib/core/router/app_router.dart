@@ -5,8 +5,11 @@ import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/pages/sign_in_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 
-/// Routes that need a signed-in user. Home stays public for now; screens that
-/// need an account add their path here.
+/// Route patterns that need a signed-in user, written exactly as the
+/// [GoRoute.path] they guard (for example `/challenges/:id`, not
+/// `/challenges/abc`). Routes nested under a protected pattern are protected
+/// too. Home stays public for now; screens that need an account add their
+/// pattern here.
 const protectedPaths = <String>{};
 
 final appRoutes = <RouteBase>[
@@ -35,21 +38,42 @@ GoRouter createAppRouter({
     initialLocation: initialLocation,
     routes: routes ?? appRoutes,
     refreshListenable: refreshListenable,
-    redirect: (context, state) =>
-        authRedirect(authBloc.state, state.matchedLocation, protected),
+    redirect: (context, state) => authRedirect(
+      authBloc.state,
+      location: state.matchedLocation,
+      route: state.fullPath,
+      protected: protected,
+    ),
   );
 }
 
 /// Where to send the user for [location], or null to stay.
 ///
-/// A protected route needs an authenticated user; anyone signed out goes to
-/// sign in. A signed-in user who lands on sign in goes home. While the stored
-/// session is still being read ([AuthUnknown]) nothing moves, so a deep link
-/// to a protected page survives app start.
-String? authRedirect(AuthState auth, String location, Set<String> protected) {
+/// [route] is the matched route pattern (`GoRouterState.fullPath`, for
+/// example `/challenges/:id`); protection is decided from it, because
+/// [location] holds concrete parameter values. A protected route needs an
+/// authenticated user; anyone signed out goes to sign in. A signed-in user who
+/// lands on sign in goes home. While the stored session is still being read
+/// ([AuthUnknown]) nothing moves, so a deep link to a protected page survives
+/// app start.
+String? authRedirect(
+  AuthState auth, {
+  required String location,
+  required String? route,
+  required Set<String> protected,
+}) {
   if (auth is AuthUnknown) return null;
   final signedIn = auth is AuthAuthenticated;
-  if (!signedIn && protected.contains(location)) return SignInPage.path;
+  if (!signedIn && isProtectedRoute(route, protected)) return SignInPage.path;
   if (signedIn && location == SignInPage.path) return HomePage.path;
   return null;
+}
+
+/// Whether the route pattern [route] is in [protected] or nested under one of
+/// its patterns. Nesting is checked per path segment, so `/challenges` does
+/// not protect `/challenges-archive`. A location that matched no route
+/// ([route] is null) is left to the router's error page.
+bool isProtectedRoute(String? route, Set<String> protected) {
+  if (route == null) return false;
+  return protected.any((p) => route == p || route.startsWith('$p/'));
 }
