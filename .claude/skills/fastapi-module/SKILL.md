@@ -44,7 +44,7 @@ References: `app/core/database.py`, `app/modules/challenges/models.py`, `app/mod
 - `Base.metadata` has a naming convention, so primary keys, foreign keys, unique constraints and indexes are named for you. A `CheckConstraint` must be named in full as `ck_<table>_<rule>`; an unnamed one is an error.
 - Timestamps are `DateTime(timezone=True)`.
 - Add every new model to `app/modules/models.py` (import and `__all__`). Tests and Alembic load the schema from there; a model missing from it is invisible to `alembic revision --autogenerate`.
-- A relationship to another module's model imports that model only under `TYPE_CHECKING`, as `challenges/models.py` does for `Medal` and `Run`. That relationship maps the foreign key. Don't use it to read or change another module's data instead of calling its service (see `docs/architecture.md`, "Modules talk to each other only through services").
+- A relationship to another module's model imports that model only under `TYPE_CHECKING`, as `challenges/models.py` does for `Medal` and `Run`. That relationship maps the foreign key. The only read allowed through it is eager-loading for a nested response schema (section 3); anything else goes through the other module's service (see `docs/architecture.md`, "Modules and layers").
 - Medal images and other files: store the object storage URL, never the bytes.
 
 **Migration.** Every schema change ships with an Alembic revision in the same MR (CLAUDE.md). Against the local docker-compose database (`docker compose up -d --wait db`, `DATABASE_URL` in `.env`):
@@ -116,9 +116,9 @@ class ChallengeRepository:
         return challenge
 ```
 
-- Queries only this module's models. Data owned by another module comes from that module's service.
+- Queries only this module's models. Data owned by another module comes from that module's service, except the read-only nesting below.
 - Eager-load every relationship the response schema reads (`selectinload`). An async session can't lazy-load: touching an unloaded relationship raises `MissingGreenlet` during serialization.
-- **Open question: loading another module's rows through a relationship.** The example loads `Challenge.medal` because the existing `ChallengeRead` nests `MedalRead`. `docs/architecture.md` accepts the cross-module relationships only because they map the foreign keys, and says not to use them to reach into another module instead of calling its service. Whether eager-loading them for a response counts as that is not decided. The example's `selectinload(Challenge.medal)` is this skill's reading, not a documented rule. Before relying on it in a real module, ask the user and record the answer in `docs/architecture.md`. The alternative is to get the medal from `medals.service` and build the response from both results.
+- **Another module's rows in a response.** A repository may eager-load them through an existing relationship only to nest them, read-only, in a response schema: the example loads `Challenge.medal` because `ChallengeRead` nests `MedalRead`. Filtering or sorting by another module's columns, writing its rows, business rules on its data, and data it transforms or restricts on read go through that module's service. Don't add a new cross-module relationship without the user's approval. The `all, delete-orphan` cascade on `Challenge.medal` is not a write path: create and change medals only through `medals.service`, never by assigning or clearing `challenge.medal`. Deleting a challenge may remove its medal, as the foreign key's `ON DELETE CASCADE` already does. Rule and reasons: `docs/architecture.md` ("Modules and layers") and [ADR 0002](../../../docs/adr/0002-cross-module-reads.md).
 - Return ORM objects or `None`. Raising "not found" is the service's decision.
 - No abstract base class or `I`-prefixed interface: unit tests replace the class with `AsyncMock(spec=ChallengeRepository)`.
 

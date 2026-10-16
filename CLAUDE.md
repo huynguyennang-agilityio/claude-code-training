@@ -36,7 +36,7 @@ backend/tests/{unit,integration}/                    pytest tests
 - **Backend layers:** router → service → repository.
   - Routers never touch the database session.
   - Repositories only query and `flush`. The service, or the session dependency, commits or rolls back.
-- **Backend modules** call each other only through services, never another module's repository or models.
+- **Backend modules** call each other only through services, never another module's repository or models. One exception: a repository may eager-load another module's rows through an existing relationship to nest them, read-only, in a response schema ([ADR 0002](docs/adr/0002-cross-module-reads.md)).
 - **Errors:** services raise typed domain exceptions. The global handler maps them to `ErrorResponse`.
 
 ## Language
