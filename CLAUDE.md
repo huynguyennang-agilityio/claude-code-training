@@ -124,9 +124,30 @@ Passing tests don't prove everything works: `flutter_test` doesn't show the UI m
 - **Bug:** reproduce the bug before fixing it when feasible, then repeat the same steps after the fix.
 - **API:** check the request, the response and the error contract.
 - **Integration:** test the flow across components when it makes sense.
-- **All tests:** report the exact commands run and their actual results.
 
-If you can't run the app on an emulator or device, or have no data to reproduce the issue, say so plainly. Never claim the UI or a fix was verified when it wasn't.
+Record what you ran and what you saw as verification evidence (below). If you can't run the app on an emulator or device, or have no data to reproduce the issue, say so plainly with a `Not verified: <reason>` line. Never claim the UI or a fix was verified when it wasn't.
+
+#### Verification evidence
+
+Verification evidence shows the work was checked. It is not the ticket evidence from Phase 1, which is input from the reporter.
+
+- Don't report a task as done without an `## Evidence` section in your report, in the format of the MR template. When the user asks for an MR, the same section goes into its description.
+- Map each acceptance criterion to at least one piece of evidence. A change can match several rows below. Every row also includes the lint and type-check results.
+- Redact tokens, passwords, `Authorization` headers, cookies and connection strings before pasting anything.
+- Attach large logs and screenshots to the MR instead of committing them. Golden test baselines are test fixtures and are committed as usual. Font rendering differs between platforms, so generate and compare goldens on the same platform.
+
+| Change | Evidence |
+| --- | --- |
+| Backend service / repository | `pytest` command and result summary; the full log if anything failed |
+| Database schema | Run against the local docker-compose database only: `alembic upgrade head`, `alembic downgrade <develop head revision>`, `alembic upgrade head` again, and the resulting table definition (`\d <table>`) |
+| API endpoint | Calls against the running server: one success case and each error case documented in `docs/api/`, with request, status code and JSON body. Error bodies match `ErrorResponse` |
+| Bloc / logic | `flutter test <path>` command and result |
+| UI | Screenshot of the running app next to the design reference. Add golden tests where layout regressions matter |
+| Bug fix | The reproduction steps and the actual result before the fix; the same steps and the result after it |
+| Integration | The flow exercised across components (for example the app against the local backend) and what was observed |
+| Chore / docs | The commands run and their results |
+
+If a piece of evidence can't be produced (no simulator, no database), write `Not verified: <reason>` instead. Never leave it out silently.
 
 ### Phase 4: Verification gate
 
@@ -136,6 +157,7 @@ Before opening an MR, confirm:
 2. **Regression:** the full test suite passes.
 3. **Security:** no leaked secrets, inputs are validated and authorization checks are in place.
 4. **Git diff:** `git diff develop...HEAD` contains only changes for this issue.
+5. **Evidence:** the drafted `## Evidence` section covers each acceptance criterion, with evidence or a `Not verified: <reason>` line.
 
 ### Phase 5: MR and review
 

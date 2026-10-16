@@ -26,7 +26,7 @@ flowchart TD
     APPR -- yes --> P3
     G2 -- no --> P3
     P3["Phase 3: Small steps<br/>code → tests → lint → type check<br/>+ verify by ticket type"] --> G4
-    G4{"Phase 4 gate:<br/>criteria met, full suite passes,<br/>security ok, diff in scope?"}
+    G4{"Phase 4 gate:<br/>criteria met, full suite passes,<br/>security ok, diff in scope,<br/>evidence drafted?"}
     G4 -- no --> P3
     G4 -- yes --> P5["Phase 5, when the user asks:<br/>first time: push, open MR into develop, Closes #id<br/>after review: push fixes to the same MR"]
     P5 --> REV["code-reviewer runs automatically<br/>when the MR is opened"]
