@@ -5,15 +5,29 @@ it, and request validation errors, into the shared error body so clients
 can branch on `error.code` instead of parsing messages.
 """
 
+import logging
 from typing import Any, ClassVar
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+logger = logging.getLogger(__name__)
 
 VALIDATION_ERROR_CODE = "validation_error"
 VALIDATION_ERROR_MESSAGE = "Request is invalid."
+
+NOT_FOUND_CODE = "not_found"
+METHOD_NOT_ALLOWED_CODE = "method_not_allowed"
+NOT_AUTHENTICATED_CODE = "not_authenticated"
+HTTP_ERROR_CODE = "http_error"
+INTERNAL_ERROR_CODE = "internal_error"
+
+# FastAPI's security helpers raise `HTTPException(401, "Not authenticated")` when the
+# `Authorization` header is missing.
+_MISSING_CREDENTIAL_DETAIL = "Not authenticated"
 
 _LOCATIONS = {"body", "query", "path", "header", "cookie"}
 
@@ -54,9 +68,11 @@ class DomainError(Exception):
         self.message = message
 
 
-def _error_response(status_code: int, body: ErrorBody) -> JSONResponse:
+def _error_response(
+    status_code: int, body: ErrorBody, headers: dict[str, str] | None = None
+) -> JSONResponse:
     content = ErrorResponse(error=body).model_dump(mode="json")
-    return JSONResponse(status_code=status_code, content=content)
+    return JSONResponse(status_code=status_code, content=content, headers=headers)
 
 
 async def domain_error_handler(_: Request, exc: DomainError) -> JSONResponse:
@@ -70,6 +86,30 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
     ]
     body = ErrorBody(code=VALIDATION_ERROR_CODE, message=VALIDATION_ERROR_MESSAGE, fields=fields)
     return _error_response(422, body)
+
+
+async def http_exception_handler(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+    code, message = _http_error_body(exc)
+    return _error_response(
+        exc.status_code, ErrorBody(code=code, message=message), dict(exc.headers or {})
+    )
+
+
+async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+    logger.error("Unhandled exception", exc_info=exc)
+    return _error_response(
+        500, ErrorBody(code=INTERNAL_ERROR_CODE, message="Something went wrong.")
+    )
+
+
+def _http_error_body(exc: StarletteHTTPException) -> tuple[str, str]:
+    if exc.status_code == 404:
+        return NOT_FOUND_CODE, "Resource not found."
+    if exc.status_code == 405:
+        return METHOD_NOT_ALLOWED_CODE, "Method not allowed."
+    if exc.status_code == 401 and exc.detail == _MISSING_CREDENTIAL_DETAIL:
+        return NOT_AUTHENTICATED_CODE, "Authentication is required."
+    return HTTP_ERROR_CODE, str(exc.detail)
 
 
 def _field_name(error: dict[str, Any]) -> str:
@@ -96,3 +136,5 @@ def _field_message(error: dict[str, Any]) -> str:
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(DomainError, domain_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)
