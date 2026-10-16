@@ -1,9 +1,8 @@
 """create initial tables
 
 Revision ID: 3afe18174cdf
-Revises:
+Revises: none (first migration)
 Create Date: 2026-10-15 23:21:20.691817
-
 """
 
 from collections.abc import Sequence
