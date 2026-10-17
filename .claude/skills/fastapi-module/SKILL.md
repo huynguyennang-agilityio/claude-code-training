@@ -237,6 +237,8 @@ router.include_router(challenges_router)
 
 Mounting a new path changes the public API. The contract in `docs/api/` must already list it.
 
+Every route requires authentication unless it is in `PUBLIC_ROUTES` in `tests/unit/test_auth_sweep.py`. That test calls each route without a token and fails unless it gets `401 not_authenticated`. Add a route to the allowlist only when the endpoints table in `docs/api/<module>.md` lists it with `none` in the `Auth` column, and say so in the MR. `GET /api/v1/health` is the one exception: an infrastructure probe with no contract. Declare the auth dependency before any dependency that needs a session (FastAPI resolves them in order); the sweep reports a session-first route as `500`. A websocket or mounted app fails the sweep's `test_every_route_is_an_api_route` until it has its own auth test.
+
 ### 7. Tests
 
 `backend/tests/` has `unit/` and `integration/`. Every feature needs tests (CLAUDE.md), and error paths count as much as success paths. Async tests are marked `@pytest.mark.anyio`; the `anyio_backend` fixture in `tests/conftest.py` runs them on asyncio. Don't add `pytest-asyncio`.
@@ -246,6 +248,7 @@ Mounting a new path changes the public API. The contract in `docs/api/` must alr
 | Service (`tests/unit/test_<module>_service.py`) | `AsyncMock(spec=ChallengeRepository)` and `AsyncMock(spec=AsyncSession)`; assert the result, each raised `DomainError` subclass, and whether `commit`/`rollback` were awaited. No database | `tests/unit/test_run_validation.py` for style |
 | Pure logic | Plain function tests | `tests/unit/test_run_validation.py` |
 | Routes (`tests/integration/test_<module>_api.py`) | The `client` fixture against PostgreSQL; one success case and every error code in the contract, asserting the status and the full `ErrorResponse` body | `tests/integration/test_health.py`, `tests/unit/test_errors.py` |
+| Ownership (`tests/integration/test_<module>_api.py`) | For every endpoint that reads or changes a user-owned resource: user B asks for user A's resource and gets `404 not_found` (not `403`, so existence isn't leaked), and A's row is unchanged | (none yet; the first module with user-owned data adds one) |
 | Repository and model | The `session` fixture: constraints, eager loading, `flush` assigning ids | `tests/integration/test_models.py` |
 | Migration | Covered by the session-scoped `database_url` fixture building the schema with `alembic upgrade head`; add a check when a migration moves data | `tests/integration/test_migrations.py` |
 
@@ -359,5 +362,7 @@ If the database or server can't be run, write `Not verified: <reason>`.
 - [ ] Modules talk only through services and `deps.py` factories.
 - [ ] The router is mounted in `app/api/v1/router.py`.
 - [ ] Unit tests cover the service with `AsyncMock` repositories; integration tests cover the success case and every documented error code.
+- [ ] `tests/unit/test_auth_sweep.py` passes; any new public route is in `PUBLIC_ROUTES` and listed with `none` in the `Auth` column of the contract.
+- [ ] Each endpoint on a user-owned resource has an ownership test: another user gets `404 not_found`.
 - [ ] `ruff check`, `ruff format --check` and `pytest` pass.
 - [ ] The `## Evidence` section is drafted.
