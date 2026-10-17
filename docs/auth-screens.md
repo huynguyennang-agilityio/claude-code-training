@@ -36,7 +36,7 @@ Local checks run on submit. Server `422` messages appear under the matching fiel
 | `error.code` | Status | What the user sees |
 | --- | --- | --- |
 | `invalid_credentials` | 401 | Banner: wrong email or password (sign in). |
-| `email_taken` | 409 | Banner and the email field: this email is already registered (sign up). |
+| `email_taken` | 409 | The email field shows "An account with this email already exists." (sign up); no banner, so it is not announced twice. |
 | `validation_error` | 422 | Each `fields[]` message under its field. |
 | `rate_limited` | 429 | Banner: "Try again in N minutes." from `Retry-After`. |
 | network or server error | none | Banner; the entered values stay. |
@@ -65,7 +65,7 @@ Figma has no variables or color styles yet, so the values below were read from t
 
 Text styles in Figma (Inter): Display / Bold 32, Heading / Bold 24, Title / Semi Bold 18, Button / Semi Bold 16, Body L / Regular 14, Body / Regular 13, Body / Medium 13, Body / Semi Bold 13.
 
-Mapping to code (to do): colors go into `ColorScheme` and `TextTheme` in `lib/core/theme/app_theme.dart`; the 5 and 10 radii and any spacing the scale lacks go into `app_tokens.dart`. Inter is bundled as a font asset, not fetched at run time. The Account frames are dark-only, so the app theme is dark unless the designer provides a light one.
+Mapping to code (done in #52): colors go into `ColorScheme` and `TextTheme` in `lib/core/theme/app_theme.dart`; the 5 and 10 radii and any spacing the scale lacks go into `app_tokens.dart`. Inter is bundled as a font asset, not fetched at run time. The Account frames are dark-only, so the app theme is dark unless the designer provides a light one.
 
 ## Task status
 
@@ -79,9 +79,16 @@ Review of the first auth task split against the repo, with the current state:
 | BE-4: sign-in rate limit | Done (#46) |
 | Fuzz, `hurl` replay files, query counts for the auth API | Done (#47) |
 | FE: sign-in form and the sign-in/sign-out actions | Done (#48), with Material defaults |
-| FE: apply the Figma theme (colors, Inter, radii) | To do |
-| FE: restyle Sign in to the Figma frame | To do |
-| FE: Sign up page, `/sign-up` route, link from Sign in | To do |
+| FE: apply the Figma theme (colors, Inter, radii) | Done (#52) |
+| FE: restyle Sign in to the Figma frame | Done (#53) |
+| FE: Sign up page, `/sign-up` route, link from Sign in | Done (#54) |
 | Optional: Patrol native-dialog tests | Blocked (#49): `patrol` needs `equatable ^2`, the app uses `^3` |
 
-Suggested order: theme, then the Sign in restyle, then Sign up. Each is its own issue and branch. The theme comes first so both screens use the same tokens.
+Where the app differs from Figma, for the designer to confirm:
+
+- Error banners use a dark red tint (`#3B1C1D`) with light red text (`#FFB4B5`), and notices use `#303030`, because the default white on `#E54D4F` has a contrast of 3.81 (the guideline is 4.5).
+- The hint under the password field uses Text / Secondary (`#A1A1A2`), not Text / Disabled (`#5F5E60`), which has a contrast of 2.97 on the background.
+- The Show/Hide action is a 48 × 48 tap target, larger than its text.
+- A focused input has a Lime border.
+
+Open: a password reset link and a light theme, neither of which is in the design or the API.

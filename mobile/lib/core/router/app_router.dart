@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/pages/sign_in_page.dart';
+import '../../features/auth/presentation/pages/sign_up_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 
 /// Route patterns that need a signed-in user, written as the full pattern
@@ -19,7 +20,14 @@ final appRoutes = <RouteBase>[
     path: SignInPage.path,
     builder: (context, state) => const SignInPage(),
   ),
+  GoRoute(
+    path: SignUpPage.path,
+    builder: (context, state) => const SignUpPage(),
+  ),
 ];
+
+/// Pages for signed-out users only; a signed-in user who lands on one goes home.
+const _signedOutOnlyPaths = {SignInPage.path, SignUpPage.path};
 
 /// Builds the app router. Sign-in and sign-out redirects come only from
 /// [authRedirect], driven by [authBloc]; screens never navigate on auth
@@ -54,7 +62,7 @@ GoRouter createAppRouter({
 /// example `/challenges/:id`); protection is decided from it, because
 /// [location] holds concrete parameter values. A protected route needs an
 /// authenticated user; anyone signed out goes to sign in. A signed-in user who
-/// lands on sign in goes home. While the stored session is still being read
+/// lands on sign in or sign up goes home. While the stored session is still being read
 /// ([AuthUnknown]) nothing moves, so a deep link to a protected page survives
 /// app start.
 String? authRedirect(
@@ -66,7 +74,7 @@ String? authRedirect(
   if (auth is AuthUnknown) return null;
   final signedIn = auth is AuthAuthenticated;
   if (!signedIn && isProtectedRoute(route, protected)) return SignInPage.path;
-  if (signedIn && location == SignInPage.path) return HomePage.path;
+  if (signedIn && _signedOutOnlyPaths.contains(location)) return HomePage.path;
   return null;
 }
 

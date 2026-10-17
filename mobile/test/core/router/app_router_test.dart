@@ -198,6 +198,18 @@ void main() {
     expect(find.text('Every run is a quest.'), findsOneWidget);
   });
 
+  testWidgets('a signed-in user on sign up goes home', (tester) async {
+    await pumpRouter(tester, signedIn: true, at: '/sign-up');
+
+    expect(find.text('Every run is a quest.'), findsOneWidget);
+  });
+
+  testWidgets('a signed-out user can open sign up', (tester) async {
+    await pumpRouter(tester, signedIn: false, at: '/sign-up');
+
+    expect(find.text('Create your account'), findsOneWidget);
+  });
+
   group('isProtectedRoute', () {
     const protected = {'/challenges'};
 
