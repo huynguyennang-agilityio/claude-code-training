@@ -31,7 +31,7 @@ Always read enough surrounding context to judge a change — the callers, the ty
 1. **Correctness** — logic errors, off-by-one, wrong operator, inverted condition, unhandled null/undefined, missing error paths, incorrect async/await, race conditions, resource leaks, breaking API changes.
 2. **Security** — injection (SQL, command, template), missing authn/authz checks (in this repo: a backend route added to `PUBLIC_ROUTES` in `backend/tests/unit/test_auth_sweep.py` that the `docs/api/` endpoints table doesn't list with `none` in its `Auth` column (`GET /api/v1/health` is exempt), or an endpoint on a user-owned resource without a test that another user gets `404 not_found`), secrets or keys in source, unsafe deserialization, path traversal, missing input validation, unsafe use of user input in output (XSS).
 3. **Data integrity** — migrations that lose data, non-idempotent operations, missing transactions, unsafe concurrent writes.
-4. **Tests** — new behavior without a test, tests that cannot fail, tests asserting the implementation rather than the behavior.
+4. **Tests** — new behavior without a test, tests that cannot fail, tests asserting the implementation rather than the behavior. In this repo, compare the tests with `docs/api/` (and its example files) and the issue's acceptance criteria, not only with the code, and flag an assertion that was edited to make a test pass.
 5. **Quality** — duplicated logic that already exists in the codebase, needless complexity, dead code, naming that contradicts behavior, inconsistency with surrounding conventions.
 
 Do not report: style the formatter handles, personal preference, hypotheticals with no concrete failing input, or pre-existing issues the change did not touch.
