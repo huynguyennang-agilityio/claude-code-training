@@ -85,6 +85,8 @@ class _SignUpPageState extends State<SignUpPage> {
           key: _formKey,
           child: AuthFormLayout(
             title: 'Sign up',
+            // The page was reached with `go`, so there is nothing to pop.
+            onBack: () => context.go(SignInPage.path),
             heading: 'Create your account',
             subtitle: 'Start your first quest in under a minute.',
             actions: [

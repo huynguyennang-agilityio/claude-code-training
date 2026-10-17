@@ -17,20 +17,22 @@ void main() {
   const email = 'runner@example.com';
   const password = 'run4medals';
 
-  Future<void> pumpApp(WidgetTester tester) async {
+  Future<void> pumpApp(
+    WidgetTester tester, {
+    bool storedSession = false,
+  }) async {
     final remote = FakeAuthRemoteDataSource();
+    final local = InMemoryAuthLocalDataSource();
     // Real async: the fake's delay is a timer that fake time would never fire.
-    await tester.runAsync(
+    final session = await tester.runAsync(
       () => remote.signUp(
         email: email,
         password: password,
         displayName: 'Lan Runner',
       ),
     );
-    final repository = AuthRepositoryImpl(
-      remote,
-      InMemoryAuthLocalDataSource(),
-    );
+    if (storedSession) local.session = session;
+    final repository = AuthRepositoryImpl(remote, local);
     final authBloc = AuthBloc(repository)..add(const AuthStarted());
     addTearDown(authBloc.close);
     addTearDown(repository.dispose);
@@ -48,8 +50,6 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    await tester.tap(find.text('Sign in'));
-    await tester.pumpAndSettle();
     expect(find.byType(SignInPage), findsOneWidget);
 
     await tester.enterText(emailField, email);
@@ -66,9 +66,6 @@ void main() {
     tester,
   ) async {
     await pumpApp(tester);
-    await tester.tap(find.text('Sign in'));
-    await tester.pumpAndSettle();
-
     await tester.enterText(emailField, email);
     await tester.enterText(passwordField, 'wrong-pass1');
     await tester.tap(submit);
@@ -80,8 +77,6 @@ void main() {
 
   testWidgets('the right password works after a wrong one', (tester) async {
     await pumpApp(tester);
-    await tester.tap(find.text('Sign in'));
-    await tester.pumpAndSettle();
     await tester.enterText(emailField, email);
     await tester.enterText(passwordField, 'wrong-pass1');
     await tester.tap(submit);
@@ -96,8 +91,6 @@ void main() {
 
   testWidgets('sign out returns to the signed-out Home', (tester) async {
     await pumpApp(tester);
-    await tester.tap(find.text('Sign in'));
-    await tester.pumpAndSettle();
     await tester.enterText(emailField, email);
     await tester.enterText(passwordField, password);
     await tester.tap(submit);
@@ -106,19 +99,22 @@ void main() {
     await tester.tap(find.byTooltip('Sign out'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sign in'), findsOneWidget);
-    expect(find.textContaining('Welcome back,'), findsNothing);
+    expect(find.byType(SignInPage), findsOneWidget);
+    expect(find.text('Welcome back'), findsOneWidget);
   });
 
-  testWidgets('Back returns from the sign-in page to Home', (tester) async {
+  testWidgets('the app starts on sign in, with no back button', (tester) async {
     await pumpApp(tester);
-    await tester.tap(find.text('Sign in'));
-    await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Back'));
-    await tester.pumpAndSettle();
+    expect(find.byType(SignInPage), findsOneWidget);
+    expect(find.byTooltip('Back'), findsNothing);
+    expect(find.text('Every run is a quest.'), findsNothing);
+  });
+
+  testWidgets('a stored session starts on Home', (tester) async {
+    await pumpApp(tester, storedSession: true);
 
     expect(find.byType(SignInPage, skipOffstage: false), findsNothing);
-    expect(find.text('Every run is a quest.'), findsOneWidget);
+    expect(find.text('Welcome back, Lan Runner.'), findsOneWidget);
   });
 }

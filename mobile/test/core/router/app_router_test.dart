@@ -49,6 +49,7 @@ void main() {
     required bool signedIn,
     required String at,
     Duration restoreDelay = Duration.zero,
+    Set<String> protected = const {_runsPath, _challengePath},
   }) async {
     when(() => repository.restoreSession()).thenAnswer((_) async {
       // A real secure-storage read finishes after the first redirect.
@@ -61,7 +62,7 @@ void main() {
       authBloc: bloc,
       refreshListenable: authChanges,
       routes: _routes,
-      protected: const {_runsPath, _challengePath},
+      protected: protected,
       initialLocation: at,
     );
     addTearDown(() {
@@ -186,10 +187,63 @@ void main() {
     expect(find.text('Edit abc'), findsNothing);
   });
 
-  testWidgets('home stays public', (tester) async {
-    await pumpRouter(tester, signedIn: false, at: '/');
+  group('with the app\'s own protected routes', () {
+    testWidgets('a signed-out user on Home starts on sign in', (tester) async {
+      await pumpRouter(
+        tester,
+        signedIn: false,
+        at: '/',
+        protected: protectedPaths,
+      );
 
-    expect(find.text('Every run is a quest.'), findsOneWidget);
+      expect(find.text('Welcome back'), findsOneWidget);
+      expect(find.text('Every run is a quest.'), findsNothing);
+    });
+
+    testWidgets('a signed-in user opens Home', (tester) async {
+      await pumpRouter(
+        tester,
+        signedIn: true,
+        at: '/',
+        protected: protectedPaths,
+      );
+
+      expect(find.textContaining('Welcome back, '), findsOneWidget);
+      expect(find.text('Every run is a quest.'), findsOneWidget);
+    });
+
+    testWidgets('Home never shows its content while the session is read', (
+      tester,
+    ) async {
+      when(() => repository.restoreSession()).thenAnswer((_) async {
+        await Future<void>.delayed(const Duration(seconds: 1));
+        return null;
+      });
+      bloc = AuthBloc(repository)..add(const AuthStarted());
+      final authChanges = GoRouterRefreshStream(bloc.stream);
+      final router = createAppRouter(
+        authBloc: bloc,
+        refreshListenable: authChanges,
+      );
+      addTearDown(() {
+        router.dispose();
+        authChanges.dispose();
+      });
+      await tester.pumpWidget(
+        BlocProvider<AuthBloc>.value(
+          value: bloc,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('Every run is a quest.'), findsNothing);
+
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(find.text('Welcome back'), findsOneWidget);
+    });
   });
 
   testWidgets('a signed-in user on sign in goes home', (tester) async {
