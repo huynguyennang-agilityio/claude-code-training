@@ -15,6 +15,7 @@ Paths below are relative to `backend/` unless they start with `docs/` or `.claud
 
 1. Make sure the issue has its ticket evidence (sample request and response for an API ticket) and acceptance criteria (CLAUDE.md, Phase 1).
 2. Read or write the API contract in `docs/api/<module>.md`, shaped like `docs/api/auth.md`: endpoints table, request and response bodies, and the error codes each endpoint returns. The contract comes first (CLAUDE.md, Phase 2).
+   Every JSON example in it is also a file under `docs/api/examples/<module>/`, marked with `<!-- example: <module>/<file>.json -->` on the line above its ```json block. Add one file per request body, success response and documented error case. `tests/unit/test_api_examples.py` fails if a block and its file differ, if a block has no marker, or if a file is unused; `tests/unit/test_error_contract.py` fails if a row of the "Error codes" table is neither implemented nor listed as pending.
 3. Stop for the user's approval before implementing if the change touches a public API or breaking contract, the database schema, auth or another security boundary, the architecture, or real data and costs (CLAUDE.md, Phase 2, step 4). A new table is a schema change.
 4. Read the reference files listed under each step below. Copy their shape, not just the snippets here.
 
@@ -247,7 +248,7 @@ Every route requires authentication unless it is in `PUBLIC_ROUTES` in `tests/un
 | --- | --- | --- |
 | Service (`tests/unit/test_<module>_service.py`) | `AsyncMock(spec=ChallengeRepository)` and `AsyncMock(spec=AsyncSession)`; assert the result, each raised `DomainError` subclass, and whether `commit`/`rollback` were awaited. No database | `tests/unit/test_run_validation.py` for style |
 | Pure logic | Plain function tests | `tests/unit/test_run_validation.py` |
-| Routes (`tests/integration/test_<module>_api.py`) | The `client` fixture against PostgreSQL; one success case and every error code in the contract, asserting the status and the full `ErrorResponse` body | `tests/integration/test_health.py`, `tests/unit/test_errors.py` |
+| Routes (`tests/integration/test_<module>_api.py`) | The `client` fixture against PostgreSQL; one success case and every error code in the contract, asserting the status and the full `ErrorResponse` body. Load the expected body with `tests.api_docs.load_example("<module>/<file>.json")` and compare it, treating generated values (ids, tokens, timestamps) by type | `tests/integration/test_health.py`, `tests/unit/test_errors.py` |
 | Ownership (`tests/integration/test_<module>_api.py`) | For every endpoint that reads or changes a user-owned resource: user B asks for user A's resource and gets `404 not_found` (not `403`, so existence isn't leaked), and A's row is unchanged | (none yet; the first module with user-owned data adds one) |
 | Repository and model | The `session` fixture: constraints, eager loading, `flush` assigning ids | `tests/integration/test_models.py` |
 | Migration | Covered by the session-scoped `database_url` fixture building the schema with `alembic upgrade head`; add a check when a migration moves data | `tests/integration/test_migrations.py` |
@@ -361,6 +362,8 @@ If the database or server can't be run, write `Not verified: <reason>`.
 - [ ] The service raises `DomainError` subclasses with contract codes and commits once; methods called by other modules don't commit.
 - [ ] Modules talk only through services and `deps.py` factories.
 - [ ] The router is mounted in `app/api/v1/router.py`.
+- [ ] Each request body, success response and error case in the contract has an example file, and the route tests compare responses with it.
+- [ ] `docs/api/openapi.json` is regenerated (`python -m app.scripts.export_openapi` from `backend/`) and its diff is in the MR.
 - [ ] Unit tests cover the service with `AsyncMock` repositories; integration tests cover the success case and every documented error code.
 - [ ] `tests/unit/test_auth_sweep.py` passes; any new public route is in `PUBLIC_ROUTES` and listed with `none` in the `Auth` column of the contract.
 - [ ] Each endpoint on a user-owned resource has an ownership test: another user gets `404 not_found`.

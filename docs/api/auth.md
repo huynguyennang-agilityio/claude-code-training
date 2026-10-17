@@ -8,6 +8,7 @@ This is the source of truth for sign up and sign in between the Flutter app and 
 - The `/api/v1` prefix was added in #26. Earlier versions of this contract listed the same routes without it.
 - All bodies are JSON (`Content-Type: application/json`).
 - Field names are `snake_case`. Timestamps are ISO 8601 in UTC, for example `2026-10-13T09:55:00Z`.
+- Every JSON example is also a file in `docs/api/examples/`; the `<!-- example: ... -->` comment above each block names it. Backend and app tests compare their code with those files, so change the file and the block together.
 
 ## Endpoints
 
@@ -43,6 +44,7 @@ The app should check these on the form before calling the API. The backend check
 
 ### `TokenPair`
 
+<!-- example: auth/token_pair.json -->
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -56,6 +58,7 @@ The app should check these on the form before calling the API. The backend check
 
 ### `User`
 
+<!-- example: auth/user.json -->
 ```json
 {
   "id": "6f1c2b3a-8d4e-4f5a-9b6c-7d8e9f0a1b2c",
@@ -69,10 +72,21 @@ The app should check these on the form before calling the API. The backend check
 
 Returned by sign up and sign in.
 
+<!-- example: auth/auth_response.json -->
 ```json
 {
-  "user": { "...": "User" },
-  "tokens": { "...": "TokenPair" }
+  "user": {
+    "id": "6f1c2b3a-8d4e-4f5a-9b6c-7d8e9f0a1b2c",
+    "email": "runner@example.com",
+    "display_name": "Lan Runner",
+    "created_at": "2026-10-13T09:55:00Z"
+  },
+  "tokens": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "kq3Vh0b0yQyF2m7...",
+    "token_type": "bearer",
+    "expires_in": 900
+  }
 }
 ```
 
@@ -80,6 +94,7 @@ Returned by sign up and sign in.
 
 Every error, including validation errors, has this shape. Branch on `error.code`, never on `message`: the message is for logs and may change.
 
+<!-- example: auth/error_invalid_credentials.json -->
 ```json
 {
   "error": {
@@ -92,6 +107,7 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 
 `fields` is only filled for `validation_error`. Each item names the field and why it failed:
 
+<!-- example: auth/error_validation.json -->
 ```json
 {
   "error": {
@@ -125,6 +141,7 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 
 Request:
 
+<!-- example: auth/signup_request.json -->
 ```json
 {
   "email": "runner@example.com",
@@ -142,6 +159,7 @@ Responses:
 
 Request:
 
+<!-- example: auth/signin_request.json -->
 ```json
 {
   "email": "runner@example.com",
@@ -160,6 +178,7 @@ Sign in is rate limited: after 5 failed attempts for the same email within 15 mi
 
 Request:
 
+<!-- example: auth/refresh_token_request.json -->
 ```json
 {
   "refresh_token": "kq3Vh0b0yQyF2m7..."
@@ -175,6 +194,7 @@ Responses:
 
 Request:
 
+<!-- example: auth/refresh_token_request.json -->
 ```json
 {
   "refresh_token": "kq3Vh0b0yQyF2m7..."
