@@ -15,7 +15,7 @@ flowchart TD
     START(["New change"]) --> P1["Phase 1: Classify the ticket"]
     P1 --> G1{"Required evidence<br/>present?"}
     G1 -- no --> ASK1["Ask the user for it"] --> G1
-    G1 -- yes --> P1B["List open questions,<br/>write acceptance criteria"]
+    G1 -- yes --> P1B["List open questions,<br/>write acceptance criteria<br/>(UI: states, sizes, text scales)"]
     P1B --> ISSUE{"Existing issue picked,<br/>or new issue text<br/>confirmed by the user?"}
     ISSUE -- no --> P1B
     ISSUE -- yes --> BR["Create the issue if new,<br/>branch type/id-name from develop"]
@@ -25,8 +25,8 @@ flowchart TD
     APPR -- no --> P2
     APPR -- yes --> P3
     G2 -- no --> P3
-    P3["Phase 3: Small steps<br/>code → tests → lint → type check<br/>+ verify by ticket type"] --> G4
-    G4{"Phase 4 gate:<br/>criteria met, full suite passes,<br/>security ok, diff in scope,<br/>evidence drafted?"}
+    P3["Phase 3: Small steps<br/>code → tests → lint → type check<br/>+ verify by ticket type<br/>Stop hook reruns the checks"] --> G4
+    G4{"Phase 4 gate:<br/>criteria met, full suite passes,<br/>security ok, diff in scope,<br/>evidence drafted<br/>(contract, a11y, auth rows)?"}
     G4 -- no --> P3
     G4 -- yes --> P5["Phase 5, when the user asks:<br/>first time: push, open MR into develop, Closes #id<br/>after review: push fixes to the same MR"]
     P5 --> REV["code-reviewer runs automatically<br/>when the MR is opened"]
@@ -73,7 +73,7 @@ sequenceDiagram
     U->>C: Push and open the MR
     C->>G: git push, open MR into develop (template, Closes #id)
     C->>R: review the MR (runs automatically)
-    R-->>C: findings by step: correctness, tests, readability, security, scope
+    R-->>C: findings by step: correctness, tests (against docs/api and criteria), readability, security, scope
     C-->>U: MR link + review findings
     U->>G: review the MR
     loop until the user is satisfied

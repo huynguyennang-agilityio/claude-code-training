@@ -96,6 +96,8 @@ Set these up once and update them when they change: architecture, tech stack, re
 - **Required evidence missing:** ask for it before writing code. Don't guess what the user wants.
 - **Non-essential detail missing:** continue only if you state the assumption in the issue or plan and it doesn't materially change the result.
 
+For `ui` tickets and features with UI, the acceptance criteria also name the states the screen can show (loading, empty, error, success, as they apply) and the screen sizes and text scales to support. The default is 375×667 and 430×932 at text scale 1.0 and 2.0 (`pumpScreen` in `mobile/test/helpers/`).
+
 Don't demand images for every ticket. A bug with a wrong HTTP status needs the request, response and log, not a screenshot.
 
 ### Phase 2: Design gate
@@ -118,6 +120,8 @@ Build in small steps. For each step:
 2. Add or update tests. Every feature needs tests.
 3. Run lint: `flutter analyze` in `mobile/`; `ruff check .` and `ruff format --check .` in `backend/`.
 4. Run type checks: `flutter analyze` covers Dart; `mypy` in `backend/` (strict, configured in `pyproject.toml`).
+
+A `Stop` hook (`.claude/hooks/check.sh`, set up in `.claude/settings.json`) runs these checks for the files you changed when you try to finish, and blocks until they pass: `flutter analyze` and `flutter test` for `mobile/`; `ruff check`, `ruff format --check`, `mypy` and `pytest tests/unit` for `backend/`. It skips the integration tests, which need Docker, so run those yourself before Phase 4. After 3 failed stops in a row it lets you stop and warns the user.
 
 Passing tests don't prove everything works: `flutter_test` doesn't show the UI matches the design, and `pytest` doesn't show the mobile-backend flow works. Also verify by ticket type:
 
@@ -144,6 +148,9 @@ Verification evidence shows the work was checked. It is not the ticket evidence 
 | API endpoint | Calls against the running server: one success case and each error case documented in `docs/api/`, with request, status code and JSON body. Error bodies match `ErrorResponse` |
 | Bloc / logic | `flutter test <path>` command and result |
 | UI | Screenshot of the running app next to the design reference. Add golden tests where layout regressions matter |
+| Screen quality | `flutter test <page test>` using `pumpScreen` and `expectAccessible`: both phone sizes, both text scales, no overflow, accessibility guidelines, and each bloc state (loading, empty, error, success) |
+| API contract change | The changed files under `docs/api/examples/` and the `docs/api/openapi.json` diff; `pytest tests/unit/test_api_examples.py tests/unit/test_error_contract.py tests/unit/test_openapi_snapshot.py` and `flutter test test/contract` results |
+| New or changed route | `pytest tests/unit/test_auth_sweep.py` (the route is guarded, or listed in `PUBLIC_ROUTES` with `none` in the contract's `Auth` column), plus an ownership test for a user-owned resource: another user gets `404 not_found` |
 | Bug fix | The reproduction steps and the actual result before the fix; the same steps and the result after it |
 | Integration | The flow exercised across components (for example the app against the local backend) and what was observed |
 | Chore / docs | The commands run and their results |
@@ -183,7 +190,7 @@ Before opening an MR, confirm:
 When asked to review an MR, walk these five steps in order and report findings under each step's heading. Write "No issues found" for a step with nothing to report. Don't skip ahead: a correctness problem matters more than a naming nit.
 
 1. **Correctness:** does the change do what the linked issue asks? Check edge cases, error handling and the issue's acceptance criteria.
-2. **Tests:** is new logic covered by tests, and do the tests check behavior rather than implementation? Do lint and tests pass locally?
+2. **Tests:** is new logic covered by tests, and do the tests check behavior rather than implementation? Compare the tests with the contract in `docs/api/` and the issue's acceptance criteria, not only with the code, and flag an assertion that was changed to make a test pass. Do lint and tests pass locally?
 3. **Readability:** are names clear, functions short and code free of duplication? Does it follow the layered structure above?
 4. **Security basics:** are there leaked secrets, unvalidated inputs or missing authorization checks?
 5. **Scope:** does the MR cover exactly one issue? Flag unrelated changes.
