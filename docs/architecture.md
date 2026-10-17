@@ -281,7 +281,7 @@ sequenceDiagram
 
 ### Data model
 
-These are the current tables, defined in each module's `models.py` under `backend/app/modules/`. `users` is planned by the [auth contract](api/auth.md) and doesn't exist yet. `runs.user_id` will reference it.
+These are the current tables, defined in each module's `models.py` under `backend/app/modules/`. The `auth` module owns `users`, `refresh_tokens` and `login_attempts` ([auth contract](api/auth.md)). `runs.user_id` still holds a user id as a plain string with no foreign key: modules don't reach into each other's tables, so linking runs to users is the runs module's decision.
 
 ```mermaid
 erDiagram
@@ -289,7 +289,8 @@ erDiagram
     CHALLENGES ||--o| MEDALS : awards
     CHALLENGES ||--o{ RUNS : "attempted by"
     RUNS ||--o{ STEP_SAMPLES : "built from"
-    USERS ||--o{ RUNS : runs
+    USERS ||--o{ REFRESH_TOKENS : holds
+    USERS ||..o{ RUNS : "id stored as runs.user_id"
 
     QUESTS {
         int id PK
@@ -327,9 +328,24 @@ erDiagram
         int steps "0 or more"
     }
     USERS {
-        uuid id PK "planned"
+        uuid id PK
         string email "unique, lowercase"
+        string password_hash "Argon2"
         string display_name
+        datetime created_at
+    }
+    REFRESH_TOKENS {
+        int id PK
+        uuid user_id FK
+        string token_hash "SHA-256, unique"
+        datetime expires_at
+        datetime revoked_at "set when used or signed out"
+    }
+    LOGIN_ATTEMPTS {
+        int id PK
+        string email
+        string ip
+        datetime attempted_at "failed sign-ins only"
     }
 ```
 

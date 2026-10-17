@@ -35,3 +35,18 @@ def error_codes(doc: Path) -> list[str]:
     text = doc.read_text(encoding="utf-8")
     section = text.split("## Error codes", 1)[1].split("\n## ", 1)[0]
     return [row["code"] for row in _ERROR_ROW.finditer(section)]
+
+
+# The documented error codes only the auth module serves. They need a database, so
+# `tests/integration/test_auth_api.py` covers them; `test_error_contract.py` checks
+# that every code in the doc is either tested there or in the unit tests.
+AUTH_MODULE_ERROR_CODES = frozenset(
+    {
+        "email_taken",
+        "invalid_credentials",
+        "invalid_refresh_token",
+        "invalid_token",
+        "token_expired",
+        "rate_limited",
+    }
+)

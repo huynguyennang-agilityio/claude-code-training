@@ -40,6 +40,10 @@ def app_with_test_routes() -> FastAPI:
     async def raise_domain_error() -> None:
         raise ChallengeClosedError("The challenge window has ended.")
 
+    @app.get("/test/with-headers")
+    async def with_headers() -> None:
+        raise ChallengeClosedError("Wait.", headers={"Retry-After": "30"})
+
     @app.post("/test/validate")
     async def validate(body: SignupBody) -> SignupBody:
         return body
@@ -219,3 +223,12 @@ async def test_unexpected_exception_returns_internal_error_without_its_text(
     assert error_of(response)["code"] == "internal_error"
     assert "secret database password" not in response.text
     assert "secret database password" in caplog.text
+
+
+@pytest.mark.anyio
+async def test_domain_error_sends_its_headers(client: AsyncClient) -> None:
+    response = await client.get("/test/with-headers")
+
+    assert response.status_code == 409
+    assert response.headers["retry-after"] == "30"
+    assert error_of(response)["code"] == "challenge_closed"

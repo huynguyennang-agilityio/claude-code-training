@@ -22,6 +22,8 @@ class Settings(DatabaseSettings):
     s3_endpoint_url: str
     s3_bucket: str
     jwt_secret: SecretStr
+    access_token_ttl_minutes: int = 15
+    refresh_token_ttl_days: int = 30
 
 
 @lru_cache

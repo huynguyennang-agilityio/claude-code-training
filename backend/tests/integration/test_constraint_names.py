@@ -11,6 +11,7 @@ from sqlalchemy.pool import NullPool
 from alembic import command
 
 ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
+INITIAL_REVISION = "3afe18174cdf"
 
 # Prefix by `pg_constraint.contype`.
 PREFIXES = {"p": "pk_", "f": "fk_", "u": "uq_", "c": "ck_"}
@@ -21,10 +22,16 @@ CONVENTION_NAMES = {
     "pk_medals",
     "pk_runs",
     "pk_step_samples",
+    "pk_users",
+    "pk_refresh_tokens",
+    "pk_login_attempts",
     "fk_challenges_quest_id_quests",
     "fk_medals_challenge_id_challenges",
     "fk_runs_challenge_id_challenges",
     "fk_step_samples_run_id_runs",
+    "fk_refresh_tokens_user_id_users",
+    "uq_users_email",
+    "uq_refresh_tokens_token_hash",
     "uq_medals_challenge_id",
     "uq_step_samples_run_record",
     "ck_challenges_target_steps_positive",
@@ -81,7 +88,9 @@ def test_downgrade_restores_postgres_names_and_upgrade_renames_again(database_ur
     # it must not run in parallel with other integration tests.
     config = Config(str(ALEMBIC_INI))
 
-    command.downgrade(config, "-1")
+    # Back to the initial tables, before the constraint-naming revision (later revisions
+    # are undone on the way, so adding one doesn't change what this checks).
+    command.downgrade(config, INITIAL_REVISION)
     try:
         assert set(asyncio.run(_constraints(database_url))) == POSTGRES_NAMES
     finally:

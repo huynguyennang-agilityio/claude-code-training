@@ -6,8 +6,18 @@ wherever the full schema is needed (tests, `create_all`, Alembic) instead
 of importing single model files.
 """
 
+from app.modules.auth.models import LoginAttempt, RefreshToken, User
 from app.modules.challenges.models import Challenge, Quest
 from app.modules.medals.models import Medal
 from app.modules.runs.models import Run, StepSample
 
-__all__ = ["Challenge", "Medal", "Quest", "Run", "StepSample"]
+__all__ = [
+    "Challenge",
+    "LoginAttempt",
+    "Medal",
+    "Quest",
+    "RefreshToken",
+    "Run",
+    "StepSample",
+    "User",
+]
