@@ -256,6 +256,22 @@ Every route requires authentication unless it is in `PUBLIC_ROUTES` in `tests/un
 | Repository and model | The `session` fixture: constraints, eager loading, `flush` assigning ids | `tests/integration/test_models.py` |
 | Migration | Covered by the session-scoped `database_url` fixture building the schema with `alembic upgrade head`; add a check when a migration moves data | `tests/integration/test_migrations.py` |
 
+**Mutation testing (security-sensitive services).** Passing tests don't show that they would notice a bug. `mutmut` changes the code one small step at a time (a flipped comparison, a dropped argument, a changed constant) and reruns the tests; a mutant that no test fails on has *survived*. It is configured for `app/core/security.py` and `app/modules/auth/service.py` in `[tool.mutmut]` and runs only their DB-free unit tests, about 25 seconds:
+
+```bash
+cd backend
+mutmut run --max-children 4
+mutmut results        # the survivors
+mutmut show <name>    # the change that survived
+```
+
+Run it before merging a change to a security rule (auth, medal unlock) and after a large edit to a service; add the service to `source_paths`/`only_mutate` and its unit tests to `pytest_add_cli_args_test_selection` when a new one needs it. Treat a survivor as a question: sharpen a test, or decide it is equivalent. Current state: 294 mutants, 253 killed, 41 survived (86%); the first run killed 224 (76%). The 41 are equivalent by design:
+
+- 39 change only the wording of an error message (`"XX…XX"`, lower case, upper case). The message is for logs and may change; clients branch on `code`, so tests must not pin the wording. They do check that every raised error has a non-empty string message, because the error handler needs one (`DomainError(None)` would be a 500).
+- `jwt.encode(…, algorithm=…)` without the argument, and `token_urlsafe(None)` instead of `token_urlsafe(32)`: the library defaults are the same values, so nothing observable changes.
+
+A test written to kill a mutant states the rule, not the code: the future `iat` test says "the caller's clock decides", the empty subject test says "a token needs a subject".
+
 ```python
 def challenge_create() -> ChallengeCreate:
     return ChallengeCreate(

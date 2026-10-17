@@ -6,6 +6,7 @@ import pytest
 from app.core.security import (
     ExpiredTokenError,
     InvalidTokenError,
+    TokenError,
     create_access_token,
     decode_access_token,
     hash_password,
@@ -140,3 +141,56 @@ def test_refresh_token_hash_is_stable_and_hides_the_token() -> None:
     assert len(hash_refresh_token(token)) == 64
     assert token not in hash_refresh_token(token)
     assert hash_refresh_token(token) != hash_refresh_token(new_refresh_token())
+
+
+def test_access_token_issued_in_the_future_is_accepted_with_an_explicit_clock() -> None:
+    """The caller's clock decides, not the machine's: `iat` is not checked against it."""
+    future = datetime(2099, 1, 1, tzinfo=UTC)
+    token = create_access_token(USER_ID, SECRET, timedelta(minutes=15), future)
+
+    assert decode_access_token(token, SECRET, future + timedelta(minutes=1)) == USER_ID
+
+
+def test_token_with_an_empty_subject_is_invalid() -> None:
+    token = jwt.encode({"sub": "", "exp": NOW + timedelta(minutes=5)}, SECRET, algorithm="HS256")
+
+    with pytest.raises(InvalidTokenError):
+        decode_access_token(token, SECRET, NOW)
+
+
+def test_access_tokens_are_signed_with_hs256() -> None:
+    token = create_access_token(USER_ID, SECRET, timedelta(minutes=15), NOW)
+
+    assert jwt.get_unverified_header(token)["alg"] == "HS256"
+
+
+def test_refresh_tokens_carry_32_random_bytes() -> None:
+    assert len(new_refresh_token()) == 43  # unpadded base64url of 32 bytes
+
+
+@pytest.mark.parametrize(
+    "token_error",
+    [
+        lambda: decode_access_token(
+            create_access_token(USER_ID, SECRET, timedelta(minutes=1), NOW),
+            SECRET,
+            NOW + timedelta(minutes=1),
+        ),
+        lambda: decode_access_token("garbage", SECRET, NOW),
+        lambda: decode_access_token(
+            jwt.encode({"sub": "", "exp": NOW + timedelta(minutes=5)}, SECRET, algorithm="HS256"),
+            SECRET,
+            NOW,
+        ),
+        lambda: decode_access_token(
+            create_access_token(USER_ID, SECRET, timedelta(minutes=-1)), SECRET
+        ),
+    ],
+    ids=["expired", "malformed", "empty subject", "expired by the real clock"],
+)
+def test_token_errors_have_a_readable_message(token_error: object) -> None:
+    with pytest.raises(TokenError) as error:
+        token_error()  # type: ignore[operator]
+
+    assert isinstance(error.value.args[0], str)
+    assert error.value.args[0].strip()

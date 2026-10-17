@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import DomainError
 from app.core.security import (
     create_access_token,
     decode_access_token,
@@ -28,6 +29,7 @@ from app.modules.auth.service import (
     InvalidCredentialsError,
     InvalidRefreshTokenError,
     RateLimitedError,
+    _utcnow,
 )
 
 SECRET = "a-test-secret-that-is-long-enough-for-hs256"
@@ -110,6 +112,7 @@ async def test_sign_up_creates_the_user_and_issues_tokens(
 ) -> None:
     user, tokens = await service.sign_up(sign_up_request())
 
+    repository.get_user_by_email.assert_awaited_once_with("runner@example.com")
     repository.add_user.assert_awaited_once_with(user)
     assert user.email == "runner@example.com"
     assert user.display_name == "Lan Runner"
@@ -133,6 +136,7 @@ async def test_sign_up_stores_only_the_hash_of_the_refresh_token(
     assert stored.token_hash == hash_refresh_token(tokens.refresh_token)
     assert tokens.refresh_token not in (stored.token_hash, str(stored.__dict__))
     assert stored.expires_at == START + timedelta(days=30)
+    assert stored.created_at == START
 
 
 @pytest.mark.anyio
@@ -160,6 +164,10 @@ async def test_sign_up_maps_a_lost_race_for_the_email_to_email_taken(
 
     session.rollback.assert_awaited_once()
     session.commit.assert_not_awaited()
+    assert repository.get_user_by_email.await_args_list == [
+        call("runner@example.com"),
+        call("runner@example.com"),
+    ]
 
 
 @pytest.mark.anyio
@@ -187,6 +195,7 @@ async def test_sign_in_with_the_right_password_issues_tokens(
     signed_in, tokens = await service.sign_in(sign_in_request(), IP)
 
     assert signed_in is user
+    repository.get_user_by_email.assert_awaited_once_with("runner@example.com")
     assert decode_access_token(tokens.access_token, SECRET, START) == str(user.id)
     repository.clear_login_attempts.assert_awaited_once_with("runner@example.com")
     repository.add_login_attempt.assert_not_awaited()
@@ -377,9 +386,10 @@ async def test_authenticate_returns_the_tokens_user(
 ) -> None:
     user = make_user()
     repository.get_user.return_value = user
-    _, tokens = await service.sign_up(sign_up_request())
+    signed_up, tokens = await service.sign_up(sign_up_request())
 
     assert await service.authenticate(tokens.access_token) is user
+    repository.get_user.assert_awaited_once_with(signed_up.id)
 
 
 @pytest.mark.anyio
@@ -411,8 +421,10 @@ async def test_authenticate_rejects_a_subject_that_is_not_a_uuid(
 ) -> None:
     token = create_access_token("not-a-uuid", SECRET, timedelta(minutes=15), clock())
 
-    with pytest.raises(InvalidAccessTokenError):
+    with pytest.raises(InvalidAccessTokenError) as invalid:
         await service.authenticate(token)
+
+    assert invalid.value.headers == {"WWW-Authenticate": "Bearer"}
 
 
 @pytest.mark.anyio
@@ -422,5 +434,66 @@ async def test_authenticate_rejects_a_token_whose_user_is_gone(
     _, tokens = await service.sign_up(sign_up_request())
     repository.get_user.return_value = None
 
-    with pytest.raises(InvalidAccessTokenError):
+    with pytest.raises(InvalidAccessTokenError) as invalid:
         await service.authenticate(tokens.access_token)
+
+    assert invalid.value.headers == {"WWW-Authenticate": "Bearer"}
+
+
+# Every error is rendered into an `ErrorResponse` whose `message` must be a string, so a
+# service must never raise one without a readable message. The wording is free: clients
+# branch on `code`.
+
+
+async def raised(call: object) -> DomainError:
+    with pytest.raises(DomainError) as error:
+        await call  # type: ignore[misc]
+    return error.value
+
+
+@pytest.mark.anyio
+async def test_every_error_the_service_raises_has_a_message(
+    service: AuthService, repository: AsyncMock, clock: Clock
+) -> None:
+    errors: list[DomainError] = []
+
+    repository.get_user_by_email.return_value = make_user()
+    errors.append(await raised(service.sign_up(sign_up_request())))  # email taken
+    errors.append(await raised(service.sign_in(sign_in_request("wrong-pass1"), IP)))
+
+    repository.get_user_by_email.side_effect = [None, make_user()]
+    repository.add_user.side_effect = IntegrityError("insert", {}, Exception("duplicate"))
+    errors.append(await raised(service.sign_up(sign_up_request())))  # lost race
+    repository.get_user_by_email.side_effect = None
+    repository.add_user.side_effect = None
+
+    repository.failed_attempts_by_email.return_value = full_window(
+        MAX_FAILED_SIGN_INS_PER_EMAIL, timedelta(minutes=10)
+    )
+    errors.append(await raised(service.sign_in(sign_in_request(), IP)))  # rate limited
+    repository.failed_attempts_by_email.return_value = []
+
+    repository.consume_refresh_token.return_value = None
+    errors.append(await raised(service.refresh("unknown")))
+
+    errors.append(await raised(service.authenticate("garbage")))
+    not_a_uuid = create_access_token("not-a-uuid", SECRET, timedelta(minutes=15), clock())
+    errors.append(await raised(service.authenticate(not_a_uuid)))
+    token = create_access_token(str(uuid.uuid4()), SECRET, timedelta(minutes=15), clock())
+    repository.get_user.return_value = None
+    errors.append(await raised(service.authenticate(token)))  # user gone
+    expired = create_access_token(str(uuid.uuid4()), SECRET, timedelta(minutes=15), clock())
+    clock.advance(timedelta(minutes=15))
+    errors.append(await raised(service.authenticate(expired)))  # expired
+
+    assert len(errors) == 9
+    for error in errors:
+        assert isinstance(error.message, str), type(error).__name__
+        assert error.message.strip(), type(error).__name__
+
+
+def test_utcnow_is_timezone_aware_and_current() -> None:
+    now = _utcnow()
+
+    assert now.tzinfo is not None
+    assert abs(datetime.now(UTC) - now) < timedelta(seconds=5)
