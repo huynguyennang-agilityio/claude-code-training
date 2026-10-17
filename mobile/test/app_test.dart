@@ -7,7 +7,7 @@ import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'helpers/in_memory_auth_local_data_source.dart';
 
 void main() {
-  testWidgets('app opens on the home screen', (tester) async {
+  testWidgets('a signed-out app opens on sign in', (tester) async {
     final repository = AuthRepositoryImpl(
       FakeAuthRemoteDataSource(),
       InMemoryAuthLocalDataSource(),
@@ -19,7 +19,7 @@ void main() {
     await tester.pumpWidget(StrideQuestApp(authBloc: authBloc));
     await tester.pumpAndSettle();
 
-    expect(find.text('StrideQuest'), findsOneWidget);
-    expect(find.text('Every run is a quest.'), findsOneWidget);
+    expect(find.text('Welcome back'), findsOneWidget);
+    expect(find.text('Every run is a quest.'), findsNothing);
   });
 }

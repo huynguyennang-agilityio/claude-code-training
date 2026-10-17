@@ -2,12 +2,9 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:stridequest/core/theme/app_theme.dart';
 import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:stridequest/features/auth/presentation/pages/sign_in_page.dart';
 import 'package:stridequest/features/home/presentation/pages/home_page.dart';
 
 import '../../../../helpers/expect_accessible.dart';
@@ -32,6 +29,7 @@ void main() {
     AuthState state, {
     Size size = smallPhone,
     double textScale = 1,
+    bool settle = true,
   }) async {
     whenListen(bloc, const Stream<AuthState>.empty(), initialState: state);
     await pumpScreen(
@@ -39,61 +37,28 @@ void main() {
       BlocProvider<AuthBloc>.value(value: bloc, child: const HomePage()),
       size: size,
       textScale: textScale,
+      settle: settle,
     );
   }
 
-  group('signed out', () {
-    testWidgets('shows the title, the tagline and a Sign in action', (
-      tester,
-    ) async {
-      await pumpHome(tester, const AuthUnauthenticated());
+  group('not signed in', () {
+    final states = <String, AuthState>{
+      'reading the stored session': const AuthUnknown(),
+      'signed out': const AuthUnauthenticated(),
+      'signing in': const AuthInProgress(),
+    };
+    for (final entry in states.entries) {
+      testWidgets('shows progress and no content while ${entry.key}', (
+        tester,
+      ) async {
+        await pumpHome(tester, entry.value, settle: false);
 
-      expect(find.text('StrideQuest'), findsOneWidget);
-      expect(find.text('Every run is a quest.'), findsOneWidget);
-      expect(find.widgetWithText(TextButton, 'Sign in'), findsOneWidget);
-      expect(find.text('Sign out'), findsNothing);
-    });
-
-    testWidgets('Sign in opens the sign-in page', (tester) async {
-      whenListen(
-        bloc,
-        const Stream<AuthState>.empty(),
-        initialState: const AuthUnauthenticated(),
-      );
-      final router = GoRouter(
-        routes: [
-          GoRoute(path: HomePage.path, builder: (_, _) => const HomePage()),
-          GoRoute(path: SignInPage.path, builder: (_, _) => const SignInPage()),
-        ],
-      );
-      addTearDown(router.dispose);
-      await tester.pumpWidget(
-        BlocProvider<AuthBloc>.value(
-          value: bloc,
-          child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
-        ),
-      );
-
-      await tester.tap(find.text('Sign in'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Welcome back'), findsOneWidget);
-      expect(find.byTooltip('Back'), findsOneWidget);
-
-      await tester.tap(find.byTooltip('Back'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Every run is a quest.'), findsOneWidget);
-    });
-
-    testWidgets('the action is disabled while a sign in runs', (tester) async {
-      await pumpHome(tester, const AuthInProgress());
-
-      expect(
-        tester.widget<TextButton>(find.byType(TextButton)).onPressed,
-        isNull,
-      );
-    });
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(find.text('Every run is a quest.'), findsNothing);
+        expect(find.text('Sign in'), findsNothing);
+        expect(find.byTooltip('Sign out'), findsNothing);
+      });
+    }
   });
 
   group('signed in', () {
@@ -106,6 +71,12 @@ void main() {
       expect(find.text('Sign in'), findsNothing);
     });
 
+    testWidgets('has no back button', (tester) async {
+      await pumpHome(tester, AuthAuthenticated(_user));
+
+      expect(find.byTooltip('Back'), findsNothing);
+    });
+
     testWidgets('Sign out sends the event', (tester) async {
       await pumpHome(tester, AuthAuthenticated(_user));
 
@@ -116,10 +87,7 @@ void main() {
   });
 
   group('layout and accessibility', () {
-    final states = <String, AuthState>{
-      'signed out': const AuthUnauthenticated(),
-      'signed in': AuthAuthenticated(_user),
-    };
+    final states = <String, AuthState>{'signed in': AuthAuthenticated(_user)};
     for (final entry in states.entries) {
       for (final size in [smallPhone, largePhone]) {
         for (final textScale in [1.0, 2.0]) {

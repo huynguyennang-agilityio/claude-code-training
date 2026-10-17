@@ -53,8 +53,6 @@ void main() {
   final create = find.widgetWithText(FilledButton, 'Create account');
 
   Future<void> openSignUp(WidgetTester tester) async {
-    await tester.tap(find.text('Sign in'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Sign up'));
     await tester.pumpAndSettle();
     expect(find.byType(SignUpPage), findsOneWidget);
@@ -99,7 +97,7 @@ void main() {
     );
   });
 
-  testWidgets('the screens link to each other and back goes home', (
+  testWidgets('the screens link to each other and Back goes to sign in', (
     tester,
   ) async {
     await pumpApp(tester);
@@ -113,6 +111,6 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
-    expect(find.text('Every run is a quest.'), findsOneWidget);
+    expect(find.byType(SignInPage), findsOneWidget);
   });
 }

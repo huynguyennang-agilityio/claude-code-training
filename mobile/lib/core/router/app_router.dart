@@ -10,9 +10,9 @@ import '../../features/home/presentation/pages/home_page.dart';
 /// from the root (`GoRouterState.fullPath`, for example `/challenges/:id` or
 /// `/challenges/:id/edit`), not as concrete locations like `/challenges/abc`
 /// or as a nested route's relative `path` like `edit`. Routes nested under a
-/// protected pattern are protected too. Home stays public for now; screens
-/// that need an account add their pattern here.
-const protectedPaths = <String>{};
+/// protected pattern are protected too. Home is protected: a signed-out user
+/// starts on sign in. Screens that need an account add their pattern here.
+const protectedPaths = <String>{HomePage.path};
 
 final appRoutes = <RouteBase>[
   GoRoute(path: HomePage.path, builder: (context, state) => const HomePage()),

@@ -16,11 +16,6 @@ Widget _home(AuthState state) {
 
 void main() {
   goldenScreen(
-    'HomePage, signed out',
-    'home_page',
-    _home(const AuthUnauthenticated()),
-  );
-  goldenScreen(
     'HomePage, signed in',
     'home_page_signed_in',
     _home(

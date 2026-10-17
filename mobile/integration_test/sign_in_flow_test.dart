@@ -69,11 +69,9 @@ void main() {
     await tester.pumpWidget(StrideQuestApp(authBloc: authBloc));
     await tester.pumpAndSettle();
 
-    // Signed out: Home offers Sign in.
-    expect(find.text('Every run is a quest.'), findsOneWidget);
-    await tester.tap(find.text('Sign in'));
-    await tester.pumpAndSettle();
+    // Signed out: the app starts on Sign in.
     expect(find.text('Welcome back'), findsOneWidget);
+    expect(find.text('Every run is a quest.'), findsNothing);
 
     // A wrong password is refused with the documented message.
     final emailField = find.widgetWithText(AuthTextField, 'Email');
@@ -93,11 +91,11 @@ void main() {
       tester,
       find.text('Welcome back, Integration Runner.'),
     );
-    expect(find.text('Sign in'), findsNothing);
+    expect(find.text('Welcome back'), findsNothing);
 
-    // Sign out returns to the signed-out Home.
+    // Sign out returns to Sign in.
     await tester.tap(find.byTooltip('Sign out'));
-    await pumpUntilFound(tester, find.text('Sign in'));
+    await pumpUntilFound(tester, find.text('Welcome back'));
     expect(find.textContaining('Welcome back,'), findsNothing);
   });
 
@@ -114,9 +112,7 @@ void main() {
       await tester.pumpWidget(StrideQuestApp(authBloc: authBloc));
       await tester.pumpAndSettle();
 
-      // Home -> Sign in -> Sign up.
-      await tester.tap(find.text('Sign in'));
-      await tester.pumpAndSettle();
+      // Sign in -> Sign up.
       await tester.tap(find.text('Sign up'));
       await tester.pumpAndSettle();
       expect(find.text('Create your account'), findsOneWidget);
@@ -132,9 +128,7 @@ void main() {
 
       // Sign out, then the same email is refused on the email field.
       await tester.tap(find.byTooltip('Sign out'));
-      await pumpUntilFound(tester, find.text('Sign in'));
-      await tester.tap(find.text('Sign in'));
-      await tester.pumpAndSettle();
+      await pumpUntilFound(tester, find.text('Welcome back'));
       await tester.tap(find.text('Sign up'));
       await tester.pumpAndSettle();
       await typeInto(tester, nameField, 'Another Runner');
