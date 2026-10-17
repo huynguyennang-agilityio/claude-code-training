@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_tokens.dart';
-import '../../../home/presentation/pages/home_page.dart';
 import '../../domain/failures/auth_failure.dart';
 import '../bloc/auth_bloc.dart';
+import '../widgets/auth_banner.dart';
+import '../widgets/auth_form_layout.dart';
+import '../widgets/auth_text_field.dart';
 
 /// The sign-in form. Sign in goes through the app-wide [AuthBloc]; on success
 /// the router redirect leaves this page, so it never navigates itself.
@@ -22,7 +23,6 @@ class _SignInPageState extends State<SignInPage> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
-  var _showPassword = false;
 
   /// Shown under a field until the user edits it, so a server message about
   /// the old value doesn't linger.
@@ -58,115 +58,65 @@ class _SignInPageState extends State<SignInPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
         final busy = state is AuthInProgress;
         final unauthenticated = state is AuthUnauthenticated ? state : null;
         _adoptFailure(unauthenticated?.failure);
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Sign in'),
-            leading: IconButton(
-              tooltip: 'Back',
-              icon: const Icon(Icons.arrow_back),
-              // The page was reached with `go`, so there is nothing to pop.
-              onPressed: () => context.go(HomePage.path),
-            ),
-          ),
-          body: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: AppSizes.formMaxWidth,
-                  ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Welcome back',
-                          style: theme.textTheme.headlineSmall,
+        return Form(
+          key: _formKey,
+          child: AuthFormLayout(
+            title: 'Sign in',
+            heading: 'Welcome back',
+            subtitle: 'Sign in to continue your quests.',
+            actions: [
+              FilledButton(
+                onPressed: busy ? null : _submit,
+                child: busy
+                    ? const SizedBox(
+                        width: AppSpacing.md,
+                        height: AppSpacing.md,
+                        child: CircularProgressIndicator(
+                          strokeWidth: AppSpacing.xxs / 2,
                         ),
-                        const SizedBox(height: AppSpacing.md),
-                        if (unauthenticated?.failure case final failure?)
-                          _Banner(
-                            message: _failureMessage(failure),
-                            isError: true,
-                          )
-                        else if (unauthenticated?.sessionExpired ?? false)
-                          const _Banner(
-                            message: 'Your session has expired. Sign in again.',
-                            isError: false,
-                          ),
-                        TextFormField(
-                          controller: _email,
-                          enabled: !busy,
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          autofillHints: const [AutofillHints.email],
-                          autocorrect: false,
-                          decoration: InputDecoration(
-                            labelText: 'Email',
-                            errorText: _fieldErrors['email'],
-                          ),
-                          validator: _validateEmail,
-                          onChanged: (_) => _clearFieldError('email'),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        TextFormField(
-                          controller: _password,
-                          enabled: !busy,
-                          obscureText: !_showPassword,
-                          textInputAction: TextInputAction.done,
-                          autofillHints: const [AutofillHints.password],
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            errorText: _fieldErrors['password'],
-                            suffixIcon: IconButton(
-                              tooltip: _showPassword
-                                  ? 'Hide password'
-                                  : 'Show password',
-                              icon: Icon(
-                                _showPassword
-                                    ? Icons.visibility_off_outlined
-                                    : Icons.visibility_outlined,
-                              ),
-                              onPressed: () => setState(
-                                () => _showPassword = !_showPassword,
-                              ),
-                            ),
-                          ),
-                          validator: _validatePassword,
-                          onChanged: (_) => _clearFieldError('password'),
-                          onFieldSubmitted: (_) => busy ? null : _submit(),
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                        FilledButton(
-                          onPressed: busy ? null : _submit,
-                          child: busy
-                              ? const SizedBox(
-                                  width: AppSpacing.md,
-                                  height: AppSpacing.md,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: AppSpacing.xxs / 2,
-                                  ),
-                                )
-                              : const Text('Sign in'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                      )
+                    : const Text('Sign in'),
               ),
-            ),
+            ],
+            children: [
+              if (unauthenticated?.failure case final failure?)
+                AuthBanner(message: _failureMessage(failure), isError: true)
+              else if (unauthenticated?.sessionExpired ?? false)
+                const AuthBanner(
+                  message: 'Your session has expired. Sign in again.',
+                  isError: false,
+                ),
+              AuthTextField(
+                label: 'Email',
+                hint: 'you@example.com',
+                controller: _email,
+                enabled: !busy,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.email],
+                errorText: _fieldErrors['email'],
+                validator: _validateEmail,
+                onChanged: (_) => _clearFieldError('email'),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              PasswordField(
+                controller: _password,
+                hint: 'Your password',
+                enabled: !busy,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.password],
+                errorText: _fieldErrors['password'],
+                validator: _validatePassword,
+                onChanged: (_) => _clearFieldError('password'),
+                onSubmitted: (_) => busy ? null : _submit(),
+              ),
+            ],
           ),
         );
       },
@@ -195,41 +145,5 @@ class _SignInPageState extends State<SignInPage> {
     final minutes = (wait.inSeconds / 60).ceil();
     return '${failure.message} Try again in $minutes '
         '${minutes == 1 ? 'minute' : 'minutes'}.';
-  }
-}
-
-/// A message above the form. Errors are announced to screen readers.
-class _Banner extends StatelessWidget {
-  const _Banner({required this.message, required this.isError});
-
-  final String message;
-  final bool isError;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Semantics(
-        liveRegion: true,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: isError ? colors.errorContainer : colors.secondaryContainer,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            child: Text(
-              message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isError
-                    ? colors.onErrorContainer
-                    : colors.onSecondaryContainer,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

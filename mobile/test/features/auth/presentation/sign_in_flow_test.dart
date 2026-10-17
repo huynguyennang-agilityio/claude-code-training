@@ -5,6 +5,7 @@ import 'package:stridequest/features/auth/data/datasources/fake_auth_remote_data
 import 'package:stridequest/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/auth/presentation/pages/sign_in_page.dart';
+import 'package:stridequest/features/auth/presentation/widgets/auth_text_field.dart';
 
 import '../../../helpers/in_memory_auth_local_data_source.dart';
 
@@ -38,8 +39,8 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  final emailField = find.widgetWithText(TextFormField, 'Email');
-  final passwordField = find.widgetWithText(TextFormField, 'Password');
+  final emailField = find.widgetWithText(AuthTextField, 'Email');
+  final passwordField = find.widgetWithText(AuthTextField, 'Password');
   final submit = find.widgetWithText(FilledButton, 'Sign in');
 
   testWidgets('sign in leaves the sign-in page and greets the user', (
