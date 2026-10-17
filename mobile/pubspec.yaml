@@ -29,6 +29,7 @@ dev_dependencies:
   build_runner: ^2.15.1
   freezed: ^3.2.3
   json_serializable: ^6.11.2
+  alchemist: ^0.14.1
 
 flutter:
   uses-material-design: true

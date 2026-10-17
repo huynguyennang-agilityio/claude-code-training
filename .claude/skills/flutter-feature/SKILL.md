@@ -260,6 +260,8 @@ void main() {
 }
 ```
 
+**Golden test.** Every page also gets `test/features/<feature>/presentation/pages/<page>_golden_test.dart` with `goldenScreen('<Page>', '<page>', const <Page>())` (pattern: `home_page_golden_test.dart`). It renders the page at both phone sizes and both text scales into one image under `goldens/ci/`, which is committed. Create or update the baseline with `flutter test --update-goldens --tags golden`, look at the image, and commit it; a reviewer sees the change as an image diff. CI goldens draw text as blocks, so they catch layout, spacing, size and color changes but not fonts. For a bloc-backed page, add a `goldenScreen` per state with its own file name. A failed comparison writes diff images under `failures/`, which is git-ignored.
+
 No page with a bloc exists yet, so the names above are placeholders for the feature's own bloc, states and failure type; the helpers and the four-state structure are what to copy. `HomePage` and `SignInPage` have no bloc, so their tests only do the size, text-scale and accessibility checks.
 
 ### 6. Generate, check and record evidence
@@ -295,6 +297,7 @@ Then record the results as verification evidence (CLAUDE.md, Phase 3), using the
 - [ ] The bloc is `@injectable` and created in the route's `BlocProvider`; routes pass IDs only.
 - [ ] No hard-coded colors or text styles in the feature.
 - [ ] Tests cover the bloc, data source, repository and page, including failure paths.
+- [ ] Each page has a golden test with a committed baseline (`flutter test --update-goldens --tags golden`).
 - [ ] Each page is pumped with `pumpScreen` at both sizes and both text scales with no overflow, passes `expectAccessible`, and (when bloc-backed) has a test for each of loading, empty, error and success.
 - [ ] A contract test (`test/contract/<feature>_examples_test.dart`, pattern: `auth_examples_test.dart`) parses every success example in `docs/api/examples/<feature>/` with the models and checks each field, sends each request example through the data source, and maps each error example to the right failure code.
 - [ ] Code generation is re-run and committed; `flutter analyze` and `flutter test` pass.
