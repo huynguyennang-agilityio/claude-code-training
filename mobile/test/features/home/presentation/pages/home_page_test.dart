@@ -70,10 +70,7 @@ void main() {
       await tester.pumpWidget(
         BlocProvider<AuthBloc>.value(
           value: bloc,
-          child: MaterialApp.router(
-            theme: AppTheme.light,
-            routerConfig: router,
-          ),
+          child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
         ),
       );
 

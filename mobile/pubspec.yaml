@@ -35,3 +35,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    # Inter (SIL Open Font License 1.1), a variable font: the weight comes
+    # from its `wght` axis, set in `lib/core/theme/app_theme.dart`.
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-VariableFont.ttf

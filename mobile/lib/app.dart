@@ -36,7 +36,7 @@ class _StrideQuestAppState extends State<StrideQuestApp> {
       value: widget.authBloc,
       child: MaterialApp.router(
         title: 'StrideQuest',
-        theme: AppTheme.light,
+        theme: AppTheme.dark,
         routerConfig: _router,
       ),
     );

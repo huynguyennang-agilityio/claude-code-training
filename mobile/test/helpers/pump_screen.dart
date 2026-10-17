@@ -8,7 +8,7 @@ const smallPhone = Size(375, 667);
 /// A large phone (Pro Max class), in logical pixels.
 const largePhone = Size(430, 932);
 
-/// Pumps [screen] under `AppTheme.light` on a screen of [size], with text
+/// Pumps [screen] under `AppTheme.dark` on a screen of [size], with text
 /// scaled by [textScale] (the OS font-size setting), and settles it.
 ///
 /// Pass `settle: false` for a screen with an endless animation, such as the
@@ -31,7 +31,7 @@ Future<void> pumpScreen(
 
   await tester.pumpWidget(
     MaterialApp(
-      theme: AppTheme.light,
+      theme: AppTheme.dark,
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(
           context,
