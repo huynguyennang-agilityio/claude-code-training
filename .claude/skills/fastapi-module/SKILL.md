@@ -237,7 +237,7 @@ router.include_router(challenges_router)
 
 Mounting a new path changes the public API. The contract in `docs/api/` must already list it.
 
-Every route requires authentication unless it is in `PUBLIC_ROUTES` in `tests/unit/test_auth_sweep.py`. That test calls each route without a token and fails unless it gets `401 not_authenticated`. Add a route to the allowlist only when the contract marks it `Auth: none`, and say so in the MR.
+Every route requires authentication unless it is in `PUBLIC_ROUTES` in `tests/unit/test_auth_sweep.py`. That test calls each route without a token and fails unless it gets `401 not_authenticated`. Add a route to the allowlist only when the endpoints table in `docs/api/<module>.md` lists it with `none` in the `Auth` column, and say so in the MR. `GET /api/v1/health` is the one exception: an infrastructure probe with no contract. Declare the auth dependency before any dependency that needs a session (FastAPI resolves them in order); the sweep reports a session-first route as `500`. A websocket or mounted app fails the sweep's `test_every_route_is_an_api_route` until it has its own auth test.
 
 ### 7. Tests
 
@@ -362,7 +362,7 @@ If the database or server can't be run, write `Not verified: <reason>`.
 - [ ] Modules talk only through services and `deps.py` factories.
 - [ ] The router is mounted in `app/api/v1/router.py`.
 - [ ] Unit tests cover the service with `AsyncMock` repositories; integration tests cover the success case and every documented error code.
-- [ ] `tests/unit/test_auth_sweep.py` passes; any new public route is in `PUBLIC_ROUTES` and marked `Auth: none` in the contract.
+- [ ] `tests/unit/test_auth_sweep.py` passes; any new public route is in `PUBLIC_ROUTES` and listed with `none` in the `Auth` column of the contract.
 - [ ] Each endpoint on a user-owned resource has an ownership test: another user gets `404 not_found`.
 - [ ] `ruff check`, `ruff format --check` and `pytest` pass.
 - [ ] The `## Evidence` section is drafted.

@@ -29,7 +29,7 @@ Always read enough surrounding context to judge a change — the callers, the ty
 ## What to look for, in priority order
 
 1. **Correctness** — logic errors, off-by-one, wrong operator, inverted condition, unhandled null/undefined, missing error paths, incorrect async/await, race conditions, resource leaks, breaking API changes.
-2. **Security** — injection (SQL, command, template), missing authn/authz checks (in this repo: a backend route added to `PUBLIC_ROUTES` in `backend/tests/unit/test_auth_sweep.py` without `Auth: none` in `docs/api/`, or an endpoint on a user-owned resource without a test that another user gets `404 not_found`), secrets or keys in source, unsafe deserialization, path traversal, missing input validation, unsafe use of user input in output (XSS).
+2. **Security** — injection (SQL, command, template), missing authn/authz checks (in this repo: a backend route added to `PUBLIC_ROUTES` in `backend/tests/unit/test_auth_sweep.py` that the `docs/api/` endpoints table doesn't list with `none` in its `Auth` column (`GET /api/v1/health` is exempt), or an endpoint on a user-owned resource without a test that another user gets `404 not_found`), secrets or keys in source, unsafe deserialization, path traversal, missing input validation, unsafe use of user input in output (XSS).
 3. **Data integrity** — migrations that lose data, non-idempotent operations, missing transactions, unsafe concurrent writes.
 4. **Tests** — new behavior without a test, tests that cannot fail, tests asserting the implementation rather than the behavior.
 5. **Quality** — duplicated logic that already exists in the codebase, needless complexity, dead code, naming that contradicts behavior, inconsistency with surrounding conventions.
