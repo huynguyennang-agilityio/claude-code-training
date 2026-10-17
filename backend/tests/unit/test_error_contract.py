@@ -1,7 +1,9 @@
 """Each implemented row of the "Error codes" table in `docs/api/auth.md` is served.
 
-The table drives the test: a new row must be added to `IMPLEMENTED` (with a way to
-trigger it) or to `NOT_IMPLEMENTED_YET`, so a documented code can't be forgotten.
+The table drives the test: a new row must be added to `IMPLEMENTED` here (with a way to
+trigger it without a database) or to `AUTH_MODULE_ERROR_CODES`, whose codes
+`tests/integration/test_auth_api.py` triggers through the real endpoints, so a documented
+code can't be forgotten.
 """
 
 from collections.abc import AsyncIterator
@@ -15,7 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.errors import ErrorResponse
 from app.main import create_app
-from tests.api_docs import API_DOCS_DIR, error_codes, load_example
+from tests.api_docs import API_DOCS_DIR, AUTH_MODULE_ERROR_CODES, error_codes, load_example
 
 # code -> (method, path, status). The routes under /test are added by `app_under_test`.
 IMPLEMENTED: dict[str, tuple[str, str, int]] = {
@@ -25,16 +27,6 @@ IMPLEMENTED: dict[str, tuple[str, str, int]] = {
     "method_not_allowed": ("POST", "/api/v1/health", 405),
     "http_error": ("GET", "/test/teapot", 418),
     "internal_error": ("GET", "/test/boom", 500),
-}
-
-# Documented but served by modules that don't exist yet (the auth module issue).
-NOT_IMPLEMENTED_YET = {
-    "email_taken",
-    "invalid_credentials",
-    "invalid_refresh_token",
-    "invalid_token",
-    "token_expired",
-    "rate_limited",
 }
 
 
@@ -85,11 +77,11 @@ async def trigger(client: AsyncClient, code: str) -> Response:
     return await client.request(method, path, json=body if path == "/test/validate" else None)
 
 
-def test_every_documented_code_is_implemented_or_listed_as_pending() -> None:
+def test_every_documented_code_is_tested_here_or_in_the_auth_api_tests() -> None:
     documented = error_codes(API_DOCS_DIR / "auth.md")
 
-    assert sorted(documented) == sorted(set(IMPLEMENTED) | NOT_IMPLEMENTED_YET)
-    assert not set(IMPLEMENTED) & NOT_IMPLEMENTED_YET
+    assert sorted(documented) == sorted(set(IMPLEMENTED) | AUTH_MODULE_ERROR_CODES)
+    assert not set(IMPLEMENTED) & AUTH_MODULE_ERROR_CODES
 
 
 @pytest.mark.anyio

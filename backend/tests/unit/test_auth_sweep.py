@@ -29,9 +29,17 @@ from app.core.database import get_session
 from app.main import create_app
 
 # (method, path) pairs anyone may call: routes marked `none` in the Auth column of
-# a `docs/api/` endpoints table, plus the health probe, which has no contract.
-# Add the auth routes (signup, signin, refresh, signout) when the auth module lands.
-PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset({("GET", "/api/v1/health")})
+# a `docs/api/` endpoints table (the four auth routes), plus the health probe, which has
+# no contract.
+PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("GET", "/api/v1/health"),
+        ("POST", "/api/v1/auth/signup"),
+        ("POST", "/api/v1/auth/signin"),
+        ("POST", "/api/v1/auth/refresh"),
+        ("POST", "/api/v1/auth/signout"),
+    }
+)
 
 _PATH_PARAM = re.compile(r"\{\w+(?::(\w+))?\}")
 _PLACEHOLDERS = {"uuid": "00000000-0000-0000-0000-000000000001", "float": "1.0"}

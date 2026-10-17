@@ -63,9 +63,11 @@ class DomainError(Exception):
         if not isinstance(getattr(cls, "code", None), str):
             raise TypeError(f"{cls.__name__} must set a string `code`")
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str, *, headers: dict[str, str] | None = None) -> None:
         super().__init__(message)
         self.message = message
+        # Extra response headers, e.g. `Retry-After` or `WWW-Authenticate`.
+        self.headers = headers
 
 
 def _error_response(
@@ -76,7 +78,9 @@ def _error_response(
 
 
 async def domain_error_handler(_: Request, exc: DomainError) -> JSONResponse:
-    return _error_response(exc.status_code, ErrorBody(code=exc.code, message=exc.message))
+    return _error_response(
+        exc.status_code, ErrorBody(code=exc.code, message=exc.message), exc.headers
+    )
 
 
 async def validation_error_handler(_: Request, exc: RequestValidationError) -> JSONResponse:

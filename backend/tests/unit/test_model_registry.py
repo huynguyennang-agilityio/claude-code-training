@@ -24,4 +24,13 @@ def test_app_import_registers_and_configures_every_model() -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.split() == ["Challenge", "Medal", "Quest", "Run", "StepSample"]
+    assert result.stdout.split() == [
+        "Challenge",
+        "LoginAttempt",
+        "Medal",
+        "Quest",
+        "RefreshToken",
+        "Run",
+        "StepSample",
+        "User",
+    ]
