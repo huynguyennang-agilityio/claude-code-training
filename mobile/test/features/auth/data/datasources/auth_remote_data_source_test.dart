@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stridequest/core/network/dio_client.dart';
+import 'package:stridequest/core/network/network_simulation.dart';
 import 'package:stridequest/features/auth/data/datasources/auth_remote_data_source.dart';
 import 'package:stridequest/features/auth/data/models/token_pair_model.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
@@ -408,5 +409,32 @@ void main() {
 
       expect(failure.code, AuthFailureCode.validation);
     });
+  });
+
+  group('simulated network faults', () {
+    DioAuthRemoteDataSource simulated(SimulatedFault fault) {
+      final adapter = FakeHttpAdapter(
+        (_) async => _json({'user': _user, 'tokens': _tokens}, 200),
+      );
+      return DioAuthRemoteDataSource(
+        createDio(
+          baseUrl: 'http://api.test/',
+          adapter: adapter,
+          interceptors: [
+            NetworkSimulationInterceptor(NetworkSimulation(fault: fault)),
+          ],
+        ),
+      );
+    }
+
+    for (final fault in [SimulatedFault.offline, SimulatedFault.timeout]) {
+      test('$fault becomes AuthFailureCode.network', () async {
+        final failure = await _failureOf(
+          simulated(fault).signIn(email: 'a@b.co', password: 'abc12345'),
+        );
+
+        expect(failure.code, AuthFailureCode.network);
+      });
+    }
   });
 }

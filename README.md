@@ -177,6 +177,15 @@ flutter run --dart-define=API_BASE_URL=http://localhost:8000/api/v1/
 
 `API_BASE_URL` is the API base including `/api/v1/` (see `docs/api/auth.md`); the value above is also the default. On the Android emulator, use `http://10.0.2.2:8000/api/v1/` to reach the host machine.
 
+To see loading, retry and error states, make the network behave badly (debug builds only; a release build ignores these):
+
+```bash
+flutter run --dart-define=SIMULATE_LATENCY_MS=2000                       # every request waits 2 s
+flutter run --dart-define=SIMULATE_FAULT=offline                          # every request fails like a lost connection
+flutter run --dart-define=SIMULATE_FAULT=timeout                          # every request fails like a connect timeout
+flutter run --dart-define=SIMULATE_FAULT=flaky --dart-define=SIMULATE_LATENCY_MS=500   # every 3rd request fails
+```
+
 Reading step data needs a real device or a simulator with Apple Health or Health Connect data available.
 
 ### Lint and test
