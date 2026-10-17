@@ -9,7 +9,7 @@ import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/auth/presentation/widgets/auth_text_field.dart';
 
-/// The sign-in flow in the real app against the real backend.
+/// The sign-in and sign-up flows in the real app against the real backend.
 ///
 /// Needs the API running at `API_BASE_URL` (default `http://localhost:8000/api/v1/`,
 /// which a simulator reaches on the host) and a simulator or emulator:
@@ -100,4 +100,52 @@ void main() {
     await pumpUntilFound(tester, find.text('Sign in'));
     expect(find.textContaining('Welcome back,'), findsNothing);
   });
+
+  testWidgets(
+    'a new user signs up, is signed in, and a taken email is refused',
+    (tester) async {
+      final email =
+          'it-up-${DateTime.now().millisecondsSinceEpoch}@example.com';
+      const password = 'run4medals';
+      await getIt.reset();
+      configureDependencies();
+      addTearDown(getIt.reset);
+      final authBloc = getIt<AuthBloc>()..add(const AuthStarted());
+      await tester.pumpWidget(StrideQuestApp(authBloc: authBloc));
+      await tester.pumpAndSettle();
+
+      // Home -> Sign in -> Sign up.
+      await tester.tap(find.text('Sign in'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sign up'));
+      await tester.pumpAndSettle();
+      expect(find.text('Create your account'), findsOneWidget);
+
+      final nameField = find.widgetWithText(AuthTextField, 'Display name');
+      final emailField = find.widgetWithText(AuthTextField, 'Email');
+      final passwordField = find.widgetWithText(AuthTextField, 'Password');
+      await typeInto(tester, nameField, 'Signup Runner');
+      await typeInto(tester, emailField, email);
+      await typeInto(tester, passwordField, password);
+      await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+      await pumpUntilFound(tester, find.text('Welcome back, Signup Runner.'));
+
+      // Sign out, then the same email is refused on the email field.
+      await tester.tap(find.byTooltip('Sign out'));
+      await pumpUntilFound(tester, find.text('Sign in'));
+      await tester.tap(find.text('Sign in'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sign up'));
+      await tester.pumpAndSettle();
+      await typeInto(tester, nameField, 'Another Runner');
+      await typeInto(tester, emailField, email);
+      await typeInto(tester, passwordField, password);
+      await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+      await pumpUntilFound(
+        tester,
+        find.text(AuthFailureCode.emailTaken.defaultMessage),
+      );
+      expect(find.text('Create your account'), findsOneWidget);
+    },
+  );
 }

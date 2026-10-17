@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:go_router/go_router.dart';
+
 import '../../../../core/theme/app_tokens.dart';
 import '../../domain/failures/auth_failure.dart';
 import '../bloc/auth_bloc.dart';
 import '../widgets/auth_banner.dart';
 import '../widgets/auth_form_layout.dart';
+import '../widgets/auth_switch_link.dart';
 import '../widgets/auth_text_field.dart';
+import 'sign_up_page.dart';
 
 /// The sign-in form. Sign in goes through the app-wide [AuthBloc]; on success
 /// the router redirect leaves this page, so it never navigates itself.
@@ -82,6 +86,11 @@ class _SignInPageState extends State<SignInPage> {
                         ),
                       )
                     : const Text('Sign in'),
+              ),
+              AuthSwitchLink(
+                lead: 'New to StrideQuest?',
+                action: 'Sign up',
+                onPressed: busy ? null : () => context.go(SignUpPage.path),
               ),
             ],
             children: [

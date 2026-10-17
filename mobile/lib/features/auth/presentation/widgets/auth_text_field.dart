@@ -71,8 +71,10 @@ class AuthTextField extends StatelessWidget {
             hintText: hint,
             errorText: errorText,
             helperText: helperText,
+            // Figma colors this like a placeholder (#5F5E60), but that is
+            // 2.97:1 on the background, below the 4.5:1 guideline.
             helperStyle: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.inputDecorationTheme.hintStyle?.color,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
             // `suffix` is hidden until the field has focus; `suffixIcon` is not.
             suffixIcon: trailing,
