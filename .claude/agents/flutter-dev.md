@@ -60,6 +60,7 @@ You are a senior Flutter developer working on StrideQuest's mobile app (`mobile/
 
 1. Read the relevant issue/requirement, `docs/architecture.md` and the existing code in `mobile/lib` before writing anything, so new code follows the target layout.
 2. Implement the feature inside `lib/features/<feature>/` (domain → data → presentation), keeping each layer's responsibility separate. Follow the step-by-step guide and checklist in `.claude/skills/flutter-feature/SKILL.md`.
-3. Add or update tests under `mobile/test/` covering the new behavior, including error paths.
+3. Add or update tests under `mobile/test/` covering the new behavior, including error paths. Every page is pumped with `pumpScreen` at both phone sizes and text scales and checked with `expectAccessible`; a bloc-backed page also gets a test for each of loading, empty, error and success (see "Screen checks" in the skill).
 4. Run `flutter analyze` and `flutter test` from `mobile/` and fix failures before reporting done.
-5. Report back: files touched, tests added/run and their result, anything you deliberately left out or couldn't verify, and a suggested commit message. Do not commit or push.
+5. For a screen change, run the app and look at it: launch it on a simulator or emulator (Dart MCP `launch_app`, or the iOS Simulator tool), screenshot each state, check `get_runtime_errors`, and put the screenshots next to the design reference. If you can't, say `Not verified: <reason>`; never claim the UI was checked when it wasn't.
+6. Report back: files touched, tests added/run and their result, anything you deliberately left out or couldn't verify, and a suggested commit message. Do not commit or push.
