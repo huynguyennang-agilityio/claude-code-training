@@ -193,11 +193,74 @@ GoRoute(
 | Bloc | `blocTest` with a `mocktail` mock of the repository interface; assert the ordered states, including the failure state | `test/features/auth/presentation/bloc/auth_bloc_test.dart` |
 | Remote data source | A real `Dio` from `createDio(baseUrl: 'http://api.test/', adapter: FakeHttpAdapter(...))`, so no network is used; cover success, each mapped error code, a non-`ErrorResponse` body, a malformed body and a transport error. On `authenticatedDio`, also: a 401 `token_expired` is refreshed and retried, a 4xx `ErrorResponse` doesn't become `network`, and a malformed JSON body (on 200 and on 400) becomes `unknown` | `test/features/auth/data/datasources/auth_remote_data_source_test.dart`, `test/helpers/fake_http_adapter.dart` |
 | Repository | Mocked data sources; check the model-to-entity mapping and that failures pass through | `test/features/auth/data/repositories/auth_repository_impl_test.dart` |
-| Page | `MockBloc` from `bloc_test`; the page renders each state, and taps add the right events | `docs/architecture.md`, section on tests |
+| Page | `MockBloc` from `bloc_test`; the page renders each state (see "Screen checks" below), and taps add the right events | `docs/architecture.md`, section on tests, `test/features/home/presentation/pages/home_page_test.dart` |
 | Route | The path builds the page; a protected path redirects to sign in when signed out, using a concrete location (`/challenges/abc`), not the pattern | `test/core/router/app_router_test.dart` |
 | DI | `getIt` resolves the new repository, and returns a new bloc instance on each call (a factory, unlike `AuthBloc`) | `test/core/di/injection_test.dart` |
 
 Put shared test data in `test/helpers/<feature>_fixtures.dart`, like `auth_fixtures.dart`.
+
+**Screen checks (every page).** Pump the page with `pumpScreen` and check it with `expectAccessible` (both in `test/helpers/`):
+
+- `pumpScreen(tester, page, size: smallPhone | largePhone, textScale: 1.0 | 2.0)` puts it under `AppTheme.light` on a 375×667 or 430×932 screen at normal and doubled text. Run the success state at all four combinations, and call `expectNoLayoutException(tester)` after each: it fails on a `RenderFlex overflowed` error.
+- `await expectAccessible(tester)` runs the Android and iOS tap-target, labeled-tap-target and text-contrast guidelines.
+- **Four states.** A page backed by a bloc needs a widget test for each state it can show: loading, empty (when the data can be empty), error (shows `failure.message`, and a retry button that adds the retry event when the failure is retryable) and success. Use `settle: false` for the loading state, because a `CircularProgressIndicator` never settles.
+
+```dart
+class MockChallengesBloc extends MockBloc<ChallengesEvent, ChallengesState>
+    implements ChallengesBloc {}
+
+void main() {
+  late MockChallengesBloc bloc;
+  setUp(() => bloc = MockChallengesBloc());
+
+  Future<void> pumpPage(
+    WidgetTester tester,
+    ChallengesState state, {
+    Size size = smallPhone,
+    double textScale = 1,
+    bool settle = true,
+  }) async {
+    when(() => bloc.state).thenReturn(state);
+    await pumpScreen(
+      tester,
+      BlocProvider<ChallengesBloc>.value(value: bloc, child: const ChallengesPage()),
+      size: size,
+      textScale: textScale,
+      settle: settle,
+    );
+  }
+
+  testWidgets('loading shows a progress indicator', (tester) async {
+    await pumpPage(tester, const ChallengesLoading(), settle: false);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('empty explains there is nothing yet', (tester) async {
+    await pumpPage(tester, const ChallengesLoaded([]));
+    expect(find.text('No challenges yet.'), findsOneWidget);
+  });
+
+  testWidgets('error shows the message and retries', (tester) async {
+    await pumpPage(tester, ChallengesFailed(ChallengeFailure(ChallengeFailureCode.network)));
+    expect(find.text(ChallengeFailureCode.network.defaultMessage), findsOneWidget);
+    await tester.tap(find.text('Try again'));
+    verify(() => bloc.add(const ChallengesRetried())).called(1);
+  });
+
+  for (final size in [smallPhone, largePhone]) {
+    for (final textScale in [1.0, 2.0]) {
+      testWidgets('success fits and is accessible on $size at x$textScale', (tester) async {
+        await pumpPage(tester, ChallengesLoaded([testChallenge()]), size: size, textScale: textScale);
+        expectNoLayoutException(tester);
+        expect(find.text(testChallenge().title), findsOneWidget);
+        await expectAccessible(tester);
+      });
+    }
+  }
+}
+```
+
+No page with a bloc exists yet, so the names above are placeholders for the feature's own bloc, states and failure type; the helpers and the four-state structure are what to copy. `HomePage` and `SignInPage` have no bloc, so their tests only do the size, text-scale and accessibility checks.
 
 ### 6. Generate, check and record evidence
 
@@ -209,7 +272,17 @@ flutter analyze
 flutter test
 ```
 
-Commit the generated `*.freezed.dart`, `*.g.dart` and `injection.config.dart` files. Then record the results as verification evidence (CLAUDE.md, Phase 3), using the "Bloc / logic" and "UI" rows.
+Commit the generated `*.freezed.dart`, `*.g.dart` and `injection.config.dart` files.
+
+**Run the app and look at it.** Tests don't show that the UI matches the design. For a screen change, after the tests pass:
+
+1. Launch the app on a simulator or emulator: the Dart MCP `launch_app` tool (with `list_devices` to pick one), or build and use the iOS Simulator tool (`attach`, then `launch`). Set `API_BASE_URL` with `--dart-define` to the local backend, or use the fake data source.
+2. Reach each state of the screen (loading, empty, error, success) and take a screenshot of each. Check `get_runtime_errors` for exceptions and overflow warnings.
+3. Put the screenshots next to the design reference in the report (CLAUDE.md, "UI" evidence row).
+
+If no simulator, emulator or design reference is available, write `Not verified: <reason>` in the evidence instead of claiming the UI was checked.
+
+Then record the results as verification evidence (CLAUDE.md, Phase 3), using the "Bloc / logic" and "UI" rows.
 
 ## Checklist before reporting done
 
@@ -222,6 +295,8 @@ Commit the generated `*.freezed.dart`, `*.g.dart` and `injection.config.dart` fi
 - [ ] The bloc is `@injectable` and created in the route's `BlocProvider`; routes pass IDs only.
 - [ ] No hard-coded colors or text styles in the feature.
 - [ ] Tests cover the bloc, data source, repository and page, including failure paths.
+- [ ] Each page is pumped with `pumpScreen` at both sizes and both text scales with no overflow, passes `expectAccessible`, and (when bloc-backed) has a test for each of loading, empty, error and success.
 - [ ] A contract test (`test/contract/<feature>_examples_test.dart`, pattern: `auth_examples_test.dart`) parses every success example in `docs/api/examples/<feature>/` with the models and checks each field, sends each request example through the data source, and maps each error example to the right failure code.
 - [ ] Code generation is re-run and committed; `flutter analyze` and `flutter test` pass.
+- [ ] The app was run and each state screenshotted next to the design reference, or the evidence says `Not verified: <reason>`.
 - [ ] The `## Evidence` section is drafted.
