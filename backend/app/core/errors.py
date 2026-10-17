@@ -10,6 +10,7 @@ from typing import Any, ClassVar
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.constants import REF_PREFIX
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -145,3 +146,49 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, validation_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, unhandled_exception_handler)
+
+
+_HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
+_ERROR_REF = {"$ref": f"{REF_PREFIX}ErrorResponse"}
+
+
+def document_error_responses(app: FastAPI) -> None:
+    """Make the OpenAPI document say what the API does with errors.
+
+    FastAPI documents `422` as its own `HTTPValidationError`, but the handlers above
+    return `ErrorResponse`. This replaces it, and adds the `400 http_error` an
+    unreadable request body gets. Call it after the routers are included.
+    """
+    original = app.openapi
+
+    def openapi() -> dict[str, Any]:
+        if app.openapi_schema is not None:
+            return app.openapi_schema
+        schema = original()
+        components = schema.setdefault("components", {}).setdefault("schemas", {})
+        error_schema = ErrorResponse.model_json_schema(ref_template=f"{REF_PREFIX}{{model}}")
+        components.update(error_schema.pop("$defs", {}))
+        components["ErrorResponse"] = error_schema
+        for operation in (op for item in schema.get("paths", {}).values() for op in item.values()):
+            if not isinstance(operation, dict):
+                continue
+            responses = operation.setdefault("responses", {})
+            content = {"application/json": {"schema": _ERROR_REF}}
+            if "422" in responses:
+                responses["422"] = {
+                    "description": "Request is invalid (`validation_error`).",
+                    "content": content,
+                }
+            if "requestBody" in operation:
+                responses.setdefault(
+                    "400",
+                    {
+                        "description": "The request body can't be read (`http_error`).",
+                        "content": content,
+                    },
+                )
+        for unused in ("HTTPValidationError", "ValidationError"):
+            components.pop(unused, None)
+        return schema
+
+    app.openapi = openapi  # type: ignore[method-assign]

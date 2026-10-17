@@ -3,9 +3,37 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, field_validator
+from email_validator import EmailNotValidError, validate_email
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+)
 
-Email = Annotated[EmailStr, Field(max_length=254)]
+
+def _valid_email(value: str) -> str:
+    """Check the address is well formed, without asking whether it is deliverable.
+
+    `test_environment` accepts reserved names such as `.test`: an address with a valid
+    shape is not rejected here, and sign in is just a lookup. The OpenAPI document says
+    `format: email`, which allows them too.
+    """
+    try:
+        return validate_email(value, check_deliverability=False, test_environment=True).normalized
+    except EmailNotValidError as error:
+        raise ValueError(str(error)) from None
+
+
+Email = Annotated[
+    str,
+    AfterValidator(_valid_email),
+    Field(max_length=254, json_schema_extra={"format": "email"}),
+]
+_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
+
 DisplayName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
 
 
@@ -15,8 +43,28 @@ def _lowercase(email: str) -> str:
 
 class SignUpRequest(BaseModel):
     email: Email
-    password: str = Field(min_length=8, max_length=128)
-    display_name: DisplayName
+    password: str = Field(
+        min_length=8,
+        max_length=128,
+        # The validator below enforces this and gives the messages; the schema states it
+        # so the OpenAPI document describes what the API accepts. ASCII ranges, because
+        # `\w` and `\d` mean different things in Python and in JSON Schema's ECMA-262
+        # regular expressions, and the schema must mean the same to every reader.
+        json_schema_extra={"allOf": [{"pattern": "[A-Za-z]"}, {"pattern": "[0-9]"}]},
+    )
+    display_name: DisplayName = Field(json_schema_extra={"pattern": r"^[^\x00-\x1f\x7f]*$"})
+
+    @field_validator("display_name", mode="before")
+    @classmethod
+    def display_name_has_no_control_characters(cls, value: object) -> object:
+        """Reject control characters before whitespace is trimmed.
+
+        PostgreSQL can't store NUL in text, and a name with line breaks or tabs in it is
+        never wanted. The OpenAPI schema states the same rule as a `pattern`.
+        """
+        if isinstance(value, str) and _CONTROL_CHARACTERS.search(value):
+            raise ValueError("Display name must not contain control characters.")
+        return value
 
     @field_validator("email")
     @classmethod
@@ -26,9 +74,9 @@ class SignUpRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def password_has_letter_and_digit(cls, value: str) -> str:
-        if not re.search(r"[^\W\d_]", value):
+        if not re.search(r"[A-Za-z]", value):
             raise ValueError("Password must contain at least one letter.")
-        if not re.search(r"\d", value):
+        if not re.search(r"[0-9]", value):
             raise ValueError("Password must contain at least one digit.")
         return value
 

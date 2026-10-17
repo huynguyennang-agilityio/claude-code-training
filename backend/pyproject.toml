@@ -30,3 +30,4 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = ["fuzz: generates requests from the OpenAPI document (skip with -m \"not fuzz\")"]

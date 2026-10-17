@@ -204,7 +204,7 @@ pytest
 Backend tests are split in two:
 
 - **`tests/unit/`** needs no database or Docker. Run it alone with `pytest tests/unit`.
-- **`tests/integration/`** runs against PostgreSQL. Start the database before running `pytest`:
+- **`tests/integration/`** runs against PostgreSQL, and includes the Schemathesis fuzz test (`pytest -m fuzz` runs only it, `pytest -m "not fuzz"` skips it). Start the database before running `pytest`:
 
   ```bash
   docker compose up -d --wait db
@@ -213,6 +213,14 @@ Backend tests are split in two:
   The tests use `TEST_DATABASE_URL` from `.env` (see `.env.example`):
   - the database name must be letters, digits and underscores ending in `_test`, because each run wipes its `public` schema;
   - the database is created if it doesn't exist, migrated with `alembic upgrade head`, and each test is rolled back.
+
+To replay the API calls of a module against a running server (`brew install hurl`; start the database and `uvicorn app.main:app` first):
+
+```bash
+backend/hurl/run.sh                          # the auth flow against http://localhost:8000/api/v1
+backend/hurl/run.sh http://host:8000/api/v1  # another server
+backend/hurl/run.sh --rate-limit             # also the rate limit (uses part of the per-IP budget)
+```
 
 Mobile:
 
