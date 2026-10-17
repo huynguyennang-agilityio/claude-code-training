@@ -2,8 +2,8 @@
 /// of numeric literals; `test/core/theme/theme_tokens_guard_test.dart`
 /// enforces it.
 ///
-/// There is no design file yet, so the values are a starting 4-pt scale.
-/// Replace them, not their names, when a design exists.
+/// The spacing scale is a 4-pt scale; the radii and sizes below that the Figma
+/// file uses (input 5, button 10, button 50) were read from its frames.
 library;
 
 /// Spacing scale in logical pixels, for padding, margins and gaps.
@@ -19,9 +19,14 @@ abstract final class AppSpacing {
 
 /// Corner radius scale in logical pixels.
 abstract final class AppRadius {
+  /// Input fields.
+  static const double xs = 5;
   static const double sm = 8;
   static const double md = 12;
   static const double lg = 16;
+
+  /// Primary buttons.
+  static const double button = 10;
 
   /// Fully rounded ends (pills, avatars).
   static const double full = 999;
@@ -31,4 +36,7 @@ abstract final class AppRadius {
 abstract final class AppSizes {
   /// The widest a form grows on a large screen, so fields don't stretch edge to edge.
   static const double formMaxWidth = 480;
+
+  /// Height of a primary button.
+  static const double buttonHeight = 50;
 }

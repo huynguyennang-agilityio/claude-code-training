@@ -9,7 +9,7 @@ import 'package:stridequest/core/theme/app_theme.dart';
 Future<void> testExecutable(Future<void> Function() testMain) {
   return AlchemistConfig.runWithConfig(
     config: AlchemistConfig(
-      theme: AppTheme.light,
+      theme: AppTheme.dark,
       platformGoldensConfig: const PlatformGoldensConfig(enabled: false),
     ),
     run: testMain,
