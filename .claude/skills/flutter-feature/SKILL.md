@@ -279,7 +279,7 @@ Commit the generated `*.freezed.dart`, `*.g.dart` and `injection.config.dart` fi
 **Run the app and look at it.** Tests don't show that the UI matches the design. For a screen change, after the tests pass:
 
 1. Launch the app on a simulator or emulator: the Dart MCP `launch_app` tool (with `list_devices` to pick one), or build and use the iOS Simulator tool (`attach`, then `launch`). Set `API_BASE_URL` with `--dart-define` to the local backend, or use the fake data source.
-2. Reach each state of the screen (loading, empty, error, success) and take a screenshot of each. Check `get_runtime_errors` for exceptions and overflow warnings.
+2. Reach each state of the screen (loading, empty, error, success) and take a screenshot of each. A fast local backend never shows the loading and error states, so simulate them: `--dart-define=SIMULATE_LATENCY_MS=2000` for loading, `--dart-define=SIMULATE_FAULT=offline` (or `timeout`, or `flaky` for every 3rd request) for the error and retry states (see the README). Check `get_runtime_errors` for exceptions and overflow warnings.
 3. Put the screenshots next to the design reference in the report (CLAUDE.md, "UI" evidence row).
 
 If no simulator, emulator or design reference is available, write `Not verified: <reason>` in the evidence instead of claiming the UI was checked.

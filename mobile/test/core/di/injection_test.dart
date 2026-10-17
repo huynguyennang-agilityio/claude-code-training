@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stridequest/core/di/injection.dart';
 import 'package:stridequest/core/network/auth_interceptor.dart';
 import 'package:stridequest/core/network/auth_token_handler.dart';
+import 'package:stridequest/core/network/network_simulation.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 
@@ -29,4 +30,18 @@ void main() {
     );
     expect(authenticated.options.baseUrl, endsWith('/api/v1/'));
   });
+
+  test(
+    'neither Dio simulates the network unless a SIMULATE_* setting is set',
+    () {
+      for (final name in ['publicDio', 'authenticatedDio']) {
+        final dio = getIt<Dio>(instanceName: name);
+
+        expect(
+          dio.interceptors.whereType<NetworkSimulationInterceptor>(),
+          isEmpty,
+        );
+      }
+    },
+  );
 }
