@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -67,7 +68,12 @@ void main() {
       router.dispose();
       authChanges.dispose();
     });
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpWidget(
+      BlocProvider<AuthBloc>.value(
+        value: bloc,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
     await tester.pump(restoreDelay);
     await tester.pumpAndSettle();
   }
@@ -98,7 +104,7 @@ void main() {
     bloc.add(const AuthSignOutRequested());
     await tester.pumpAndSettle();
 
-    expect(find.text('Sign in to continue.'), findsOneWidget);
+    expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('Runs page'), findsNothing);
   });
 
@@ -108,13 +114,13 @@ void main() {
     sessionExpired.add(null);
     await tester.pumpAndSettle();
 
-    expect(find.text('Sign in to continue.'), findsOneWidget);
+    expect(find.text('Welcome back'), findsOneWidget);
   });
 
   testWidgets('a signed-out user cannot open a protected page', (tester) async {
     await pumpRouter(tester, signedIn: false, at: _runsPath);
 
-    expect(find.text('Sign in to continue.'), findsOneWidget);
+    expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('Runs page'), findsNothing);
   });
 
@@ -140,14 +146,14 @@ void main() {
       restoreDelay: const Duration(milliseconds: 50),
     );
 
-    expect(find.text('Sign in to continue.'), findsOneWidget);
+    expect(find.text('Welcome back'), findsOneWidget);
   });
 
   testWidgets('a signed-out user cannot open a protected page with a path '
       'parameter', (tester) async {
     await pumpRouter(tester, signedIn: false, at: '/challenges/abc');
 
-    expect(find.text('Sign in to continue.'), findsOneWidget);
+    expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('Challenge abc'), findsNothing);
   });
 
@@ -176,7 +182,7 @@ void main() {
   ) async {
     await pumpRouter(tester, signedIn: false, at: '/challenges/abc/edit');
 
-    expect(find.text('Sign in to continue.'), findsOneWidget);
+    expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('Edit abc'), findsNothing);
   });
 

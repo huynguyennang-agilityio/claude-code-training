@@ -231,6 +231,15 @@ dart format --output=none --set-exit-if-changed lib test
 flutter test
 ```
 
+To run the sign-in flow in the real app against the real backend, start the database and the API (`uvicorn app.main:app`), boot a simulator, then:
+
+```bash
+cd mobile
+flutter test integration_test/sign_in_flow_test.dart -d <device id>
+```
+
+The test creates its own user through the API, so it can be repeated. It uses the Keychain, so if an earlier run was interrupted while signed in, reset it with `xcrun simctl keychain <device id> reset`.
+
 Ruff and pytest are configured in `backend/pyproject.toml`; Dart lints are configured in `mobile/analysis_options.yaml`.
 
 Regenerate code after changing a Freezed model, a `@JsonKey` or an `@injectable` registration, and commit the generated `*.g.dart`, `*.freezed.dart` and `injection.config.dart` files with the change:

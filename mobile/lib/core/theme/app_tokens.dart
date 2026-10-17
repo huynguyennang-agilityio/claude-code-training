@@ -26,3 +26,9 @@ abstract final class AppRadius {
   /// Fully rounded ends (pills, avatars).
   static const double full = 999;
 }
+
+/// Fixed sizes for layout.
+abstract final class AppSizes {
+  /// The widest a form grows on a large screen, so fields don't stretch edge to edge.
+  static const double formMaxWidth = 480;
+}
