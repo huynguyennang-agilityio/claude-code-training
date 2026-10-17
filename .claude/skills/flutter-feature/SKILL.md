@@ -12,7 +12,7 @@ Paths below are relative to `mobile/` unless they start with `docs/` or `.claude
 ## Before you start
 
 1. Make sure the issue has its ticket evidence and acceptance criteria (CLAUDE.md, Phase 1).
-2. Read the API contract in `docs/api/<feature>.md`. If it doesn't exist yet, the contract comes first (CLAUDE.md, Phase 2).
+2. Read the API contract in `docs/api/<feature>.md`. If it doesn't exist yet, the contract comes first (CLAUDE.md, Phase 2). Its JSON examples are files under `docs/api/examples/<feature>/`; the backend tests compare their responses with the same files.
 3. Read the reference files listed under each step below. Copy their shape, not just the snippets here.
 
 ## Build order
@@ -222,5 +222,6 @@ Commit the generated `*.freezed.dart`, `*.g.dart` and `injection.config.dart` fi
 - [ ] The bloc is `@injectable` and created in the route's `BlocProvider`; routes pass IDs only.
 - [ ] No hard-coded colors or text styles in the feature.
 - [ ] Tests cover the bloc, data source, repository and page, including failure paths.
+- [ ] A contract test (`test/contract/<feature>_examples_test.dart`, pattern: `auth_examples_test.dart`) parses every success example in `docs/api/examples/<feature>/` with the models and checks each field, sends each request example through the data source, and maps each error example to the right failure code.
 - [ ] Code generation is re-run and committed; `flutter analyze` and `flutter test` pass.
 - [ ] The `## Evidence` section is drafted.
