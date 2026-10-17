@@ -31,3 +31,13 @@ warn_required_dynamic_aliases = true
 testpaths = ["tests"]
 addopts = "-ra"
 markers = ["fuzz: generates requests from the OpenAPI document (skip with -m \"not fuzz\")"]
+
+[tool.mutmut]
+# Mutation testing of the security rules: `mutmut run`, then `mutmut results`.
+# Slow and run by hand; see the fastapi-module skill.
+source_paths = ["app/"]
+only_mutate = ["app/core/security.py", "app/modules/auth/service.py"]
+pytest_add_cli_args_test_selection = [
+  "tests/unit/test_security.py",
+  "tests/unit/test_auth_service.py",
+]
