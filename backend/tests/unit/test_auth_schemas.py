@@ -53,6 +53,8 @@ def test_signup_lowercases_the_email_and_trims_the_display_name() -> None:
     [
         ("runnerrun", "Value error, Password must contain at least one digit."),
         ("12345678", "Value error, Password must contain at least one letter."),
+        ("éàüö1234", "Value error, Password must contain at least one letter."),
+        ("password١٢٣", "Value error, Password must contain at least one digit."),
         ("run4me", "String should have at least 8 characters"),
         ("a1" * 65, "String should have at most 128 characters"),
     ],
@@ -62,6 +64,16 @@ def test_signup_password_rules(password: str, message: str) -> None:
         SignUpRequest(email="a@b.co", password=password, display_name="A")
 
     assert messages(error.value) == [("password", message)]
+
+
+@pytest.mark.parametrize("display_name", ["Lan\x00", "Lan\nRunner", "\tLan", "Lan\x7f"])
+def test_signup_rejects_control_characters_in_the_display_name(display_name: str) -> None:
+    with pytest.raises(ValidationError) as error:
+        SignUpRequest(email="a@b.co", password="run4medals", display_name=display_name)
+
+    assert messages(error.value) == [
+        ("display_name", "Value error, Display name must not contain control characters.")
+    ]
 
 
 @pytest.mark.parametrize("display_name", ["", "   ", "x" * 51])
@@ -78,6 +90,11 @@ def test_email_must_be_valid(email: str) -> None:
         SignUpRequest(email=email, password="run4medals", display_name="A")
     with pytest.raises(ValidationError):
         SignInRequest(email=email, password="x")
+
+
+@pytest.mark.parametrize("email", ["mk~@ye.test", "a@b.example", "runner+quest@sub.example.org"])
+def test_email_with_a_reserved_but_well_formed_domain_is_accepted(email: str) -> None:
+    assert SignInRequest(email=email, password="x").email == email
 
 
 def test_email_is_at_most_254_characters() -> None:

@@ -145,12 +145,12 @@ Verification evidence shows the work was checked. It is not the ticket evidence 
 | --- | --- |
 | Backend service / repository | `pytest` command and result summary; the full log if anything failed |
 | Database schema | Run against the local docker-compose database only: `alembic upgrade head`, `alembic downgrade <develop head revision>`, `alembic upgrade head` again, and the resulting table definition (`\d <table>`) |
-| API endpoint | Calls against the running server: one success case and each error case documented in `docs/api/`, with request, status code and JSON body. Error bodies match `ErrorResponse` |
+| API endpoint | Calls against the running server: one success case and each error case documented in `docs/api/`, with request, status code and JSON body. Error bodies match `ErrorResponse`. Keep the calls as a `.hurl` file in `backend/hurl/` and paste the output of `backend/hurl/run.sh`, so a reviewer can replay them. `pytest -m fuzz` (Schemathesis checks every response against the OpenAPI document) must pass |
 | Bloc / logic | `flutter test <path>` command and result |
 | UI | Screenshot of the running app next to the design reference. A screen has a golden test (`goldenScreen` in `mobile/test/helpers/`, CI goldens, so the images are the same on every machine). Attach the baseline image diff when a golden changes |
 | Screen quality | `flutter test <page test>` using `pumpScreen` and `expectAccessible`: both phone sizes, both text scales, no overflow, accessibility guidelines, and each bloc state (loading, empty, error, success) |
 | API contract change | The changed files under `docs/api/examples/` and the `docs/api/openapi.json` diff; `pytest tests/unit/test_api_examples.py tests/unit/test_error_contract.py tests/unit/test_openapi_snapshot.py` and `flutter test test/contract` results |
-| New or changed route | `pytest tests/unit/test_auth_sweep.py` (the route is guarded, or listed in `PUBLIC_ROUTES` with `none` in the contract's `Auth` column), plus an ownership test for a user-owned resource: another user gets `404 not_found` |
+| New or changed route | `pytest tests/unit/test_auth_sweep.py` (the route is guarded, or listed in `PUBLIC_ROUTES` with `none` in the contract's `Auth` column), plus an ownership test for a user-owned resource: another user gets `404 not_found`. A response that nests rows (for example a quest with its challenges and medals) also needs a query-count test showing a fixed number of statements however many rows there are |
 | Bug fix | The reproduction steps and the actual result before the fix; the same steps and the result after it |
 | Integration | The flow exercised across components (for example the app against the local backend) and what was observed |
 | Chore / docs | The commands run and their results |

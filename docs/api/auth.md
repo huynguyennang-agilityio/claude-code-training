@@ -37,7 +37,7 @@ The app should check these on the form before calling the API. The backend check
 | Field | Rule |
 | --- | --- |
 | `email` | A valid email address, at most 254 characters. Case-insensitive: the backend stores it lowercase. |
-| `password` | 8 to 128 characters, with at least one letter and one digit. |
+| `password` | 8 to 128 characters, with at least one letter (`A`–`Z`, `a`–`z`) and one digit (`0`–`9`). |
 | `display_name` | 1 to 50 characters after trimming spaces. |
 
 ## Shared shapes

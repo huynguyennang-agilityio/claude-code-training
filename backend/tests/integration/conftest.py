@@ -26,6 +26,7 @@ from alembic import command
 from app.core.config import get_database_settings, get_settings
 from app.core.database import get_session
 from app.main import create_app
+from tests.integration.query_counter import QueryCounter
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
@@ -153,3 +154,9 @@ async def client(session: AsyncSession) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest.fixture
+def query_counter(engine: AsyncEngine) -> QueryCounter:
+    """Counts the SQL statements sent through the test engine (see `query_counter.py`)."""
+    return QueryCounter(engine.sync_engine)

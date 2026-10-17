@@ -73,19 +73,6 @@
         "title": "FieldError",
         "type": "object"
       },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "title": "Detail",
-            "type": "array"
-          }
-        },
-        "title": "HTTPValidationError",
-        "type": "object"
-      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -140,6 +127,7 @@
           "display_name": {
             "maxLength": 50,
             "minLength": 1,
+            "pattern": "^[^\\x00-\\x1f\\x7f]*$",
             "title": "Display Name",
             "type": "string"
           },
@@ -150,6 +138,14 @@
             "type": "string"
           },
           "password": {
+            "allOf": [
+              {
+                "pattern": "[A-Za-z]"
+              },
+              {
+                "pattern": "[0-9]"
+              }
+            ],
             "maxLength": 128,
             "minLength": 8,
             "title": "Password",
@@ -222,46 +218,6 @@
         ],
         "title": "UserRead",
         "type": "object"
-      },
-      "ValidationError": {
-        "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "title": "Location",
-            "type": "array"
-          },
-          "msg": {
-            "title": "Message",
-            "type": "string"
-          },
-          "type": {
-            "title": "Error Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError",
-        "type": "object"
       }
     },
     "securitySchemes": {
@@ -301,6 +257,16 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request body can't be read (`http_error`)."
+          },
           "401": {
             "content": {
               "application/json": {
@@ -315,11 +281,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Request is invalid (`validation_error`)."
           }
         },
         "summary": "Refresh",
@@ -352,6 +318,16 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request body can't be read (`http_error`)."
+          },
           "401": {
             "content": {
               "application/json": {
@@ -366,11 +342,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Request is invalid (`validation_error`)."
           },
           "429": {
             "content": {
@@ -406,15 +382,25 @@
           "204": {
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request body can't be read (`http_error`)."
+          },
           "422": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Request is invalid (`validation_error`)."
           }
         },
         "summary": "Sign Out",
@@ -447,6 +433,16 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request body can't be read (`http_error`)."
+          },
           "409": {
             "content": {
               "application/json": {
@@ -461,11 +457,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Request is invalid (`validation_error`)."
           }
         },
         "summary": "Sign Up",
