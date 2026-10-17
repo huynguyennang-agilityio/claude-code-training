@@ -37,6 +37,10 @@ abstract final class AppSizes {
   /// The widest a form grows on a large screen, so fields don't stretch edge to edge.
   static const double formMaxWidth = 480;
 
+  /// The smallest size of anything the user taps (Material and iOS
+  /// accessibility guidelines).
+  static const double minTapTarget = 48;
+
   /// Height of a primary button.
   static const double buttonHeight = 50;
 }

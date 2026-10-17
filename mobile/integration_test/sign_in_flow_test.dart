@@ -7,6 +7,7 @@ import 'package:stridequest/core/config/app_config.dart';
 import 'package:stridequest/core/di/injection.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:stridequest/features/auth/presentation/widgets/auth_text_field.dart';
 
 /// The sign-in flow in the real app against the real backend.
 ///
@@ -75,8 +76,8 @@ void main() {
     expect(find.text('Welcome back'), findsOneWidget);
 
     // A wrong password is refused with the documented message.
-    final emailField = find.widgetWithText(TextFormField, 'Email');
-    final passwordField = find.widgetWithText(TextFormField, 'Password');
+    final emailField = find.widgetWithText(AuthTextField, 'Email');
+    final passwordField = find.widgetWithText(AuthTextField, 'Password');
     await typeInto(tester, emailField, email);
     await typeInto(tester, passwordField, 'wrong-pass1');
     await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));

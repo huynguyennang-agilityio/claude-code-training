@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/auth/presentation/pages/sign_in_page.dart';
+import 'package:stridequest/features/auth/presentation/widgets/auth_text_field.dart';
 
 import '../../../../helpers/expect_accessible.dart';
 import '../../../../helpers/mock_auth_bloc.dart';
@@ -34,8 +35,8 @@ void main() {
     );
   }
 
-  final email = find.widgetWithText(TextFormField, 'Email');
-  final password = find.widgetWithText(TextFormField, 'Password');
+  final email = find.widgetWithText(AuthTextField, 'Email');
+  final password = find.widgetWithText(AuthTextField, 'Password');
   final signInButton = find.widgetWithText(FilledButton, 'Sign in');
 
   AuthUnauthenticated failed(
@@ -55,6 +56,9 @@ void main() {
       await pumpPage(tester);
 
       expect(find.text('Welcome back'), findsOneWidget);
+      expect(find.text('Sign in to continue your quests.'), findsOneWidget);
+      expect(find.text('you@example.com'), findsOneWidget);
+      expect(find.text('Your password'), findsOneWidget);
       expect(email, findsOneWidget);
       expect(password, findsOneWidget);
       expect(signInButton, findsOneWidget);
@@ -271,11 +275,11 @@ void main() {
       await pumpPage(tester);
       expect(obscured(tester), isTrue);
 
-      await tester.tap(find.byTooltip('Show password'));
+      await tester.tap(find.text('Show'));
       await tester.pump();
       expect(obscured(tester), isFalse);
 
-      await tester.tap(find.byTooltip('Hide password'));
+      await tester.tap(find.text('Hide'));
       await tester.pump();
       expect(obscured(tester), isTrue);
     });
@@ -326,7 +330,7 @@ void main() {
       await pumpPage(tester, size: const Size(375, 300), textScale: 2);
 
       expectNoLayoutException(tester);
-      expect(find.byType(SingleChildScrollView), findsOneWidget);
+      expect(find.byType(CustomScrollView), findsOneWidget);
     });
   });
 }
