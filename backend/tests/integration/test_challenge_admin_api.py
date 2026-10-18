@@ -482,4 +482,4 @@ async def test_an_unsupported_method_lists_every_method_of_the_path(
     response = await client.post(f"{PREFIX}/challenges/1", headers=admin)
 
     assert response.status_code == 405
-    assert response.headers["allow"] == "DELETE, PATCH"
+    assert response.headers["allow"] == "DELETE, GET, HEAD, PATCH"

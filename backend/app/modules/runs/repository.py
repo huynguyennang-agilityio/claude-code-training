@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,3 +17,14 @@ class RunRepository:
             select(func.count()).select_from(Run).where(Run.challenge_id == challenge_id)
         )
         return count or 0
+
+    async def counts_for_challenges(self, challenge_ids: Sequence[int]) -> dict[int, int]:
+        """`count_for_challenge` for several challenges in one query; ids with none are left out."""
+        if not challenge_ids:
+            return {}
+        rows = await self._session.execute(
+            select(Run.challenge_id, func.count())
+            .where(Run.challenge_id.in_(challenge_ids))
+            .group_by(Run.challenge_id)
+        )
+        return {challenge_id: count for challenge_id, count in rows}

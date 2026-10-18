@@ -103,6 +103,54 @@ HTTP 404
 [Asserts]
 jsonpath "$.error.code" == "quest_not_found"
 
+# The list and the detail: a draft is hidden from a user and open to an admin
+GET {{base}}/challenges/{{challenge_id}}
+Authorization: Bearer {{user_token}}
+HTTP 404
+[Asserts]
+jsonpath "$.error.code" == "challenge_not_found"
+
+GET {{base}}/challenges/{{challenge_id}}
+Authorization: Bearer {{admin_token}}
+HTTP 200
+[Asserts]
+jsonpath "$.status" == "draft"
+jsonpath "$.participant_count" == 0
+jsonpath "$.enrollment" == null
+jsonpath "$.blocked_by" == null
+jsonpath "$.medals" count == 1
+
+GET {{base}}/challenges
+Authorization: Bearer {{user_token}}
+[QueryStringParams]
+status: draft
+q: {{title}}
+HTTP 403
+[Asserts]
+jsonpath "$.error.code" == "forbidden"
+
+GET {{base}}/challenges
+Authorization: Bearer {{admin_token}}
+[QueryStringParams]
+status: draft
+q: {{title}}
+HTTP 200
+[Asserts]
+jsonpath "$.items" count == 1
+jsonpath "$.items[0].id" == {{challenge_id}}
+
+GET {{base}}/challenges?cursor=not-a-cursor
+Authorization: Bearer {{user_token}}
+HTTP 422
+[Asserts]
+jsonpath "$.error.code" == "invalid_cursor"
+
+GET {{base}}/challenges?colour=red
+Authorization: Bearer {{user_token}}
+HTTP 422
+[Asserts]
+jsonpath "$.error.code" == "validation_error"
+
 # Edit: only what is sent changes, and null clears
 PATCH {{base}}/challenges/{{challenge_id}}
 Authorization: Bearer {{admin_token}}
@@ -153,6 +201,27 @@ HTTP 409
 [Asserts]
 jsonpath "$.error.code" == "challenge_not_draft"
 
+# A published challenge is in the list, with its participant count and no enrollment yet
+GET {{base}}/challenges
+Authorization: Bearer {{user_token}}
+[QueryStringParams]
+q: {{title}}
+type: run
+limit: 5
+HTTP 200
+[Asserts]
+jsonpath "$.items" count == 1
+jsonpath "$.items[0].id" == {{challenge_id}}
+jsonpath "$.items[0].participant_count" == 0
+jsonpath "$.items[0].enrollment" == null
+jsonpath "$.next_cursor" == null
+
+GET {{base}}/challenges/{{challenge_id}}
+Authorization: Bearer {{user_token}}
+HTTP 200
+[Asserts]
+jsonpath "$.status" == "published"
+
 POST {{base}}/challenges/{{challenge_id}}/unpublish
 Authorization: Bearer {{admin_token}}
 HTTP 200
@@ -193,7 +262,7 @@ POST {{base}}/challenges/{{bare_id}}
 Authorization: Bearer {{admin_token}}
 HTTP 405
 [Asserts]
-header "Allow" == "DELETE, PATCH"
+header "Allow" == "DELETE, GET, HEAD, PATCH"
 
 # Images: the refusals
 POST {{base}}/images

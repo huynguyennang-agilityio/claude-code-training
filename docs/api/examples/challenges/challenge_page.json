@@ -1,0 +1,35 @@
+{
+  "items": [
+    {
+      "id": 7,
+      "title": "Hoan Kiem 50K Steps",
+      "type": "run",
+      "metric": "steps",
+      "target_value": 50000,
+      "cover_image_url": "https://res.cloudinary.com/demo/image/upload/stridequest/covers/hoan-kiem.jpg",
+      "city": "Hanoi",
+      "landmark": "Hoan Kiem Lake",
+      "status": "published",
+      "starts_at": "2026-11-01T00:00:00Z",
+      "ends_at": "2026-11-30T23:59:59Z",
+      "participant_count": 813,
+      "enrollment": null
+    },
+    {
+      "id": 9,
+      "title": "My Khe Bay 20 km",
+      "type": "swim",
+      "metric": "distance_m",
+      "target_value": 20000,
+      "cover_image_url": "https://res.cloudinary.com/demo/image/upload/stridequest/covers/my-khe.jpg",
+      "city": "Da Nang",
+      "landmark": "My Khe Beach",
+      "status": "published",
+      "starts_at": "2026-11-01T00:00:00Z",
+      "ends_at": "2026-12-15T23:59:59Z",
+      "participant_count": 0,
+      "enrollment": null
+    }
+  ],
+  "next_cursor": "OQ"
+}

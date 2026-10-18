@@ -1,6 +1,6 @@
 # Challenges API contract
 
-The contract of the challenge routes. It grows with the plan in [`docs/plans/001-challenges.md`](../plans/001-challenges.md): this version holds the admin routes that write the catalog (create, edit, publish, delete, quests, image upload), the rules they enforce and the error codes they raise. List, detail, join, pause, resume and leave are added with the issues that build them.
+The contract of the challenge routes. It grows with the plan in [`docs/plans/001-challenges.md`](../plans/001-challenges.md): this version holds the routes that read the catalog (list, detail) and the admin routes that write it (create, edit, publish, delete, quests, image upload), the rules they enforce and the error codes they raise. Join, pause, resume and leave are added with the issue that builds them.
 
 Every JSON example is also a file in `docs/api/examples/challenges/`; the `<!-- example: ... -->` comment above each block names it.
 
@@ -27,6 +27,8 @@ A new challenge is a **draft**. Only a **published** challenge is shown to users
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
+| `GET` | `/api/v1/challenges` | access token | List the published challenges |
+| `GET` | `/api/v1/challenges/{challenge_id}` | access token | Read one challenge |
 | `POST` | `/api/v1/challenges` | admin | Create a draft challenge |
 | `PATCH` | `/api/v1/challenges/{challenge_id}` | admin | Edit a challenge |
 | `DELETE` | `/api/v1/challenges/{challenge_id}` | admin | Delete a draft |
@@ -37,6 +39,117 @@ A new challenge is a **draft**. Only a **published** challenge is shown to users
 | `POST` | `/api/v1/images` | admin | Upload a cover or a medal image |
 
 `challenge_id` is a whole number from 1 to 2,147,483,647; any other value answers `422 validation_error`. A caller without a token gets `401 not_authenticated`; a signed-in caller who is not an admin gets `403 forbidden` on an admin route.
+
+### List the challenges
+
+`GET /api/v1/challenges` answers `200` with a `ChallengePage`: the published challenges, oldest first, as the cards of the Challenges tab.
+
+| Query | Rule |
+| --- | --- |
+| `type` | `run`, `swim` or `cycle`: only that type. |
+| `q` | At most 100 characters on one line. Matches the title, the city and the landmark, ignoring case (accents count as typed); `%` and `_` are plain text. |
+| `status` | `published` (the default) or `draft`. Only an admin may ask for `draft`; anyone else gets `403 forbidden`. |
+| `limit` | 1 to 50, default 20. |
+| `cursor` | The `next_cursor` of the previous page. Leave it out for the first page. A value that is not one answers `422 invalid_cursor`. |
+
+`next_cursor` is `null` on the last page, so the app stops without asking for an empty one. The cursor is opaque: the app must not read or build it.
+
+Each card has `participant_count`, how many users joined, and `enrollment`, the caller's own place in the challenge (`status` `active`, `paused` or `left`, and `joined_at`) or `null` when they have not joined. **Until joining is built, `enrollment` is always `null`.**
+
+<!-- example: challenges/challenge_page.json -->
+```json
+{
+  "items": [
+    {
+      "id": 7,
+      "title": "Hoan Kiem 50K Steps",
+      "type": "run",
+      "metric": "steps",
+      "target_value": 50000,
+      "cover_image_url": "https://res.cloudinary.com/demo/image/upload/stridequest/covers/hoan-kiem.jpg",
+      "city": "Hanoi",
+      "landmark": "Hoan Kiem Lake",
+      "status": "published",
+      "starts_at": "2026-11-01T00:00:00Z",
+      "ends_at": "2026-11-30T23:59:59Z",
+      "participant_count": 813,
+      "enrollment": null
+    },
+    {
+      "id": 9,
+      "title": "My Khe Bay 20 km",
+      "type": "swim",
+      "metric": "distance_m",
+      "target_value": 20000,
+      "cover_image_url": "https://res.cloudinary.com/demo/image/upload/stridequest/covers/my-khe.jpg",
+      "city": "Da Nang",
+      "landmark": "My Khe Beach",
+      "status": "published",
+      "starts_at": "2026-11-01T00:00:00Z",
+      "ends_at": "2026-12-15T23:59:59Z",
+      "participant_count": 0,
+      "enrollment": null
+    }
+  ],
+  "next_cursor": "OQ"
+}
+```
+
+<!-- example: challenges/error_invalid_cursor.json -->
+```json
+{
+  "error": {
+    "code": "invalid_cursor",
+    "message": "The cursor is not valid."
+  }
+}
+```
+
+### Read a challenge
+
+`GET /api/v1/challenges/{challenge_id}` answers `200` with a `ChallengeDetail`: every field of a `Challenge`, with the medals as the checkpoints (bronze, silver, gold, up to three), plus `participant_count`, `enrollment` as above and `blocked_by`. `blocked_by` is the `{id, title}` of the challenge the caller is in that overlaps this one in time and so stops them joining it, or `null`. **Until joining is built, `blocked_by` is always `null`.**
+
+A draft answers `404 challenge_not_found` to anyone but an admin, as if it did not exist.
+
+<!-- example: challenges/challenge_detail.json -->
+```json
+{
+  "id": 7,
+  "quest_id": 1,
+  "title": "Hoan Kiem 50K Steps",
+  "type": "run",
+  "metric": "steps",
+  "target_value": 50000,
+  "mode": "solo",
+  "description_md": "Walk or run 50,000 steps around the lake.",
+  "terms_md": "Steps are counted from Apple Health or Health Connect.",
+  "cover_image_url": "https://res.cloudinary.com/demo/image/upload/stridequest/covers/hoan-kiem.jpg",
+  "city": "Hanoi",
+  "landmark": "Hoan Kiem Lake",
+  "status": "published",
+  "starts_at": "2026-11-01T00:00:00Z",
+  "ends_at": "2026-11-30T23:59:59Z",
+  "medals": [
+    {
+      "id": 12,
+      "tier": "bronze",
+      "name": "Lake Walker",
+      "threshold_value": 20000,
+      "image_url": "https://res.cloudinary.com/demo/image/upload/stridequest/medals/bronze.png"
+    },
+    {
+      "id": 13,
+      "tier": "gold",
+      "name": "Lake Master",
+      "threshold_value": 50000,
+      "image_url": "https://res.cloudinary.com/demo/image/upload/stridequest/medals/gold.png"
+    }
+  ],
+  "participant_count": 813,
+  "enrollment": null,
+  "blocked_by": null
+}
+```
 
 ### Create a challenge
 
@@ -202,6 +315,7 @@ The response is the updated `Challenge`.
 | 409 | `challenge_not_publishable` | A draft is missing something it needs to be published. The message lists what. |
 | 409 | `challenge_not_draft` | Only a draft can be deleted; a published challenge must be unpublished first. |
 | 409 | `challenge_in_use` | People have joined, and the edit changes the type, the target, the window or the medals. |
+| 422 | `invalid_cursor` | The `cursor` of the list is not one the server gave. |
 | 422 | `validation_error` | The body, or the challenge once the edit is applied, breaks a field rule. `fields` names each problem. |
 | 413 | `image_too_large` | The image is over 5 MB. |
 | 415 | `unsupported_image_type` | The file is not a JPEG, PNG or WebP. |

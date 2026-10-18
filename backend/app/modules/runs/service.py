@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from app.modules.runs.repository import RunRepository
 
 
@@ -9,3 +11,8 @@ class RunService:
         """How many users have joined the challenge. A challenge with participants can't
         change what they are counting toward (see `ChallengeService.update`)."""
         return await self._repository.count_for_challenge(challenge_id)
+
+    async def count_participants_for(self, challenge_ids: Sequence[int]) -> dict[int, int]:
+        """Participants of each of the challenges, with 0 for those nobody joined."""
+        counts = await self._repository.counts_for_challenges(challenge_ids)
+        return {challenge_id: counts.get(challenge_id, 0) for challenge_id in challenge_ids}

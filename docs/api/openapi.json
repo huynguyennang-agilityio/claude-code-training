@@ -17,6 +17,25 @@
         "title": "AuthResponse",
         "type": "object"
       },
+      "BlockedByRead": {
+        "description": "The challenge the caller is in that overlaps this one and so stops them joining it.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "BlockedByRead",
+        "type": "object"
+      },
       "Body_upload_image_api_v1_images_post": {
         "properties": {
           "file": {
@@ -156,6 +175,149 @@
         "title": "ChallengeCreate",
         "type": "object"
       },
+      "ChallengeDetail": {
+        "description": "A challenge with its checkpoints, how many joined, and where the caller stands.",
+        "properties": {
+          "blocked_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlockedByRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "cover_image_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Image Url"
+          },
+          "description_md": {
+            "title": "Description Md",
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "enrollment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnrollmentRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "landmark": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Landmark"
+          },
+          "medals": {
+            "items": {
+              "$ref": "#/components/schemas/MedalRead"
+            },
+            "title": "Medals",
+            "type": "array"
+          },
+          "metric": {
+            "$ref": "#/components/schemas/ChallengeMetric"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ChallengeMode"
+          },
+          "participant_count": {
+            "minimum": 0.0,
+            "title": "Participant Count",
+            "type": "integer"
+          },
+          "quest_id": {
+            "title": "Quest Id",
+            "type": "integer"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChallengeStatus"
+          },
+          "target_value": {
+            "exclusiveMinimum": 0.0,
+            "title": "Target Value",
+            "type": "integer"
+          },
+          "terms_md": {
+            "title": "Terms Md",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/ChallengeType"
+          }
+        },
+        "required": [
+          "id",
+          "quest_id",
+          "title",
+          "type",
+          "metric",
+          "target_value",
+          "mode",
+          "description_md",
+          "terms_md",
+          "cover_image_url",
+          "city",
+          "landmark",
+          "status",
+          "starts_at",
+          "ends_at",
+          "medals",
+          "participant_count",
+          "enrollment",
+          "blocked_by"
+        ],
+        "title": "ChallengeDetail",
+        "type": "object"
+      },
       "ChallengeMetric": {
         "description": "What a challenge counts: steps for a run, metres for a swim or a ride.",
         "enum": [
@@ -172,6 +334,35 @@
         ],
         "title": "ChallengeMode",
         "type": "string"
+      },
+      "ChallengePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ChallengeSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Send it as `cursor` for the next page.",
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "ChallengePage",
+        "type": "object"
       },
       "ChallengeRead": {
         "properties": {
@@ -295,6 +486,111 @@
         "title": "ChallengeStatus",
         "type": "string"
       },
+      "ChallengeSummary": {
+        "description": "A challenge as a card in the list.",
+        "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "cover_image_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Image Url"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "enrollment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnrollmentRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "landmark": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Landmark"
+          },
+          "metric": {
+            "$ref": "#/components/schemas/ChallengeMetric"
+          },
+          "participant_count": {
+            "minimum": 0.0,
+            "title": "Participant Count",
+            "type": "integer"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChallengeStatus"
+          },
+          "target_value": {
+            "exclusiveMinimum": 0.0,
+            "title": "Target Value",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/ChallengeType"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "type",
+          "metric",
+          "target_value",
+          "cover_image_url",
+          "city",
+          "landmark",
+          "status",
+          "starts_at",
+          "ends_at",
+          "participant_count",
+          "enrollment"
+        ],
+        "title": "ChallengeSummary",
+        "type": "object"
+      },
       "ChallengeType": {
         "enum": [
           "run",
@@ -402,6 +698,34 @@
         },
         "title": "ChallengeUpdate",
         "type": "object"
+      },
+      "EnrollmentRead": {
+        "description": "The caller's own place in a challenge.",
+        "properties": {
+          "joined_at": {
+            "format": "date-time",
+            "title": "Joined At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EnrollmentStatus"
+          }
+        },
+        "required": [
+          "status",
+          "joined_at"
+        ],
+        "title": "EnrollmentRead",
+        "type": "object"
+      },
+      "EnrollmentStatus": {
+        "enum": [
+          "active",
+          "paused",
+          "left"
+        ],
+        "title": "EnrollmentStatus",
+        "type": "string"
       },
       "ErrorBody": {
         "properties": {
@@ -1028,6 +1352,143 @@
       }
     },
     "/api/v1/challenges": {
+      "get": {
+        "operationId": "list_challenges_api_v1_challenges_get",
+        "parameters": [
+          {
+            "description": "Only this type.",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ChallengeType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this type.",
+              "title": "Type"
+            }
+          },
+          {
+            "description": "Matches the title, city and landmark, ignoring case.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "pattern": "^[^\\x00-\\x1f\\x7f]*$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Matches the title, city and landmark, ignoring case.",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "`draft` is for admins; others get 403.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ChallengeStatus",
+              "default": "published",
+              "description": "`draft` is for admins; others get 403."
+            }
+          },
+          {
+            "description": "The `next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "pattern": "^[A-Za-z0-9_-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The `next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request is invalid (`validation_error`)."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List the published challenges",
+        "tags": [
+          "challenges"
+        ]
+      },
       "post": {
         "operationId": "create_challenge_api_v1_challenges_post",
         "requestBody": {
@@ -1190,6 +1651,73 @@
           }
         ],
         "summary": "Delete a draft challenge (admin)",
+        "tags": [
+          "challenges"
+        ]
+      },
+      "get": {
+        "operationId": "get_challenge_api_v1_challenges__challenge_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "challenge_id",
+            "required": true,
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "title": "Challenge Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request is invalid (`validation_error`)."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read one challenge",
         "tags": [
           "challenges"
         ]

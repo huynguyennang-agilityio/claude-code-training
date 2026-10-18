@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Annotated
+from enum import StrEnum
+from typing import Annotated, Any, Self
 
 from pydantic import (
     AwareDatetime,
@@ -19,6 +20,7 @@ from app.modules.challenges.models import (
     ChallengeStatus,
     ChallengeType,
 )
+from app.modules.challenges.paging import MAX_PAGE_SIZE
 from app.modules.medals.models import TIER_ORDER, MedalTier
 from app.modules.medals.schemas import MAX_THRESHOLD, MedalInput, MedalRead
 
@@ -57,6 +59,118 @@ class ChallengeRead(BaseModel):
     starts_at: AwareDatetime
     ends_at: AwareDatetime
     medals: list[MedalRead]
+
+
+class EnrollmentStatus(StrEnum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+    LEFT = "left"
+
+
+class EnrollmentRead(BaseModel):
+    """The caller's own place in a challenge."""
+
+    status: EnrollmentStatus
+    joined_at: AwareDatetime
+
+
+class BlockedByRead(BaseModel):
+    """The challenge the caller is in that overlaps this one and so stops them joining it."""
+
+    id: int
+    title: str
+
+
+def _attributes(source: object, model: type[BaseModel]) -> dict[str, Any]:
+    return {name: getattr(source, name) for name in model.model_fields if hasattr(source, name)}
+
+
+class ChallengeSummary(BaseModel):
+    """A challenge as a card in the list."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    type: ChallengeType
+    metric: ChallengeMetric
+    target_value: int = Field(gt=0)
+    cover_image_url: HttpUrl | None
+    city: str | None
+    landmark: str | None
+    status: ChallengeStatus
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
+    participant_count: int = Field(ge=0)
+    enrollment: EnrollmentRead | None
+
+    @classmethod
+    def build(
+        cls, challenge: object, *, participant_count: int, enrollment: EnrollmentRead | None
+    ) -> Self:
+        return cls.model_validate(
+            {
+                **_attributes(challenge, cls),
+                "participant_count": participant_count,
+                "enrollment": enrollment,
+            }
+        )
+
+
+class ChallengeListQuery(BaseModel):
+    """The query string of the list. An unknown parameter is refused, so a misspelt filter
+    is a `422` and not a list that silently ignores it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: ChallengeType | None = Field(default=None, description="Only this type.")
+    q: str | None = Field(
+        default=None,
+        max_length=100,
+        pattern=SINGLE_LINE_PATTERN,
+        description="Matches the title, city and landmark, ignoring case.",
+    )
+    status: ChallengeStatus = Field(
+        default=ChallengeStatus.PUBLISHED, description="`draft` is for admins; others get 403."
+    )
+    cursor: str | None = Field(
+        default=None,
+        max_length=40,
+        pattern=r"^[A-Za-z0-9_-]+$",
+        description="The `next_cursor` of the previous page.",
+    )
+    limit: int = Field(default=20, ge=1, le=MAX_PAGE_SIZE)
+
+
+class ChallengePage(BaseModel):
+    items: list[ChallengeSummary]
+    next_cursor: str | None = Field(description="Send it as `cursor` for the next page.")
+
+
+class ChallengeDetail(ChallengeRead):
+    """A challenge with its checkpoints, how many joined, and where the caller stands."""
+
+    participant_count: int = Field(ge=0)
+    enrollment: EnrollmentRead | None
+    blocked_by: BlockedByRead | None
+
+    @classmethod
+    def build(
+        cls,
+        challenge: object,
+        *,
+        participant_count: int,
+        enrollment: EnrollmentRead | None,
+        blocked_by: BlockedByRead | None,
+    ) -> Self:
+        return cls.model_validate(
+            {
+                **_attributes(challenge, cls),
+                "participant_count": participant_count,
+                "enrollment": enrollment,
+                "blocked_by": blocked_by,
+            }
+        )
 
 
 class ChallengeCreate(BaseModel):

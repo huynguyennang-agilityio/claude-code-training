@@ -16,7 +16,10 @@ from app.modules.challenges.service import (
     ChallengeNotFoundError,
     ChallengeNotPublishableError,
     ChallengeService,
+    InvalidCursorError,
     QuestNotFoundError,
+    decode_cursor,
+    encode_cursor,
 )
 from app.modules.medals.models import Medal
 from app.modules.medals.service import MedalService
@@ -77,10 +80,29 @@ def participants() -> AsyncMock:
 
 
 @pytest.fixture
+def participant_counts() -> AsyncMock:
+    async def counts(ids: Any) -> dict[int, int]:
+        return {challenge_id: challenge_id * 10 for challenge_id in ids}
+
+    return AsyncMock(side_effect=counts)
+
+
+@pytest.fixture
 def service(
-    session: AsyncMock, repository: AsyncMock, medals: AsyncMock, participants: AsyncMock
+    session: AsyncMock,
+    repository: AsyncMock,
+    medals: AsyncMock,
+    participants: AsyncMock,
+    participant_counts: AsyncMock,
 ) -> ChallengeService:
-    return ChallengeService(session, repository, medals, participants=participants, now=lambda: NOW)
+    return ChallengeService(
+        session,
+        repository,
+        medals,
+        participants=participants,
+        participant_counts=participant_counts,
+        now=lambda: NOW,
+    )
 
 
 def create_request(**changes: Any) -> ChallengeCreate:
@@ -214,6 +236,7 @@ class TestList:
 
         repository.list_challenges.assert_awaited_once_with(
             include_drafts=False,
+            status=None,
             challenge_type="swim",
             search="Hà Nội",
             limit=MAX_PAGE_SIZE,
@@ -232,6 +255,105 @@ class TestList:
         kwargs = repository.list_challenges.await_args.kwargs
         assert kwargs["limit"] == used
         assert kwargs["search"] is None
+
+
+class TestPage:
+    @pytest.mark.anyio
+    async def test_asks_for_one_row_more_than_the_page(
+        self, service: ChallengeService, repository: AsyncMock
+    ) -> None:
+        repository.list_challenges.return_value = []
+
+        await service.page(limit=20, search="  Hồ ")
+
+        kwargs = repository.list_challenges.await_args.kwargs
+        assert (kwargs["limit"], kwargs["search"], kwargs["status"]) == (21, "Hồ", "published")
+        assert kwargs["include_drafts"] is False
+
+    @pytest.mark.anyio
+    async def test_a_full_page_has_a_cursor_to_the_next_one(
+        self, service: ChallengeService, repository: AsyncMock
+    ) -> None:
+        repository.list_challenges.return_value = [make_challenge(id=i) for i in (1, 2, 3)]
+
+        listing = await service.page(limit=2)
+
+        assert [view.challenge.id for view in listing.items] == [1, 2]
+        assert listing.next_cursor is not None
+        assert decode_cursor(listing.next_cursor) == 2
+
+    @pytest.mark.anyio
+    async def test_the_last_page_has_no_cursor(
+        self, service: ChallengeService, repository: AsyncMock
+    ) -> None:
+        repository.list_challenges.return_value = [make_challenge(id=i) for i in (1, 2)]
+
+        listing = await service.page(limit=2)
+
+        assert len(listing.items) == 2
+        assert listing.next_cursor is None
+
+    @pytest.mark.anyio
+    async def test_each_challenge_carries_its_participant_count(
+        self, service: ChallengeService, repository: AsyncMock, participant_counts: AsyncMock
+    ) -> None:
+        repository.list_challenges.return_value = [make_challenge(id=i) for i in (1, 2)]
+
+        listing = await service.page()
+
+        assert [view.participant_count for view in listing.items] == [10, 20]
+        participant_counts.assert_awaited_once_with([1, 2])
+
+    @pytest.mark.anyio
+    async def test_the_cursor_continues_after_its_id(
+        self, service: ChallengeService, repository: AsyncMock
+    ) -> None:
+        repository.list_challenges.return_value = []
+
+        await service.page(cursor=encode_cursor(7))
+
+        assert repository.list_challenges.await_args.kwargs["after_id"] == 7
+
+    @pytest.mark.anyio
+    async def test_drafts_are_listed_only_when_asked_for(
+        self, service: ChallengeService, repository: AsyncMock
+    ) -> None:
+        repository.list_challenges.return_value = []
+
+        await service.page(status=ChallengeStatus.DRAFT)
+
+        kwargs = repository.list_challenges.await_args.kwargs
+        assert (kwargs["status"], kwargs["include_drafts"]) == ("draft", True)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("cursor", ["!!", "bm90LWEtbnVtYmVy", "MA", "LTU"])
+    async def test_a_cursor_that_is_not_ours_is_refused(
+        self, service: ChallengeService, cursor: str
+    ) -> None:
+        with pytest.raises(InvalidCursorError):
+            await service.page(cursor=cursor)
+
+
+class TestView:
+    @pytest.mark.anyio
+    async def test_a_published_challenge_with_its_participants(
+        self, service: ChallengeService, repository: AsyncMock, participants: AsyncMock
+    ) -> None:
+        repository.get.return_value = make_challenge(status="published")
+        participants.return_value = 813
+
+        view = await service.view(1)
+
+        assert (view.challenge.id, view.participant_count) == (1, 813)
+
+    @pytest.mark.anyio
+    async def test_a_draft_is_hidden_unless_the_caller_may_see_drafts(
+        self, service: ChallengeService
+    ) -> None:
+        with pytest.raises(ChallengeNotFoundError):
+            await service.view(1)
+
+        assert (await service.view(1, include_drafts=True)).challenge.status == "draft"
 
 
 class TestPublish:

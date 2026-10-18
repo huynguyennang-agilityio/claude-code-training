@@ -1,15 +1,22 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, File, Form, Path, Response, UploadFile
+from fastapi import APIRouter, File, Form, Path, Query, Response, UploadFile
 
 from app.core.errors import ErrorResponse
 from app.core.storage import ImageKind
 from app.modules.auth.deps import AdminUserDep, CurrentUserDep
+from app.modules.auth.models import UserRole
+from app.modules.auth.service import ForbiddenError
 from app.modules.challenges.deps import ChallengeServiceDep, ImageServiceDep
 from app.modules.challenges.images import MAX_IMAGE_BYTES
+from app.modules.challenges.models import ChallengeStatus
 from app.modules.challenges.schemas import (
     ChallengeCreate,
+    ChallengeDetail,
+    ChallengeListQuery,
+    ChallengePage,
     ChallengeRead,
+    ChallengeSummary,
     ChallengeUpdate,
     QuestCreate,
     QuestSummary,
@@ -34,6 +41,53 @@ Responses = dict[int | str, dict[str, Any]]
 _UNAUTHENTICATED: Responses = {401: {"model": ErrorResponse}}
 _ADMIN_ONLY: Responses = {**_UNAUTHENTICATED, 403: {"model": ErrorResponse}}
 _NOT_FOUND: Responses = {404: {"model": ErrorResponse}}
+
+
+@challenges_router.get(
+    "",
+    responses={**_UNAUTHENTICATED, 403: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+    summary="List the published challenges",
+)
+async def list_challenges(
+    user: CurrentUserDep,
+    query: Annotated[ChallengeListQuery, Query()],
+    service: ChallengeServiceDep,
+) -> ChallengePage:
+    if query.status is ChallengeStatus.DRAFT and user.role != UserRole.ADMIN.value:
+        raise ForbiddenError("Only an admin can list drafts.")
+    listing = await service.page(
+        status=query.status,
+        challenge_type=query.type,
+        search=query.q,
+        limit=query.limit,
+        cursor=query.cursor,
+    )
+    return ChallengePage(
+        items=[
+            ChallengeSummary.build(
+                view.challenge, participant_count=view.participant_count, enrollment=None
+            )
+            for view in listing.items
+        ],
+        next_cursor=listing.next_cursor,
+    )
+
+
+@challenges_router.get(
+    "/{challenge_id}",
+    responses={**_UNAUTHENTICATED, **_NOT_FOUND},
+    summary="Read one challenge",
+)
+async def get_challenge(
+    user: CurrentUserDep, challenge_id: ChallengeId, service: ChallengeServiceDep
+) -> ChallengeDetail:
+    view = await service.view(challenge_id, include_drafts=user.role == UserRole.ADMIN.value)
+    return ChallengeDetail.build(
+        view.challenge,
+        participant_count=view.participant_count,
+        enrollment=None,
+        blocked_by=None,
+    )
 
 
 @challenges_router.post(
