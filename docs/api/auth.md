@@ -18,7 +18,18 @@ This is the source of truth for sign up and sign in between the Flutter app and 
 | `POST` | `/api/v1/auth/signin` | none | Sign in with email and password |
 | `POST` | `/api/v1/auth/refresh` | none (refresh token in body) | Swap a refresh token for a new token pair |
 | `POST` | `/api/v1/auth/signout` | none (refresh token in body) | Revoke a refresh token |
-| `GET` | `/api/v1/users/me` | access token | Read the signed-in user |
+| `GET` | `/api/v1/users/me` | access token | Read the signed-in user, with their `role` |
+
+## Roles
+
+Every account has a `role`: `user` (the default for everyone who signs up) or `admin`. An admin is also a normal user in the app; the role only opens routes that change shared data, such as creating a challenge. Those routes say `admin` in the `Auth` column of their contract. A signed-in caller without the role gets `403 forbidden`; a call without a token still gets `401 not_authenticated` first.
+
+No API route sets a role, so no request can make an admin. An operator makes one with a command-line script on the server, for an account that already exists:
+
+```bash
+python -m app.scripts.create_admin someone@example.com            # make an admin
+python -m app.scripts.create_admin someone@example.com --revoke   # make a normal user again
+```
 
 ## Tokens
 
@@ -64,6 +75,7 @@ The app should check these on the form before calling the API. The backend check
   "id": "6f1c2b3a-8d4e-4f5a-9b6c-7d8e9f0a1b2c",
   "email": "runner@example.com",
   "display_name": "Lan Runner",
+  "role": "user",
   "created_at": "2026-10-13T09:55:00Z"
 }
 ```
@@ -79,6 +91,7 @@ Returned by sign up and sign in.
     "id": "6f1c2b3a-8d4e-4f5a-9b6c-7d8e9f0a1b2c",
     "email": "runner@example.com",
     "display_name": "Lan Runner",
+    "role": "user",
     "created_at": "2026-10-13T09:55:00Z"
   },
   "tokens": {
@@ -131,6 +144,7 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 | 401 | `not_authenticated` | A protected route was called without an `Authorization` header, whatever dependency guards it. |
 | 401 | `invalid_token` | The access token is malformed, has a bad signature, or its user no longer exists. |
 | 401 | `token_expired` | The access token has expired. Refresh and retry. |
+| 403 | `forbidden` | The caller is signed in, but the route needs the `admin` role. |
 | 429 | `rate_limited` | Too many failed sign-ins for this email or device. Wait for the number of seconds in the `Retry-After` header. |
 | 404 | `not_found` | No route matches the path. |
 | 405 | `method_not_allowed` | The path exists but not for this method. The `Allow` header lists the valid methods. |

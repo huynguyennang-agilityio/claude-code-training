@@ -7,9 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_session
-from app.modules.auth.models import User
+from app.modules.auth.models import User, UserRole
 from app.modules.auth.repository import AuthRepository
-from app.modules.auth.service import AuthService, AuthSettings, NotAuthenticatedError
+from app.modules.auth.service import (
+    AuthService,
+    AuthSettings,
+    ForbiddenError,
+    NotAuthenticatedError,
+)
 
 # auto_error is off so a missing header raises our own `not_authenticated`.
 _bearer = HTTPBearer(auto_error=False)
@@ -59,3 +64,18 @@ async def get_current_user(
 
 
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
+
+
+async def require_admin(user: CurrentUserDep) -> User:
+    """Let only an admin through. Everyone else signed in gets `403 forbidden`.
+
+    A route that changes shared data declares `AdminUserDep`; a request with no
+    token still answers `401 not_authenticated` first, because the user is
+    resolved before this check.
+    """
+    if user.role != UserRole.ADMIN.value:
+        raise ForbiddenError("This action needs an admin.")
+    return user
+
+
+AdminUserDep = Annotated[User, Depends(require_admin)]

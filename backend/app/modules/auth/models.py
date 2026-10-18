@@ -1,21 +1,36 @@
 import uuid
 from datetime import datetime
+from enum import StrEnum
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Uuid
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
 
+class UserRole(StrEnum):
+    USER = "user"
+    ADMIN = "admin"
+
+
 class User(Base):
-    """An account. `email` is stored lowercase, so it is unique case-insensitively."""
+    """An account. `email` is stored lowercase, so it is unique case-insensitively.
+
+    `role` is `user` for everyone at sign up. An admin is also a normal user in the
+    app; the role only opens the routes that change shared data. It is never set by
+    an API route: `python -m app.scripts.create_admin` is the way to make an admin.
+    """
 
     __tablename__ = "users"
+    __table_args__ = (CheckConstraint("role IN ('user', 'admin')", name="ck_users_role_valid"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
     email: Mapped[str] = mapped_column(String(254), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     display_name: Mapped[str] = mapped_column(String(50))
+    role: Mapped[str] = mapped_column(
+        String(10), default=UserRole.USER.value, server_default=UserRole.USER.value
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
