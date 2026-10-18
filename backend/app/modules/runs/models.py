@@ -1,10 +1,11 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     String,
@@ -99,3 +100,30 @@ class StepSample(Base):
     steps: Mapped[int]
 
     run: Mapped[Run] = relationship(back_populates="samples")
+
+
+class DailyActivity(Base):
+    """What a user's health data said for one calendar day, as the app last synced it.
+
+    The day is the date on the device. Each figure is null when the user did not allow that
+    metric or the device had none. A sync replaces the whole row, so a figure that is left out
+    goes back to null. The rows are deleted with the user.
+    """
+
+    __tablename__ = "daily_activity"
+    __table_args__ = (
+        CheckConstraint("steps >= 0", name="ck_daily_activity_steps_non_negative"),
+        CheckConstraint("calories_kcal >= 0", name="ck_daily_activity_calories_non_negative"),
+        CheckConstraint("distance_m >= 0", name="ck_daily_activity_distance_non_negative"),
+        CheckConstraint("sleep_minutes >= 0", name="ck_daily_activity_sleep_non_negative"),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    steps: Mapped[int | None]
+    calories_kcal: Mapped[int | None]
+    distance_m: Mapped[int | None]
+    sleep_minutes: Mapped[int | None]
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

@@ -4,8 +4,10 @@ from fastapi import APIRouter, Query
 
 from app.core.errors import ErrorResponse
 from app.modules.auth.deps import CurrentUserDep
-from app.modules.runs.deps import ProgressServiceDep
+from app.modules.runs.deps import ActivityServiceDep, ProgressServiceDep
 from app.modules.runs.schemas import (
+    DailyActivityRequest,
+    DailyActivityResult,
     MyChallengePage,
     MyChallengeQuery,
     StepSyncRequest,
@@ -39,3 +41,16 @@ async def my_challenges(
     query: Annotated[MyChallengeQuery, Query()], user: CurrentUserDep, progress: ProgressServiceDep
 ) -> MyChallengePage:
     return await progress.my_challenges(user.id, limit=query.limit, cursor=query.cursor)
+
+
+@router.put(
+    "/daily-activity",
+    responses={**_ERRORS, 422: {"model": ErrorResponse}},
+    summary="Sync the daily activity figures",
+    description="Replaces the caller's figures (steps, calories, distance, sleep) for each "
+    "day sent.",
+)
+async def save_daily_activity(
+    body: DailyActivityRequest, user: CurrentUserDep, activity: ActivityServiceDep
+) -> DailyActivityResult:
+    return await activity.save_days(user.id, body.days)

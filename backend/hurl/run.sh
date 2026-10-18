@@ -45,8 +45,11 @@ hurl --test --variable "base=$base" --variable "admin_token=$admin_token" \
 # and ends less than 5 minutes ahead.
 sample_start=$(python3 -c 'from datetime import UTC, datetime, timedelta; print((datetime.now(UTC) + timedelta(seconds=40)).strftime("%Y-%m-%dT%H:%M:%SZ"))')
 sample_end=$(python3 -c 'from datetime import UTC, datetime, timedelta; print((datetime.now(UTC) + timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M:%SZ"))')
+day() { python3 -c "from datetime import UTC, datetime, timedelta; print((datetime.now(UTC) + timedelta(days=$1)).date())"; }
 hurl --test --variable "base=$base" --variable "admin_token=$admin_token" \
   --variable "user_token=$user_token" --variable "other_token=$other_token" \
+  --variable "day_yesterday=$(day -1)" --variable "day_today=$(day 0)" \
+  --variable "day_after_tomorrow=$(day 2)" \
   --variable "title=Hurl runs $stamp" --variable "sample_start=$sample_start" \
   --variable "sample_end=$sample_end" "$dir/runs.hurl"
 if $rate_limit; then run auth_rate_limit.hurl; fi

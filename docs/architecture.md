@@ -286,7 +286,7 @@ sequenceDiagram
 
 ### Data model
 
-These are the current tables, defined in each module's `models.py` under `backend/app/modules/`. The `auth` module owns `users`, `refresh_tokens` and `login_attempts` ([auth contract](api/auth.md)). `runs.user_id` still holds a user id as a plain string with no foreign key: modules don't reach into each other's tables, so linking runs to users is the runs module's decision.
+These are the current tables, defined in each module's `models.py` under `backend/app/modules/`. The `auth` module owns `users`, `refresh_tokens` and `login_attempts` ([auth contract](api/auth.md)). A row of `runs` is a user's place in a challenge (an enrollment) and `runs.user_id` is a foreign key to `users.id`. `daily_activity` holds the figures the app syncs for each calendar day.
 
 ```mermaid
 erDiagram
@@ -295,7 +295,8 @@ erDiagram
     CHALLENGES ||--o{ RUNS : "attempted by"
     RUNS ||--o{ STEP_SAMPLES : "built from"
     USERS ||--o{ REFRESH_TOKENS : holds
-    USERS ||..o{ RUNS : "id stored as runs.user_id"
+    USERS ||--o{ RUNS : joins
+    USERS ||--o{ DAILY_ACTIVITY : syncs
 
     QUESTS {
         int id PK
@@ -329,11 +330,22 @@ erDiagram
     }
     RUNS {
         int id PK
-        string user_id
+        uuid user_id FK
         int challenge_id FK
-        datetime started_at
+        string status "active, paused or left"
+        datetime joined_at
+        datetime counting_from "steps count from here"
         int total_steps
         bool completed
+    }
+    DAILY_ACTIVITY {
+        uuid user_id PK
+        date day PK
+        int steps "nullable"
+        int calories_kcal "nullable"
+        int distance_m "nullable"
+        int sleep_minutes "nullable"
+        datetime updated_at
     }
     STEP_SAMPLES {
         int id PK

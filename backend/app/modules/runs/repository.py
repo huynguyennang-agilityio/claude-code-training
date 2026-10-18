@@ -1,12 +1,14 @@
 import uuid
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.modules.runs.models import Run, RunStatus, StepSample
+from app.modules.runs.models import DailyActivity, Run, RunStatus, StepSample
 
 # A user "is in" a challenge while the enrollment is active or paused.
 _JOINED = (RunStatus.ACTIVE.value, RunStatus.PAUSED.value)
@@ -139,3 +141,22 @@ class RunRepository:
             )
         result = await self._session.scalars(query.order_by(Run.starts_at, Run.id).limit(limit))
         return list(result)
+
+    async def replace_daily_activity(
+        self, user_id: uuid.UUID, days: Sequence[dict[str, Any]], *, now: datetime
+    ) -> list[DailyActivity]:
+        """Write each day as given, replacing the user's row for that day. A figure left out
+        becomes null. Returns the stored rows, oldest day first."""
+        rows = [{**day, "user_id": user_id, "updated_at": now} for day in days]
+        insertion = insert(DailyActivity).values(rows)
+        statement = insertion.on_conflict_do_update(
+            index_elements=[DailyActivity.user_id, DailyActivity.day],
+            set_={
+                name: insertion.excluded[name]
+                for name in ("steps", "calories_kcal", "distance_m", "sleep_minutes", "updated_at")
+            },
+        ).returning(DailyActivity)
+        result = await self._session.scalars(
+            statement, execution_options={"populate_existing": True}
+        )
+        return sorted(result, key=lambda row: row.day)

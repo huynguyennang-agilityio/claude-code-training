@@ -699,6 +699,178 @@
         "title": "ChallengeUpdate",
         "type": "object"
       },
+      "DailyActivityIn": {
+        "description": "What the health data said for one calendar day on the device. A figure the user did not\nallow, or the device has none of, is left out.",
+        "properties": {
+          "calories_kcal": {
+            "anyOf": [
+              {
+                "maximum": 50000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calories Kcal"
+          },
+          "date": {
+            "description": "The calendar day on the device.",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "maximum": 500000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "sleep_minutes": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time asleep in the night that ends on this day.",
+            "title": "Sleep Minutes"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "maximum": 200000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "title": "DailyActivityIn",
+        "type": "object"
+      },
+      "DailyActivityRead": {
+        "description": "A day as it is stored.",
+        "properties": {
+          "calories_kcal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calories Kcal"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "sleep_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleep Minutes"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "steps",
+          "calories_kcal",
+          "distance_m",
+          "sleep_minutes",
+          "updated_at"
+        ],
+        "title": "DailyActivityRead",
+        "type": "object"
+      },
+      "DailyActivityRequest": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DailyActivityIn"
+            },
+            "maxItems": 7,
+            "minItems": 1,
+            "title": "Days",
+            "type": "array"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "title": "DailyActivityRequest",
+        "type": "object"
+      },
+      "DailyActivityResult": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DailyActivityRead"
+            },
+            "title": "Days",
+            "type": "array"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "title": "DailyActivityResult",
+        "type": "object"
+      },
       "EnrollmentProgress": {
         "properties": {
           "challenge_id": {
@@ -2824,6 +2996,73 @@
           }
         ],
         "summary": "Challenges I am in, with progress",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/v1/runs/daily-activity": {
+      "put": {
+        "description": "Replaces the caller's figures (steps, calories, distance, sleep) for each day sent.",
+        "operationId": "save_daily_activity_api_v1_runs_daily_activity_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DailyActivityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request body can't be read (`http_error`)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request is invalid (`validation_error`)."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Sync the daily activity figures",
         "tags": [
           "runs"
         ]
