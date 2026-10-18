@@ -1,7 +1,7 @@
 # Plan 001: Challenge list, detail, join, and create-challenge endpoints for admins
 
 Status: approved
-Approved: <the user fills in the date>
+Approved: 2026-10-18
 Issues: #59, #60, #61, #62, #63, #64, #65, #66, #67, #68 (plan issues 1 to 10, in order)
 
 ## Context
