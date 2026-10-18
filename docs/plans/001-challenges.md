@@ -39,8 +39,9 @@ Each has a recommendation. Approving the plan approves the recommendation unless
 9. **Search.** *Recommendation:* `q` matches the title, city and landmark, case-insensitively; the type filter is `type=run|swim|cycle`; both on the server, with cursor paging.
 10. **Quests.** *Recommendation:* kept and hidden from the mobile UI. A challenge's `quest_id` is optional in the admin API and falls back to a default quest; a small admin endpoint creates and lists quests.
 11. **Naming.** The `runs` module owns "a user's attempt at a challenge" for all three types. *Recommendation:* keep the module and the `runs` table, and document that "run" means an attempt here. A rename is a later chore.
-12. **Units.** *Recommendation:* run is a step goal; swim and cycle are a distance goal, stored in metres and shown in km (miles when the Units setting of the Account screens says so; wired later).
-13. **Design first.** The list and detail screens are drawn in Figma (issue 1) and approved by the user before any screen is coded. English only, as now.
+12. **Participants row.** The reference shows participant avatars and "View all". *Recommendation:* for now the row shows only the **count** ("+813 participants") with placeholder avatars: showing other users' names or photos needs avatars, a privacy decision and a participants endpoint, so "View all" is left for a later plan.
+13. **Units.** *Recommendation:* run is a step goal; swim and cycle are a distance goal, stored in metres and shown in km (miles when the Units setting of the Account screens says so; wired later).
+14. **Design first.** The list and detail screens are drawn in Figma (issue 1) and approved by the user before any screen is coded. English only, as now.
 
 ## Approach
 
@@ -84,7 +85,7 @@ Errors use the typed `ErrorResponse`. A response that nests rows (a challenge wi
 ### Mobile (`features/challenges`)
 
 - **Challenges tab:** title, search field, type chips (All, Run, Swim, Cycle), and the list of challenge cards. A card: cover image, type tag with its icon, city (pin icon), title, dates (calendar icon), the goal (flag icon), the participant count (person icon), and the **Join** button, or **Joined** (or **Paused**) when the user is in it. States: loading, empty, error with retry, offline. Cursor paging.
-- **Detail** (`/challenges/:id`, ID only): the cover with a goal badge on its corner; a status strip with the type (run, swim or cycle icon), the mode (solo) and the participant count (person icon); the title; the place (pin icon); the dates with the days left (calendar and clock icons); the goal (flag icon: steps or distance); Terms and Conditions (document icon, expandable); About; the three medal checkpoints (medal icon); and a fixed action bar: **Join** (disabled, with the reason, when it is blocked or ended); **Pause** and **Leave** when active; **Resume** and **Leave** when paused. Leave asks for confirmation.
+- **Detail** (`/challenges/:id`, ID only), laid out like the Figma frame `Challenge - Join Challenge - Countdown` (node `20:51` in the StrideQuest file): a full-bleed cover with the back button and a menu on it and a goal badge on its corner; a line with the type (run, swim or cycle icon), the mode (solo) and the place (pin icon); the title in large type; the dates; a countdown card on the dark gradient surface with four tiles (days, hours, minutes, seconds), titled "Challenge starts" before the start date and "Challenge ends in" while it is open (hidden once it has ended); a details card with icon rows (dates, goal as steps or distance, Terms and Conditions that expands); the Participants row; the three medal checkpoints as tiles; the "Challenge rules" card (About, as Markdown); and a fixed action bar: **Join** (disabled, with the reason, when it is blocked or ended); **Pause** and **Leave** when active; **Resume** and **Leave** when paused. Leave asks for confirmation.
 - **Icons:** one set of outline icons (type, mode, participants, place, dates, days left, goal, terms, medals) in Lime on the dark surface, used on the card and the detail. They come from Flutter's built-in icons or from SVGs in the design file, so no icon package is added.
 - **About and Terms** are Markdown rendered without HTML, so a challenge's text cannot inject markup.
 - **Images** load from Cloudinary URLs that ask for the size and format the screen needs (`f_auto,q_auto,w_<width>`) and are cached on the device.
@@ -133,7 +134,7 @@ This plan **changes the public API and the database schema** (new columns and ta
 
 ## Ticket evidence
 
-- Screens: the Figma frames drawn in issue 1 and approved by the user. Until then no screen issue starts.
+- Screens: the Figma frames drawn in issue 1 and approved by the user. Until then no screen issue starts. The visual reference for the detail screen is the Figma frame `Challenge - Join Challenge - Countdown` (node `20:51`); issue 1 builds the StrideQuest frames from it.
 - Backend: the sample requests and responses are in `docs/api/challenges.md`, `docs/api/admin.md` and `docs/api/examples/`, written with issues 5, 6 and 7.
 - Reference: the five screenshots the user sent in chat (not committed).
 
