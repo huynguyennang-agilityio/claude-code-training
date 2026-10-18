@@ -4,6 +4,7 @@ import 'package:stridequest/features/auth/presentation/bloc/sign_in_bloc.dart';
 import 'package:stridequest/features/auth/presentation/bloc/sign_up_bloc.dart';
 
 import 'challenges_di.dart';
+import 'health_fixtures.dart';
 
 /// Registers the form blocs the sign-in and sign-up routes ask `getIt` for,
 /// built on [repository]. The caller resets `getIt` when the test ends
@@ -18,4 +19,6 @@ void registerAuthFormBlocs(AuthRepository repository) {
     ..registerFactory<SignUpBloc>(() => SignUpBloc(repository));
   // The app routes also open the Challenges tab once the user is signed in.
   registerChallengeBlocs();
+  // And the Active tab.
+  registerHealthBlocs();
 }

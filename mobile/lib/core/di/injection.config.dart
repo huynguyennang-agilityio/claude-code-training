@@ -41,6 +41,16 @@ import 'package:stridequest/features/challenges/presentation/bloc/challenge_deta
     as _i530;
 import 'package:stridequest/features/challenges/presentation/bloc/challenges_bloc.dart'
     as _i909;
+import 'package:stridequest/features/runs/data/datasources/health_data_source.dart'
+    as _i645;
+import 'package:stridequest/features/runs/data/datasources/health_prompt_store.dart'
+    as _i306;
+import 'package:stridequest/features/runs/data/repositories/health_repository_impl.dart'
+    as _i21;
+import 'package:stridequest/features/runs/domain/repositories/health_repository.dart'
+    as _i203;
+import 'package:stridequest/features/runs/presentation/bloc/health_gate_bloc.dart'
+    as _i1045;
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
@@ -54,6 +64,9 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i558.FlutterSecureStorage>(
       () => networkModule.secureStorage,
     );
+    gh.lazySingleton<_i645.HealthDataSource>(
+      () => _i645.PluginHealthDataSource(),
+    );
     gh.lazySingleton<_i361.Dio>(
       () => networkModule.publicDio(),
       instanceName: 'publicDio',
@@ -61,10 +74,22 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i851.AuthLocalDataSource>(
       () => _i851.SecureAuthLocalDataSource(gh<_i558.FlutterSecureStorage>()),
     );
+    gh.lazySingleton<_i306.HealthPromptStore>(
+      () => _i306.SecureHealthPromptStore(gh<_i558.FlutterSecureStorage>()),
+    );
+    gh.lazySingleton<_i203.HealthRepository>(
+      () => _i21.HealthRepositoryImpl(
+        gh<_i645.HealthDataSource>(),
+        gh<_i306.HealthPromptStore>(),
+      ),
+    );
     gh.lazySingleton<_i397.AuthRemoteDataSource>(
       () => _i397.DioAuthRemoteDataSource(
         gh<_i361.Dio>(instanceName: 'publicDio'),
       ),
+    );
+    gh.factory<_i1045.HealthGateBloc>(
+      () => _i1045.HealthGateBloc(gh<_i203.HealthRepository>()),
     );
     gh.lazySingleton<_i663.AuthRepositoryImpl>(
       () => _i663.AuthRepositoryImpl(

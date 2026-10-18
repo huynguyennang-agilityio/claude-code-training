@@ -3,10 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../auth/presentation/bloc/auth_bloc.dart';
-import '../../../challenges/presentation/pages/active_challenges_page.dart';
 import '../../../challenges/presentation/pages/challenges_page.dart';
 import '../../../medals/presentation/pages/medals_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
+import '../../../runs/presentation/pages/active_challenges_page.dart';
 
 /// The signed-in shell: the current tab above a bottom bar with the four tabs.
 /// Each tab keeps its own state and back stack ([navigationShell]).

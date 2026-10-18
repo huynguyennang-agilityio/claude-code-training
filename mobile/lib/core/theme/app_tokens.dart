@@ -83,6 +83,13 @@ abstract final class AppChallengeSizes {
   static const double actionButtonHeight = 50;
 }
 
+/// Sizes of the Active tab (`docs/designs/003-active-tab.html`).
+abstract final class AppActiveSizes {
+  /// The circle behind the heart on the health gate, and the heart in it.
+  static const double gateCircle = 88;
+  static const double gateIcon = 40;
+}
+
 /// The medal tiers' colors, from the Figma style "Medal colors". They tint a medal
 /// that has no picture yet.
 abstract final class AppMedalColors {

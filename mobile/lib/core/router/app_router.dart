@@ -9,12 +9,13 @@ import '../../features/auth/presentation/pages/sign_in_page.dart';
 import '../../features/auth/presentation/pages/sign_up_page.dart';
 import '../../features/challenges/presentation/bloc/challenge_detail_bloc.dart';
 import '../../features/challenges/presentation/bloc/challenges_bloc.dart';
-import '../../features/challenges/presentation/pages/active_challenges_page.dart';
 import '../../features/challenges/presentation/pages/challenge_detail_page.dart';
 import '../../features/challenges/presentation/pages/challenges_page.dart';
 import '../../features/home/presentation/pages/home_shell.dart';
 import '../../features/medals/presentation/pages/medals_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
+import '../../features/runs/presentation/bloc/health_gate_bloc.dart';
+import '../../features/runs/presentation/pages/active_challenges_page.dart';
 import '../di/injection.dart';
 
 /// Route patterns that need a signed-in user, written as the full pattern
@@ -59,7 +60,11 @@ final appRoutes = <RouteBase>[
         routes: [
           GoRoute(
             path: ActiveChallengesPage.path,
-            builder: (context, state) => const ActiveChallengesPage(),
+            builder: (context, state) => BlocProvider(
+              create: (_) =>
+                  getIt<HealthGateBloc>()..add(const HealthGateStarted()),
+              child: const ActiveChallengesPage(),
+            ),
           ),
         ],
       ),
