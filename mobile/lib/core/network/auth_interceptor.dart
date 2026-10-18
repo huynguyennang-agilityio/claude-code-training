@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import 'auth_token_handler.dart';
@@ -80,9 +82,20 @@ class AuthInterceptor extends QueuedInterceptor {
 
   bool _isExpiredToken(Response<dynamic>? response) {
     if (response?.statusCode != 401) return false;
-    final body = response?.data;
+    final body = _decode(response?.data);
     final error = body is Map<String, dynamic> ? body['error'] : null;
     return error is Map<String, dynamic> &&
         _expiredTokenCodes.contains(error['code']);
+  }
+
+  /// The body as JSON. A caller that asks for `ResponseType.plain` gets the
+  /// text, which is decoded here so the code can still be read.
+  Object? _decode(Object? body) {
+    if (body is! String) return body;
+    try {
+      return jsonDecode(body);
+    } on FormatException {
+      return null;
+    }
   }
 }

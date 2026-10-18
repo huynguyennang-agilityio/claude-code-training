@@ -43,6 +43,27 @@ void main() {
     when(() => tokens.expireSession()).thenAnswer((_) async {});
   });
 
+  test('reads the error code of a plain-text response too', () async {
+    when(() => tokens.refreshTokens()).thenAnswer((_) async {
+      accessToken = 'access-2';
+      return TokenRefreshResult.refreshed;
+    });
+    dio = buildDio(
+      (request) async => request.headers['Authorization'] == 'Bearer access-1'
+          ? _expired('token_expired')
+          : jsonBody({'ok': true}, 200),
+    );
+
+    final response = await dio.get<String>(
+      'runs',
+      options: Options(responseType: ResponseType.plain),
+    );
+
+    expect(response.statusCode, 200);
+    expect(adapter.requests, hasLength(2));
+    verify(() => tokens.refreshTokens()).called(1);
+  });
+
   test('adds the access token to each request', () async {
     dio = buildDio((_) async => jsonBody({'ok': true}, 200));
 
