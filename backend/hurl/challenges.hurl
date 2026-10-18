@@ -3,8 +3,8 @@
 #   backend/hurl/run.sh [base_url]
 #
 # run.sh signs up two accounts, makes one of them an admin with
-# `python -m app.scripts.create_admin`, and passes their tokens in. It leaves a few
-# rows in the database (a quest and a challenge). A successful image upload is not
+# `python -m app.scripts.create_admin`, and passes their tokens in. It leaves
+# a quest in the database; the challenges it makes are deleted at the end. A successful image upload is not
 # replayed: it would store a file in Cloudinary. The integration tests cover it with a
 # fake storage; here only the refusals run.
 # Variables: base (the API base), admin_token, user_token, title (unique per run).
@@ -444,3 +444,24 @@ Authorization: Bearer {{admin_token}}
 HTTP 409
 [Asserts]
 jsonpath "$.error.code" == "challenge_in_use"
+
+# Clean up, so a replay leaves no published challenge in the list of a dev database
+POST {{base}}/challenges/{{first_id}}/leave
+Authorization: Bearer {{user_token}}
+HTTP 200
+
+POST {{base}}/challenges/{{first_id}}/unpublish
+Authorization: Bearer {{admin_token}}
+HTTP 200
+
+DELETE {{base}}/challenges/{{first_id}}
+Authorization: Bearer {{admin_token}}
+HTTP 204
+
+POST {{base}}/challenges/{{second_id}}/unpublish
+Authorization: Bearer {{admin_token}}
+HTTP 200
+
+DELETE {{base}}/challenges/{{second_id}}
+Authorization: Bearer {{admin_token}}
+HTTP 204
