@@ -24,6 +24,7 @@ def get_challenge_service(
         ChallengeRepository(session),
         MedalService(MedalRepository(session)),
         participants=runs.count_participants,
+        participant_counts=runs.count_participants_for,
     )
 
 

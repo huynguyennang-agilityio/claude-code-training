@@ -26,13 +26,16 @@ class ChallengeRepository:
         self,
         *,
         include_drafts: bool,
+        status: str | None,
         challenge_type: str | None,
         search: str | None,
         limit: int,
         after_id: int | None,
     ) -> list[Challenge]:
         query = select(Challenge).options(selectinload(Challenge.medals))
-        if not include_drafts:
+        if status is not None:
+            query = query.where(Challenge.status == status)
+        elif not include_drafts:
             query = query.where(Challenge.status == ChallengeStatus.PUBLISHED.value)
         if challenge_type is not None:
             query = query.where(Challenge.type == challenge_type)

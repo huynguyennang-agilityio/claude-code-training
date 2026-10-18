@@ -1,4 +1,7 @@
-from collections.abc import Awaitable, Callable
+import base64
+import binascii
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -13,12 +16,12 @@ from app.modules.challenges.models import (
     ChallengeType,
     Quest,
 )
+from app.modules.challenges.paging import MAX_PAGE_SIZE
 from app.modules.challenges.repository import ChallengeRepository
 from app.modules.challenges.schemas import ChallengeCreate, ChallengeUpdate, QuestCreate
 from app.modules.medals.service import MedalService
 
 DEFAULT_QUEST_TITLE = "General"
-MAX_PAGE_SIZE = 50
 
 
 # The codes below are listed in `docs/api/challenges.md`.
@@ -54,6 +57,40 @@ class ChallengeInvalidError(DomainError):
     code = "validation_error"
 
 
+class InvalidCursorError(DomainError):
+    status_code = 422
+    code = "invalid_cursor"
+
+
+@dataclass(frozen=True)
+class ChallengeView:
+    """A challenge with what the response adds to it for this caller."""
+
+    challenge: Challenge
+    participant_count: int
+
+
+@dataclass(frozen=True)
+class ChallengeListing:
+    items: list[ChallengeView]
+    next_cursor: str | None
+
+
+def encode_cursor(challenge_id: int) -> str:
+    return base64.urlsafe_b64encode(str(challenge_id).encode()).decode().rstrip("=")
+
+
+def decode_cursor(cursor: str) -> int:
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        value = int(base64.urlsafe_b64decode(padded.encode()).decode())
+    except (binascii.Error, UnicodeDecodeError, ValueError) as error:
+        raise InvalidCursorError("The cursor is not valid.") from error
+    if value < 1:
+        raise InvalidCursorError("The cursor is not valid.")
+    return value
+
+
 # What the participants are counting toward. Once anyone has joined, an edit can't change these.
 FROZEN_WITH_PARTICIPANTS = ("type", "target_value", "starts_at", "ends_at", "medals")
 
@@ -69,6 +106,7 @@ class ChallengeService:
         repository: ChallengeRepository,
         medals: MedalService,
         participants: Callable[[int], Awaitable[int]],
+        participant_counts: Callable[[Sequence[int]], Awaitable[dict[int, int]]],
         now: Callable[[], datetime] = _utcnow,
     ) -> None:
         self._session = session
@@ -77,6 +115,7 @@ class ChallengeService:
         # How many users joined a challenge. The runs module owns it; the caller passes
         # `RunService.count_participants`, so this module never imports the runs one.
         self._participants = participants
+        self._participant_counts = participant_counts
         self._now = now
 
     async def create(self, data: ChallengeCreate) -> Challenge:
@@ -228,10 +267,41 @@ class ChallengeService:
     ) -> list[Challenge]:
         return await self._repository.list_challenges(
             include_drafts=include_drafts,
+            status=None,
             challenge_type=challenge_type.value if challenge_type else None,
             search=search.strip() if search and search.strip() else None,
             limit=max(1, min(limit, MAX_PAGE_SIZE)),
             after_id=after_id,
+        )
+
+    async def view(self, challenge_id: int, *, include_drafts: bool = False) -> ChallengeView:
+        challenge = await self.get(challenge_id, include_drafts=include_drafts)
+        return ChallengeView(challenge, await self._participants(challenge.id))
+
+    async def page(
+        self,
+        *,
+        status: ChallengeStatus = ChallengeStatus.PUBLISHED,
+        challenge_type: ChallengeType | None = None,
+        search: str | None = None,
+        limit: int = 20,
+        cursor: str | None = None,
+    ) -> ChallengeListing:
+        """One page of the list, oldest first. `next_cursor` is set only when more follow."""
+        size = max(1, min(limit, MAX_PAGE_SIZE))
+        rows = await self._repository.list_challenges(
+            include_drafts=status is ChallengeStatus.DRAFT,
+            status=status.value,
+            challenge_type=challenge_type.value if challenge_type else None,
+            search=search.strip() if search and search.strip() else None,
+            limit=size + 1,
+            after_id=decode_cursor(cursor) if cursor else None,
+        )
+        shown = rows[:size]
+        counts = await self._participant_counts([challenge.id for challenge in shown])
+        return ChallengeListing(
+            items=[ChallengeView(challenge, counts.get(challenge.id, 0)) for challenge in shown],
+            next_cursor=encode_cursor(shown[-1].id) if len(rows) > size else None,
         )
 
     async def publish(self, challenge_id: int) -> Challenge:

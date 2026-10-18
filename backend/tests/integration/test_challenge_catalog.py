@@ -31,11 +31,13 @@ IMAGE = "https://res.cloudinary.com/demo/image/upload/stridequest/a.png"
 
 @pytest.fixture
 async def service(session: AsyncSession) -> AsyncIterator[ChallengeService]:
+    runs = RunService(RunRepository(session))
     yield ChallengeService(
         session,
         ChallengeRepository(session),
         MedalService(MedalRepository(session)),
-        participants=RunService(RunRepository(session)).count_participants,
+        participants=runs.count_participants,
+        participant_counts=runs.count_participants_for,
         now=lambda: NOW,
     )
 
