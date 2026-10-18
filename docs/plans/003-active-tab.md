@@ -1,7 +1,7 @@
 # Plan 003: Active tab, health data access and challenge progress
 
-Status: draft
-Approved: <the user fills in the date>
+Status: approved
+Approved: 2026-10-18
 Issues: <filled in after approval>
 
 ## Context
