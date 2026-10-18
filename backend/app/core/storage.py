@@ -133,13 +133,14 @@ class CloudinaryStorage:
 
 
 def _parse_upload(response: httpx.Response) -> UploadedImage:
+    if response.status_code != httpx.codes.OK:
+        raise StorageError(
+            f"Cloudinary refused the upload ({response.status_code}){_error_detail(response)}"
+        )
     try:
         body = response.json()
     except ValueError as error:
         raise StorageError("Cloudinary returned a response that is not JSON.") from error
-    if response.status_code != httpx.codes.OK:
-        detail = body.get("error", {}).get("message") if isinstance(body, dict) else None
-        raise StorageError(f"Cloudinary refused the upload ({response.status_code}): {detail}")
     try:
         return UploadedImage(
             public_id=body["public_id"],
@@ -150,3 +151,14 @@ def _parse_upload(response: httpx.Response) -> UploadedImage:
         )
     except (KeyError, TypeError) as error:
         raise StorageError("Cloudinary returned an unexpected response.") from error
+
+
+def _error_detail(response: httpx.Response) -> str:
+    """`: <message>` from Cloudinary's error body, or nothing when there is none."""
+    try:
+        body = response.json()
+    except ValueError:
+        return ""
+    error = body.get("error") if isinstance(body, dict) else None
+    message = error.get("message") if isinstance(error, dict) else error
+    return f": {message}" if isinstance(message, str) and message else ""

@@ -1,5 +1,3 @@
-import json
-
 import httpx
 import pytest
 from pydantic import SecretStr
@@ -169,6 +167,38 @@ async def test_an_unexpected_response_becomes_a_storage_error(response: httpx.Re
 
 
 @pytest.mark.anyio
+async def test_a_failure_with_an_html_body_keeps_the_status_code() -> None:
+    storage = make_storage(
+        httpx.MockTransport(lambda _: httpx.Response(502, text="<html>Bad</html>"))
+    )
+
+    with pytest.raises(StorageError, match=r"\(502\)$"):
+        await storage.upload_image(b"x", filename="c.png", content_type="image/png", kind="covers")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("body", "detail"),
+    [
+        ({"error": "rate limited"}, ": rate limited"),
+        ({"error": None}, ""),
+        ({"error": {"message": 42}}, ""),
+        ({"error": {}}, ""),
+        ([], ""),
+    ],
+)
+async def test_an_error_body_of_any_shape_is_still_a_storage_error(
+    body: object, detail: str
+) -> None:
+    storage = make_storage(httpx.MockTransport(lambda _: httpx.Response(429, json=body)))
+
+    with pytest.raises(StorageError) as raised:
+        await storage.upload_image(b"x", filename="c.png", content_type="image/png", kind="covers")
+
+    assert str(raised.value) == f"Cloudinary refused the upload (429){detail}"
+
+
+@pytest.mark.anyio
 async def test_a_network_failure_becomes_a_storage_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("no route", request=request)
@@ -223,4 +253,4 @@ def test_settings_do_not_need_the_cloudinary_variables(monkeypatch: pytest.Monke
 
     assert settings.cloudinary_cloud_name is None
     assert settings.cloudinary_api_secret is None
-    assert json.dumps(settings.cloudinary_folder) == '"stridequest"'
+    assert settings.cloudinary_folder == "stridequest"
