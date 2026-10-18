@@ -27,6 +27,6 @@ class RunRead(BaseModel):
 
     id: int
     challenge_id: int
-    started_at: datetime
+    joined_at: datetime
     total_steps: int
     completed: bool

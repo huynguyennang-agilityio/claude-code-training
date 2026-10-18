@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.modules.challenges.schemas import QuestRead
 from app.modules.models import Challenge, Medal, Quest, Run, StepSample
+from tests.integration.enrollment_helpers import add_user, make_run
 
 START = datetime(2026, 10, 1, tzinfo=UTC)
 
@@ -15,6 +16,8 @@ START = datetime(2026, 10, 1, tzinfo=UTC)
 def make_quest() -> Quest:
     challenge = Challenge(
         title="10k steps",
+        type="run",
+        metric="steps",
         target_value=10_000,
         starts_at=START,
         ends_at=START + timedelta(days=1),
@@ -61,7 +64,7 @@ async def test_quest_challenge_medal_relationships(session: AsyncSession) -> Non
 @pytest.mark.anyio
 async def test_run_keeps_its_samples(session: AsyncSession) -> None:
     quest = make_quest()
-    run = Run(user_id="user-1", challenge=quest.challenges[0], started_at=START)
+    run = make_run(await add_user(session), quest.challenges[0])
     run.samples = [make_sample("a"), make_sample("b", steps=250)]
     session.add(run)
     await session.commit()
@@ -75,7 +78,7 @@ async def test_run_keeps_its_samples(session: AsyncSession) -> None:
 @pytest.mark.anyio
 async def test_health_record_id_is_unique_per_run(session: AsyncSession) -> None:
     quest = make_quest()
-    run = Run(user_id="user-1", challenge=quest.challenges[0], started_at=START)
+    run = make_run(await add_user(session), quest.challenges[0])
     run.samples = [make_sample("same"), make_sample("same")]
     session.add(run)
 
@@ -97,8 +100,8 @@ async def test_challenge_rejects_inverted_window(session: AsyncSession) -> None:
 async def test_same_record_can_count_for_two_runs(session: AsyncSession) -> None:
     quest = make_quest()
     challenge = quest.challenges[0]
-    first = Run(user_id="user-1", challenge=challenge, started_at=START)
-    second = Run(user_id="user-1", challenge=challenge, started_at=START)
+    first = make_run(await add_user(session), challenge)
+    second = make_run(await add_user(session), challenge)
     first.samples = [make_sample("shared")]
     second.samples = [make_sample("shared")]
     session.add_all([first, second])

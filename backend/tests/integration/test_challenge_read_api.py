@@ -1,14 +1,13 @@
 """The list and detail routes, against PostgreSQL and real tokens."""
 
-from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.runs.models import Run
 from tests.api_docs import load_example
+from tests.integration.enrollment_helpers import add_user, join_directly
 from tests.integration.query_counter import QueryCounter
 from tests.integration.test_auth_api import PREFIX
 from tests.integration.test_challenge_admin_api import (  # noqa: F401  (fixtures)
@@ -23,8 +22,8 @@ from tests.integration.test_challenge_admin_api import (  # noqa: F401  (fixture
 
 __all__ = ["_settings", "admin", "auth_settings", "client", "storage", "user"]
 
-MAX_QUERIES_FOR_THE_LIST = 5  # the user, the challenges, their medals, the participant counts
-MAX_QUERIES_FOR_THE_DETAIL = 4  # the user, the challenge, its medals, the participant count
+MAX_QUERIES_FOR_THE_LIST = 5  # user, challenges, medals, participant counts, enrollments
+MAX_QUERIES_FOR_THE_DETAIL = 6  # user, challenge, medals, enrollment, participants, blocking
 
 
 async def publish(client: AsyncClient, admin: dict[str, str], **changes: Any) -> dict[str, Any]:
@@ -205,10 +204,8 @@ async def test_participants_are_counted(
 ) -> None:
     challenge = await publish(client, admin)
     for number in range(3):
-        session.add(
-            Run(user_id=f"u{number}", challenge_id=challenge["id"], started_at=datetime.now(UTC))
-        )
-    await session.flush()
+        await join_directly(session, challenge["id"], await add_user(session, f"u{number}"))
+    await join_directly(session, challenge["id"], await add_user(session, "gone"), status="left")
 
     detail = (await client.get(f"{PREFIX}/challenges/{challenge['id']}", headers=user)).json()
     card = (await client.get(f"{PREFIX}/challenges", headers=user)).json()["items"][0]

@@ -64,11 +64,10 @@ class ChallengeRead(BaseModel):
 class EnrollmentStatus(StrEnum):
     ACTIVE = "active"
     PAUSED = "paused"
-    LEFT = "left"
 
 
 class EnrollmentRead(BaseModel):
-    """The caller's own place in a challenge."""
+    """The caller's own place in a challenge. A challenge they left is "not joined"."""
 
     status: EnrollmentStatus
     joined_at: AwareDatetime

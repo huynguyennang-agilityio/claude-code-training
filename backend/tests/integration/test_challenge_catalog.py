@@ -36,8 +36,7 @@ async def service(session: AsyncSession) -> AsyncIterator[ChallengeService]:
         session,
         ChallengeRepository(session),
         MedalService(MedalRepository(session)),
-        participants=runs.count_participants,
-        participant_counts=runs.count_participants_for,
+        runs=runs,
         now=lambda: NOW,
     )
 

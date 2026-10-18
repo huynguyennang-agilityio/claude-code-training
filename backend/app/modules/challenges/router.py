@@ -56,6 +56,7 @@ async def list_challenges(
     if query.status is ChallengeStatus.DRAFT and user.role != UserRole.ADMIN.value:
         raise ForbiddenError("Only an admin can list drafts.")
     listing = await service.page(
+        user.id,
         status=query.status,
         challenge_type=query.type,
         search=query.q,
@@ -65,7 +66,9 @@ async def list_challenges(
     return ChallengePage(
         items=[
             ChallengeSummary.build(
-                view.challenge, participant_count=view.participant_count, enrollment=None
+                view.challenge,
+                participant_count=view.participant_count,
+                enrollment=view.enrollment,
             )
             for view in listing.items
         ],
@@ -81,12 +84,14 @@ async def list_challenges(
 async def get_challenge(
     user: CurrentUserDep, challenge_id: ChallengeId, service: ChallengeServiceDep
 ) -> ChallengeDetail:
-    view = await service.view(challenge_id, include_drafts=user.role == UserRole.ADMIN.value)
+    view = await service.view(
+        challenge_id, user.id, include_drafts=user.role == UserRole.ADMIN.value
+    )
     return ChallengeDetail.build(
         view.challenge,
         participant_count=view.participant_count,
-        enrollment=None,
-        blocked_by=None,
+        enrollment=view.enrollment,
+        blocked_by=view.blocked_by,
     )
 
 
