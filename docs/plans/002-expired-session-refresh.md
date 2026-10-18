@@ -1,6 +1,6 @@
 # Plan 002: Challenge requests never refresh or end an expired session
 
-Status: draft
+Status: approved
 Approved: <the user fills in the date>
 Issues: <filled in after approval>
 
