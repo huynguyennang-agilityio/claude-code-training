@@ -37,7 +37,16 @@ signup() {
 stamp="$(date +%s)-$RANDOM"
 admin_token=$(signup "hurl-admin-$stamp@example.com")
 user_token=$(signup "hurl-user-$stamp@example.com")
+other_token=$(signup "hurl-other-$stamp@example.com")
 (cd "$dir/.." && python -m app.scripts.create_admin "hurl-admin-$stamp@example.com")
 hurl --test --variable "base=$base" --variable "admin_token=$admin_token" \
   --variable "user_token=$user_token" --variable "title=Hurl $stamp" "$dir/challenges.hurl"
+# runs.hurl needs one step sample that the server will count: it starts after the user joins
+# and ends less than 5 minutes ahead.
+sample_start=$(python3 -c 'from datetime import UTC, datetime, timedelta; print((datetime.now(UTC) + timedelta(seconds=40)).strftime("%Y-%m-%dT%H:%M:%SZ"))')
+sample_end=$(python3 -c 'from datetime import UTC, datetime, timedelta; print((datetime.now(UTC) + timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M:%SZ"))')
+hurl --test --variable "base=$base" --variable "admin_token=$admin_token" \
+  --variable "user_token=$user_token" --variable "other_token=$other_token" \
+  --variable "title=Hurl runs $stamp" --variable "sample_start=$sample_start" \
+  --variable "sample_end=$sample_end" "$dir/runs.hurl"
 if $rate_limit; then run auth_rate_limit.hurl; fi

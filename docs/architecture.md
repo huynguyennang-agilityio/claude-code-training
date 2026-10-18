@@ -267,7 +267,7 @@ sequenceDiagram
     participant DB as PostgreSQL
     RB->>HD: read step samples since last sync
     HD-->>RB: samples with health_record_id
-    RB->>API: POST step samples (path to be defined in docs/api/runs.md)
+    RB->>API: POST /api/v1/runs/steps (docs/api/runs.md)
     API->>RS: add_samples(run_id, samples)
     RS->>CS: get rule (target_value, window)
     CS-->>RS: ChallengeRule

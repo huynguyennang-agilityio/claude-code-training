@@ -64,6 +64,9 @@ class Run(Base):
     type: Mapped[str] = mapped_column(String(10))
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Steps count toward the challenge only from here: set on join and on resume, so what was
+    # walked while the enrollment was paused never counts. Null only for rows that predate it.
+    counting_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     total_steps: Mapped[int] = mapped_column(default=0)
     completed: Mapped[bool] = mapped_column(default=False)
 

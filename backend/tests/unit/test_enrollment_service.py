@@ -117,6 +117,7 @@ class TestJoin:
             challenge.ends_at,
         )
         assert run.joined_at == NOW
+        assert run.counting_from == NOW
         session.commit.assert_awaited_once()
 
     @pytest.mark.anyio
@@ -274,6 +275,29 @@ class TestResume:
 
         assert run.status == RunStatus.ACTIVE.value
         session.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_resuming_restarts_the_counting_time(
+        self, service: EnrollmentService, repository: AsyncMock
+    ) -> None:
+        run = make_run("paused", counting_from=NOW - timedelta(days=1))
+        repository.get_for_user.return_value = run
+
+        await service.resume(USER, 3)
+
+        assert run.counting_from == NOW
+
+    @pytest.mark.anyio
+    async def test_pausing_keeps_the_counting_time(
+        self, service: EnrollmentService, repository: AsyncMock
+    ) -> None:
+        before = NOW - timedelta(days=1)
+        run = make_run("active", counting_from=before)
+        repository.get_for_user.return_value = run
+
+        await service.pause(USER, 3)
+
+        assert run.counting_from == before
 
     @pytest.mark.anyio
     async def test_an_active_one_is_not_paused(

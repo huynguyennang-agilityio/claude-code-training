@@ -1,0 +1,16 @@
+{
+  "samples": [
+    {
+      "health_record_id": "HK-6F1C2A90-5B1E-4D0C-9E5B-0A1F2B3C4D5E",
+      "start_time": "2026-11-02T06:30:00Z",
+      "end_time": "2026-11-02T07:30:00Z",
+      "steps": 4120
+    },
+    {
+      "health_record_id": "HK-0B7A9C11-2D3E-4F50-8A61-7B8C9D0E1F23",
+      "start_time": "2026-11-02T07:30:00Z",
+      "end_time": "2026-11-02T08:30:00Z",
+      "steps": 980
+    }
+  ]
+}

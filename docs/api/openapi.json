@@ -699,6 +699,23 @@
         "title": "ChallengeUpdate",
         "type": "object"
       },
+      "EnrollmentProgress": {
+        "properties": {
+          "challenge_id": {
+            "title": "Challenge Id",
+            "type": "integer"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/ProgressRead"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "progress"
+        ],
+        "title": "EnrollmentProgress",
+        "type": "object"
+      },
       "EnrollmentRead": {
         "description": "The caller's own place in a challenge. A challenge they left is \"not joined\".",
         "properties": {
@@ -874,6 +891,90 @@
         "title": "MedalTier",
         "type": "string"
       },
+      "MyChallengeItem": {
+        "description": "A challenge the caller is in, as a card, with their progress.",
+        "properties": {
+          "challenge": {
+            "$ref": "#/components/schemas/ChallengeSummary"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/ProgressRead"
+          }
+        },
+        "required": [
+          "challenge",
+          "progress"
+        ],
+        "title": "MyChallengeItem",
+        "type": "object"
+      },
+      "MyChallengePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MyChallengeItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Send it as `cursor` for the next page.",
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "MyChallengePage",
+        "type": "object"
+      },
+      "ProgressRead": {
+        "description": "How far the caller is in a challenge. `tracked` is false for a type whose progress the\napp does not count yet (swim and cycle): its `current_value` stays 0.",
+        "properties": {
+          "current_value": {
+            "minimum": 0.0,
+            "title": "Current Value",
+            "type": "integer"
+          },
+          "percent": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Percent",
+            "type": "integer"
+          },
+          "started": {
+            "title": "Started",
+            "type": "boolean"
+          },
+          "target_value": {
+            "exclusiveMinimum": 0.0,
+            "title": "Target Value",
+            "type": "integer"
+          },
+          "tracked": {
+            "title": "Tracked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "current_value",
+          "target_value",
+          "percent",
+          "tracked",
+          "started"
+        ],
+        "title": "ProgressRead",
+        "type": "object"
+      },
       "QuestCreate": {
         "properties": {
           "description": {
@@ -993,6 +1094,90 @@
           "display_name"
         ],
         "title": "SignUpRequest",
+        "type": "object"
+      },
+      "StepSampleIn": {
+        "description": "A step sample synced from the device.",
+        "properties": {
+          "end_time": {
+            "format": "date-time",
+            "title": "End Time",
+            "type": "string"
+          },
+          "health_record_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[^\\x00]*$",
+            "title": "Health Record Id",
+            "type": "string"
+          },
+          "start_time": {
+            "format": "date-time",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "steps": {
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "health_record_id",
+          "start_time",
+          "end_time",
+          "steps"
+        ],
+        "title": "StepSampleIn",
+        "type": "object"
+      },
+      "StepSyncRequest": {
+        "properties": {
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/StepSampleIn"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Samples",
+            "type": "array"
+          }
+        },
+        "required": [
+          "samples"
+        ],
+        "title": "StepSyncRequest",
+        "type": "object"
+      },
+      "StepSyncResult": {
+        "properties": {
+          "accepted": {
+            "description": "Samples that were counted.",
+            "minimum": 0.0,
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "enrollments": {
+            "items": {
+              "$ref": "#/components/schemas/EnrollmentProgress"
+            },
+            "title": "Enrollments",
+            "type": "array"
+          },
+          "ignored": {
+            "description": "Samples that were not (duplicate or outside the window).",
+            "minimum": 0.0,
+            "title": "Ignored",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accepted",
+          "ignored",
+          "enrollments"
+        ],
+        "title": "StepSyncResult",
         "type": "object"
       },
       "TokenPair": {
@@ -2561,6 +2746,153 @@
         "summary": "Create a quest (admin)",
         "tags": [
           "quests"
+        ]
+      }
+    },
+    "/api/v1/runs": {
+      "get": {
+        "operationId": "my_challenges_api_v1_runs_get",
+        "parameters": [
+          {
+            "description": "The `next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "pattern": "^[A-Za-z0-9_-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The `next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyChallengePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request is invalid (`validation_error`)."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Challenges I am in, with progress",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/v1/runs/steps": {
+      "post": {
+        "description": "Counts the samples toward the caller's active run challenges and answers with their progress.",
+        "operationId": "sync_steps_api_v1_runs_steps_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepSyncRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepSyncResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request body can't be read (`http_error`)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request is invalid (`validation_error`)."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Sync step samples",
+        "tags": [
+          "runs"
         ]
       }
     },
