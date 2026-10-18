@@ -16,6 +16,7 @@ dependencies:
   freezed_annotation: ^3.1.0
   get_it: ^9.3.0
   go_router: ^17.0.0
+  health: ^13.3.1
   injectable: ^2.7.1+4
   json_annotation: ^4.9.0
 
@@ -41,3 +42,9 @@ flutter:
     - family: Inter
       fonts:
         - asset: assets/fonts/Inter-VariableFont.ttf
+
+dependency_overrides:
+  # `health` asks for device_info_plus 12, which needs win32 5, while
+  # flutter_secure_storage needs win32 6. device_info_plus 13 works with win32 6 and the
+  # two calls `health` makes (`androidInfo`, `iosInfo`) are unchanged.
+  device_info_plus: ^13.3.0
