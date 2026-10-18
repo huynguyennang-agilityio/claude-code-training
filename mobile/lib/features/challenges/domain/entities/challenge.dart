@@ -119,6 +119,8 @@ class ChallengeSummary extends Equatable {
 
   bool hasEndedAt(DateTime now) => !now.isBefore(endsAt);
 
+  bool hasStartedAt(DateTime now) => !now.isBefore(startsAt);
+
   @override
   List<Object?> get props => [
     id,

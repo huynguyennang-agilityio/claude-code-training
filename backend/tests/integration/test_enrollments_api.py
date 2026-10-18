@@ -98,7 +98,7 @@ async def get_detail(client: AsyncClient, who: dict[str, str], challenge: dict[s
 async def test_join_pause_resume_and_leave_show_in_the_detail_and_the_list(
     client: AsyncClient, admin: dict[str, str], user: dict[str, str]
 ) -> None:
-    challenge = await publish(client, admin, start=DAY, end=30 * DAY)
+    challenge = await publish(client, admin, start=-DAY, end=30 * DAY)
 
     joined = await act(client, user, challenge, "join")
     assert joined.status_code == 200, joined.text
@@ -217,7 +217,7 @@ async def test_another_users_enrollment_is_not_reachable(
 async def test_pause_and_resume_in_the_wrong_state_are_conflicts(
     client: AsyncClient, admin: dict[str, str], user: dict[str, str]
 ) -> None:
-    challenge = await publish(client, admin, start=DAY, end=30 * DAY)
+    challenge = await publish(client, admin, start=-DAY, end=30 * DAY)
     await act(client, user, challenge, "join")
 
     not_paused = await act(client, user, challenge, "resume")
@@ -226,6 +226,20 @@ async def test_pause_and_resume_in_the_wrong_state_are_conflicts(
 
     assert (not_paused.status_code, not_paused.json()["error"]["code"]) == (409, "not_paused")
     assert (not_active.status_code, not_active.json()["error"]["code"]) == (409, "not_active")
+
+
+@pytest.mark.anyio
+async def test_a_challenge_that_has_not_started_cannot_be_paused(
+    client: AsyncClient, admin: dict[str, str], user: dict[str, str]
+) -> None:
+    challenge = await publish(client, admin, start=DAY, end=30 * DAY)
+    await act(client, user, challenge, "join")
+
+    refused = await act(client, user, challenge, "pause")
+
+    assert (refused.status_code, refused.json()["error"]["code"]) == (409, "challenge_not_started")
+    assert (await get_detail(client, user, challenge))["enrollment"]["status"] == "active"
+    assert (await act(client, user, challenge, "leave")).status_code == 200
 
 
 @pytest.mark.anyio
@@ -295,7 +309,7 @@ async def test_windows_that_only_touch_do_not_overlap(
 async def test_a_paused_challenge_frees_the_slot_and_resume_waits_for_it(
     client: AsyncClient, admin: dict[str, str], user: dict[str, str]
 ) -> None:
-    first = await publish(client, admin, start=DAY, end=30 * DAY, title="First")
+    first = await publish(client, admin, start=-DAY, end=30 * DAY, title="First")
     second = await publish(client, admin, start=5 * DAY, end=35 * DAY, title="Second")
     await act(client, user, first, "join")
     await act(client, user, first, "pause")

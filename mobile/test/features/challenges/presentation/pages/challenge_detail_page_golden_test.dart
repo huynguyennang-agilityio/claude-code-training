@@ -73,6 +73,15 @@ void main() {
     ),
   );
   goldenScreen(
+    'ChallengeDetailPage, joined, not started',
+    'challenge_detail_page_joined_not_started',
+    _page(
+      ChallengeDetailLoaded(
+        challenge(startsAt: DateTime.utc(2026, 10, 20), enrollment: enrolled()),
+      ),
+    ),
+  );
+  goldenScreen(
     'ChallengeDetailPage, paused',
     'challenge_detail_page_paused',
     _page(

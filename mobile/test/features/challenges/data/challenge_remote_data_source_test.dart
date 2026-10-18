@@ -149,6 +149,7 @@ void main() {
       ('already_joined', 409, ChallengeFailureCode.alreadyJoined),
       ('not_active', 409, ChallengeFailureCode.notActive),
       ('not_paused', 409, ChallengeFailureCode.notPaused),
+      ('challenge_not_started', 409, ChallengeFailureCode.challengeNotStarted),
       ('enrollment_not_found', 404, ChallengeFailureCode.enrollmentNotFound),
     ]) {
       test('$code maps to its failure', () async {

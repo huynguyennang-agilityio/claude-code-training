@@ -288,7 +288,7 @@ Authorization: Bearer {{admin_token}}
   "title": "{{title}} first",
   "type": "run",
   "target_value": 1000,
-  "starts_at": "2098-01-01T00:00:00Z",
+  "starts_at": "2026-10-01T00:00:00Z",
   "ends_at": "2098-02-01T00:00:00Z",
   "description_md": "First.",
   "cover_image_url": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
@@ -396,6 +396,13 @@ Authorization: Bearer {{user_token}}
 HTTP 200
 [Asserts]
 jsonpath "$.enrollment.status" == "active"
+
+# The second has not started, so it cannot be paused
+POST {{base}}/challenges/{{second_id}}/pause
+Authorization: Bearer {{user_token}}
+HTTP 409
+[Asserts]
+jsonpath "$.error.code" == "challenge_not_started"
 
 # Resuming is refused while the second is active
 POST {{base}}/challenges/{{first_id}}/resume

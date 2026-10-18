@@ -19,6 +19,7 @@ from app.modules.runs.enrollments import (
     UNIQUE_ENROLLMENT,
     AlreadyJoinedError,
     ChallengeEndedError,
+    ChallengeNotStartedError,
     EnrollmentNotFoundError,
     EnrollmentService,
     NotActiveError,
@@ -234,13 +235,37 @@ class TestPause:
     async def test_pauses_an_active_enrollment(
         self, service: EnrollmentService, repository: AsyncMock, session: MagicMock
     ) -> None:
-        run = make_run("active")
+        run = make_run("active", starts_at=NOW - timedelta(days=1))
         repository.get_for_user.return_value = run
 
         await service.pause(USER, 3)
 
         assert run.status == RunStatus.PAUSED.value
         session.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_pausing_is_refused_before_the_challenge_starts(
+        self, service: EnrollmentService, repository: AsyncMock, session: MagicMock
+    ) -> None:
+        run = make_run("active", starts_at=NOW + timedelta(seconds=1))
+        repository.get_for_user.return_value = run
+
+        with pytest.raises(ChallengeNotStartedError):
+            await service.pause(USER, 3)
+
+        assert run.status == "active"
+        session.commit.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_pausing_is_allowed_from_the_start_instant(
+        self, service: EnrollmentService, repository: AsyncMock
+    ) -> None:
+        run = make_run("active", starts_at=NOW)
+        repository.get_for_user.return_value = run
+
+        await service.pause(USER, 3)
+
+        assert run.status == "paused"
 
     @pytest.mark.anyio
     async def test_a_paused_one_cannot_be_paused_again(
@@ -292,7 +317,7 @@ class TestResume:
         self, service: EnrollmentService, repository: AsyncMock
     ) -> None:
         before = NOW - timedelta(days=1)
-        run = make_run("active", counting_from=before)
+        run = make_run("active", counting_from=before, starts_at=NOW - timedelta(days=2))
         repository.get_for_user.return_value = run
 
         await service.pause(USER, 3)

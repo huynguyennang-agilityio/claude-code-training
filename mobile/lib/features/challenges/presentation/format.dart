@@ -17,6 +17,9 @@ const _months = [
 
 String _day(DateTime date) => '${_months[date.month - 1]} ${date.day}';
 
+/// "Oct 20", in the device's time zone.
+String formatDay(DateTime date) => _day(date.toLocal());
+
 /// "Oct 1 – Oct 31", in the device's time zone.
 String formatShortRange(DateTime start, DateTime end) =>
     '${_day(start.toLocal())} – ${_day(end.toLocal())}';

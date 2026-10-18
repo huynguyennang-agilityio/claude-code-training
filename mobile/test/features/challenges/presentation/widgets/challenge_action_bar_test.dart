@@ -131,6 +131,40 @@ void main() {
     });
   });
 
+  group('active but not started', () {
+    final notStarted = challenge(
+      enrollment: enrolled(),
+      startsAt: DateTime.utc(2026, 10, 20),
+    );
+
+    testWidgets('only Leave, with a note and no Pause', (tester) async {
+      await pumpBar(tester, notStarted);
+
+      expect(find.text('Pause'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'Leave'), findsOneWidget);
+      expect(find.text('You joined. Steps count from Oct 20.'), findsOneWidget);
+      await tester.tap(find.text('Leave'));
+      expect(left, isTrue);
+      expect(tapped, isNull);
+    });
+
+    testWidgets('Pause is there from the start instant', (tester) async {
+      await pumpBar(tester, notStarted, now: DateTime.utc(2026, 10, 20));
+
+      expect(find.text('Pause'), findsOneWidget);
+      expect(find.textContaining('You joined'), findsNothing);
+    });
+
+    testWidgets('busy disables Leave', (tester) async {
+      await pumpBar(tester, notStarted, busy: true);
+
+      final button = tester.widget<OutlinedButton>(
+        find.widgetWithText(OutlinedButton, 'Leave'),
+      );
+      expect(button.onPressed, isNull);
+    });
+  });
+
   group('paused', () {
     final paused = challenge(enrollment: enrolled(EnrollmentStatus.paused));
 
@@ -184,6 +218,10 @@ void main() {
       'blocked': (challenge(blockedBy: _other), null),
       'ended': (challenge(), _after),
       'active': (challenge(enrollment: enrolled()), null),
+      'active, not started': (
+        challenge(enrollment: enrolled(), startsAt: DateTime.utc(2026, 10, 20)),
+        null,
+      ),
       'paused blocked': (
         challenge(
           enrollment: enrolled(EnrollmentStatus.paused),
