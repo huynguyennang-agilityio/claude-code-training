@@ -93,10 +93,17 @@ async def add_quest(session: AsyncSession, challenges: int) -> int:
         challenges=[
             Challenge(
                 title=f"Challenge {number}",
-                target_steps=5000,
+                target_value=5000,
                 starts_at=starts,
                 ends_at=starts + timedelta(days=1),
-                medal=Medal(name=f"Medal {number}", image_url=f"https://cdn.test/{number}.png"),
+                medals=[
+                    Medal(
+                        tier="gold",
+                        threshold_value=5000,
+                        name=f"Medal {number}",
+                        image_url=f"https://cdn.test/{number}.png",
+                    )
+                ],
             )
             for number in range(challenges)
         ],
@@ -113,7 +120,7 @@ async def read_quest(session: AsyncSession, quest_id: int) -> dict[str, Any]:
     quest = await session.scalar(
         select(Quest)
         .where(Quest.id == quest_id)
-        .options(selectinload(Quest.challenges).selectinload(Challenge.medal))
+        .options(selectinload(Quest.challenges).selectinload(Challenge.medals))
     )
     assert quest is not None
     return QuestRead.model_validate(quest).model_dump()
@@ -130,7 +137,7 @@ async def test_nested_response_uses_a_fixed_number_of_queries(
         quest = await read_quest(session, quest_id)
 
     assert len(quest["challenges"]) == challenges
-    assert all(challenge["medal"] is not None for challenge in quest["challenges"])
+    assert all(len(challenge["medals"]) == 1 for challenge in quest["challenges"])
     assert len(queries) <= MAX_QUERIES_FOR_QUEST_WITH_NESTED_ROWS, queries.text()
 
 

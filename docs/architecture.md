@@ -177,9 +177,9 @@ backend/
 
 ### Modules and layers
 
-Modules talk to each other only through services, never through another module's repository or models. One accepted exception: the existing ORM relationships between models (`Run.challenge`, `Challenge.medal`, `Challenge.runs`) cross modules, with the import under `TYPE_CHECKING`. They map the foreign keys; don't use them to reach into another module instead of calling its service.
+Modules talk to each other only through services, never through another module's repository or models. One accepted exception: the existing ORM relationships between models (`Run.challenge`, `Challenge.medals`, `Challenge.runs`) cross modules, with the import under `TYPE_CHECKING`. They map the foreign keys; don't use them to reach into another module instead of calling its service.
 
-Reading through those relationships is allowed in one case ([ADR 0002](adr/0002-cross-module-reads.md)): a repository may eager-load another module's rows (`selectinload(Challenge.medal)`) only to nest them, read-only, in a response schema, as `ChallengeRead` nests `MedalRead`. These go through the owning module's service instead:
+Reading through those relationships is allowed in one case ([ADR 0002](adr/0002-cross-module-reads.md)): a repository may eager-load another module's rows (`selectinload(Challenge.medals)`) only to nest them, read-only, in a response schema, as `ChallengeRead` nests `MedalRead`. These go through the owning module's service instead:
 
 - filtering or sorting by another module's columns;
 - writing another module's rows;
@@ -188,7 +188,7 @@ Reading through those relationships is allowed in one case ([ADR 0002](adr/0002-
 
 Adding a new cross-module relationship needs the user's approval.
 
-The ORM cascade on `Challenge.medal` (`all, delete-orphan`) is not a write path: medals are created and changed only through `medals.service`, so don't assign or clear `challenge.medal`. Deleting a challenge may still remove its medal through that cascade, because the `medals.challenge_id` foreign key already has `ON DELETE CASCADE`.
+The ORM cascade on `Challenge.medals` (`all, delete-orphan`) is not a write path: medals are created and changed only through `medals.service`, so don't assign or clear `challenge.medal`. Deleting a challenge may still remove its medal through that cascade, because the `medals.challenge_id` foreign key already has `ON DELETE CASCADE`.
 
 Presentation copy: [`diagrams/backend-modules.svg`](diagrams/backend-modules.svg).
 
@@ -269,7 +269,7 @@ sequenceDiagram
     HD-->>RB: samples with health_record_id
     RB->>API: POST step samples (path to be defined in docs/api/runs.md)
     API->>RS: add_samples(run_id, samples)
-    RS->>CS: get rule (target_steps, window)
+    RS->>CS: get rule (target_value, window)
     CS-->>RS: ChallengeRule
     RS->>DB: read known health_record_ids
     RS->>RS: validate_run: reject duplicates and out-of-window, sum accepted
@@ -306,13 +306,24 @@ erDiagram
         int id PK
         int quest_id FK
         string title
-        int target_steps "greater than 0"
+        string type "run, swim or cycle"
+        string metric "steps for a run, distance_m otherwise"
+        int target_value "greater than 0"
+        string mode "solo"
+        text description_md
+        text terms_md
+        string cover_image_url "Cloudinary delivery URL"
+        string city
+        string landmark
+        string status "draft or published"
         datetime starts_at
         datetime ends_at "after starts_at"
     }
     MEDALS {
         int id PK
-        int challenge_id FK "unique"
+        int challenge_id FK "unique with tier"
+        string tier "bronze, silver or gold"
+        int threshold_value "earned at this value"
         string name
         string image_url "Cloudinary delivery URL"
     }

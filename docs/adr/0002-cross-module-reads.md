@@ -6,9 +6,9 @@
 
 ## Context
 
-[ADR 0001](0001-architecture.md) says backend modules call each other only through services. The models already have ORM relationships that cross modules (`Run.challenge`, `Challenge.medal`, `Challenge.runs`). [`docs/architecture.md`](../architecture.md) accepts them because they map foreign keys, and says not to use them to reach into another module instead of calling its service.
+[ADR 0001](0001-architecture.md) says backend modules call each other only through services. The models already have ORM relationships that cross modules (`Run.challenge`, `Challenge.medals`, `Challenge.runs`). [`docs/architecture.md`](../architecture.md) accepts them because they map foreign keys, and says not to use them to reach into another module instead of calling its service.
 
-That left one case open. The existing `ChallengeRead` schema nests `MedalRead`, and `QuestRead` nests a list of `ChallengeRead`. To build those responses, a challenges repository can either eager-load the medal through `Challenge.medal`, or the challenges service can get the medal from `medals.service`. No module has a repository or service yet, so the first one would set the pattern either way.
+That left one case open. The existing `ChallengeRead` schema nests `MedalRead`, and `QuestRead` nests a list of `ChallengeRead`. To build those responses, a challenges repository can either eager-load the medal through `Challenge.medals`, or the challenges service can get the medal from `medals.service`. No module has a repository or service yet, so the first one would set the pattern either way.
 
 Two constraints shape the choice:
 
@@ -26,9 +26,9 @@ A repository may eager-load another module's rows through an existing relationsh
 
 Adding a new cross-module relationship needs the user's approval.
 
-The ORM cascade on `Challenge.medal` (`all, delete-orphan`) is not a write path: medals are created and changed only through `medals.service`, so don't assign or clear `challenge.medal`. Deleting a challenge may still remove its medal through that cascade, because the `medals.challenge_id` foreign key already has `ON DELETE CASCADE`.
+The ORM cascade on `Challenge.medals` (`all, delete-orphan`) is not a write path: medals are created and changed only through `medals.service`, so don't assign or clear `challenge.medal`. Deleting a challenge may still remove its medal through that cascade, because the `medals.challenge_id` foreign key already has `ON DELETE CASCADE`.
 
-For example, `selectinload(Challenge.medal)` in the challenges repository is allowed so `ChallengeRead` can nest `MedalRead`. Awarding a medal when a run completes a challenge goes through `medals.service`, as in the module diagram in `docs/architecture.md`.
+For example, `selectinload(Challenge.medals)` in the challenges repository is allowed so `ChallengeRead` can nest `MedalRead`. Awarding a medal when a run completes a challenge goes through `medals.service`, as in the module diagram in `docs/architecture.md`.
 
 ## Alternatives considered
 
