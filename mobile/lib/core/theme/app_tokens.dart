@@ -88,6 +88,9 @@ abstract final class AppActiveSizes {
   /// The circle behind the heart on the health gate, and the heart in it.
   static const double gateCircle = 88;
   static const double gateIcon = 40;
+
+  /// The icon beside a tile's label, and the one in the Refresh data button.
+  static const double tileIcon = 18;
 }
 
 /// The medal tiers' colors, from the Figma style "Medal colors". They tint a medal

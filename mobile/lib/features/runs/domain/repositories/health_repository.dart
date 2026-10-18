@@ -1,3 +1,4 @@
+import '../entities/activity.dart';
 import '../entities/health_access.dart';
 
 /// Access to the health data of the device (Apple Health, Health Connect).
@@ -15,4 +16,18 @@ abstract interface class HealthRepository {
 
   /// Sends the user to the store to install Health Connect (Android).
   Future<void> installHealthConnect();
+
+  /// Today's figures, for the metrics in [allowed] only. A metric with no data
+  /// reads as 0. Throws [HealthFailure] when the data cannot be read.
+  Future<ActivityReading> readToday(Set<HealthMetric> allowed);
+
+  /// The figures of each of the last [days] calendar days (today last), for the
+  /// metrics in [allowed] only.
+  Future<List<DailyFigures>> readDays(
+    Set<HealthMetric> allowed, {
+    required int days,
+  });
+
+  /// The step records that ended after [from], without the ones typed by hand.
+  Future<List<StepRecord>> readStepRecords({required DateTime from});
 }

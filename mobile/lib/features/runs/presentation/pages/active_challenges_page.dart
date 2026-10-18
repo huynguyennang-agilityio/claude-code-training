@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../shared/widgets/tab_placeholder.dart';
+import '../../../../core/di/injection.dart';
 import '../../domain/entities/health_access.dart';
+import '../bloc/activity_bloc.dart';
 import '../bloc/health_gate_bloc.dart';
+import '../widgets/active_tabs.dart';
 import '../widgets/health_gate_view.dart';
 
 /// The Active tab. It opens only when steps may be read: until then it shows the
@@ -64,11 +66,12 @@ class _ActiveChallengesPageState extends State<ActiveChallengesPage>
           body: const Center(child: CircularProgressIndicator()),
         ),
         HealthGateResolved(access: final access) when access.isGranted =>
-          const TabPlaceholder(
-            title: 'Active',
-            message:
-                'The challenges you are doing, and your progress, will show '
-                'up here.',
+          BlocProvider(
+            // A new bloc when the allowed metrics change (turned on in Settings).
+            key: ValueKey(access.allowed),
+            create: (_) =>
+                getIt<ActivityBloc>()..add(ActivityStarted(access.allowed)),
+            child: const ActiveTabs(),
           ),
         HealthGateResolved(:final access, :final busy) => HealthGateView(
           status: access.status,

@@ -245,9 +245,10 @@ void main() {
         );
         await tester.pumpAndSettle();
 
+        // The Active page has two tabs, and one of them is also called Active.
         expect(
           find.descendant(of: find.byType(AppBar), matching: find.text(title)),
-          findsOneWidget,
+          title == 'Active' ? findsNWidgets(2) : findsOneWidget,
         );
         expect(find.byType(NavigationBar), findsOneWidget);
       }
