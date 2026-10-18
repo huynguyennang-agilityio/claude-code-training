@@ -51,10 +51,12 @@ Every change goes through the phases below in order. Don't skip a gate. When a g
 
 General rules:
 
+- Every non-trivial change starts from an approved plan file (Phase 1). No plan, no issue and no code.
 - Work on one GitLab issue at a time.
 - `develop` is the default branch. `main` holds released code and only receives merges from `develop`.
 - Never push directly to `develop` or `main`.
 - Don't commit unless asked. After each task, suggest a short commit message.
+- A grant such as "go ahead without asking" or "skip the review" covers only the tasks or the session the user named. Don't carry it to new work.
 
 ### Git and GitLab permissions
 
@@ -62,10 +64,12 @@ Being able to run a command is not permission to run it.
 
 | Action | Allowed |
 | --- | --- |
-| Create a branch and edit files for an approved task | Yes |
+| Write a plan under `docs/plans/`, push its `docs/plan-NNN-<name>` branch and open its MR | Yes, when the user asks for work that needs a plan |
+| Set `Status: approved` on a plan | Never. Only the user does |
+| Create an issue | Only from a plan whose `Status:` is `approved` on `develop`, exactly as the plan lists it |
+| Create a branch and edit files for an issue from an approved plan | Yes |
 | Commit | Only when the user asks |
 | Push, open an MR | Only when the user asks or the task explicitly includes it |
-| Create an issue | Only after the user confirms its title and content |
 | Merge an MR, close an issue | Only when the user explicitly authorizes that MR or issue |
 | Push to `develop`/`main`, force-push, delete branches | Never |
 
@@ -75,13 +79,18 @@ If a GitLab action isn't possible in the current session (no `glab`, no network,
 
 Set these up once and update them when they change: architecture, tech stack, repo layout, Claude rules (this file) and local tooling (Docker Compose, linters, formatters, test runners).
 
-### Phase 1: Plan and issue
+### Phase 1: Plan, approval and issues
+
+Every change goes through a plan file first. The one exception is a trivial change (a typo, a one-line fix); say in your reply that you are treating it as trivial.
 
 1. Classify the ticket by type and check that it has the evidence below (the ticket evidence gate).
-2. Analyze the request and list open questions.
-3. Write acceptance criteria.
-4. Create or pick the GitLab issue, with the acceptance criteria in it.
-5. Branch from `develop` as `<type>/<issue-id>-<short-name>` (for example `feat/1-readme`, `fix/12-step-sync`).
+2. Write the plan as `docs/plans/NNN-<short-name>.md` (`NNN` is the next number; use the template in [`docs/plans/README.md`](docs/plans/README.md)): context, open questions and assumptions, approach (layers, files, API, schema, security), risks, verification, and the list of issues to create, each with a title, labels, acceptance criteria and dependencies.
+3. Put it on a `docs/plan-NNN-<short-name>` branch from `develop` and open an MR into `develop`. A plan needs no issue. Its first line after the title is `Status: draft`.
+4. Stop. The user reviews the plan and, when they agree, sets `Status: approved` (with the date) and merges the MR, or tells you to. You never write `approved` yourself. If the plan is edited after approval, it goes back to `draft` and needs approval again.
+5. Only when the plan is `approved` on `develop`: create the issues exactly as the plan lists them, each with `Plan: docs/plans/NNN-<short-name>.md` in its description, and write the issue numbers back into the plan's `Issues:` line (a docs change through its own MR).
+6. Branch from `develop` as `<type>/<issue-id>-<short-name>` (for example `feat/1-readme`, `fix/12-step-sync`).
+
+If the work needs something the approved plan does not cover (a new endpoint, a schema change, a dependency, a larger scope), stop and go back to step 2.
 
 **Ticket evidence gate**
 
@@ -104,8 +113,8 @@ Don't demand images for every ticket. A bug with a wrong HTTP status needs the r
 
 1. Analyze the impact: the layers, files, database tables and mobile/backend interactions the change touches.
 2. Define or update the API and data contract (endpoints, Pydantic schemas, tables) in `docs/api/`.
-3. Present the plan before implementing. A feature that spans several layers (Flutter UI → repository → FastAPI → database) must be described in full, but needs no separate approval if it stays within the agreed architecture.
-4. Stop and get the user's approval before implementing if the change involves any of:
+3. The approved plan is the presentation: a feature that spans several layers (Flutter UI → repository → FastAPI → database) is described in full there. If the implementation has to differ from it, update the plan and get it approved again before going on.
+4. The plan must call out, and the user's approval must cover, any of these:
    - a public API change or a breaking contract change;
    - a database schema change, or a migration that could lose data;
    - authentication, authorization or another security boundary;
@@ -169,7 +178,7 @@ Before opening an MR, confirm:
 
 ### Phase 5: MR and review
 
-1. When the user asks, push the branch and open an MR into `develop` using `.gitlab/merge_request_templates/Default.md`, and link the issue with `Closes #<id>`.
+1. When the user asks, push the branch and open an MR into `develop` using `.gitlab/merge_request_templates/Default.md`, link the issue with `Closes #<id>`, and name the plan (`Plan: docs/plans/NNN-<short-name>.md`). Say where the work deviates from the plan, or write "No deviations".
 2. As soon as the MR is open, Claude runs the `code-reviewer` subagent on it, following [Reviewing merge requests](#reviewing-merge-requests). This happens automatically — don't wait for the user to ask. This applies whether Claude opened the MR directly or a `fastapi-backend`/`flutter-dev` subagent did.
 3. The user reviews the MR.
 4. Address the review comments, then repeat Phases 3 and 4.
@@ -177,7 +186,7 @@ Before opening an MR, confirm:
 ### Phase 6: Merge and close
 
 1. The user approves the MR.
-2. Claude merges only after the user explicitly authorizes merging that MR.
+2. Claude merges only after the user explicitly authorizes merging that MR. Approving a plan, or an earlier "go ahead", is not that authorization.
 3. Verify `develop` after the merge:
    - the MR shows as merged into `develop`;
    - the merge commit and diff on `develop` contain the change;

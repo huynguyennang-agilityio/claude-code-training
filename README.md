@@ -43,6 +43,7 @@ The Mermaid source of this diagram, and the other architecture diagrams, are in 
 More detail:
 - [`docs/architecture.md`](docs/architecture.md): layers, module diagrams, request and run-sync flows, data model and test strategy.
 - [ADR 0001](docs/adr/0001-architecture.md): why we chose this architecture.
+- [`docs/plans/README.md`](docs/plans/README.md): every non-trivial change starts with an approved plan file; the template and the approval rule.
 - [`docs/auth-screens.md`](docs/auth-screens.md): the Sign in and Sign up design from Figma, field rules, error mapping and auth task status.
 - Issue #6: run validation, deduplication and anti-cheat.
 
