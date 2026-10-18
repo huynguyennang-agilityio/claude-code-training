@@ -126,4 +126,26 @@ class FakeChallengeRepository implements ChallengeRepository {
     if (failure case final failure?) throw failure;
     return detail ?? challenge(id: id);
   }
+
+  /// What the next action answers with (or `failure`, when set).
+  final actions = <String>[];
+  Challenge Function(String action, int id)? onAction;
+
+  Future<Challenge> _act(String action, int id) async {
+    actions.add('$action $id');
+    if (failure case final failure?) throw failure;
+    return onAction?.call(action, id) ?? challenge(id: id);
+  }
+
+  @override
+  Future<Challenge> join(int id) => _act('join', id);
+
+  @override
+  Future<Challenge> pause(int id) => _act('pause', id);
+
+  @override
+  Future<Challenge> resume(int id) => _act('resume', id);
+
+  @override
+  Future<Challenge> leave(int id) => _act('leave', id);
 }

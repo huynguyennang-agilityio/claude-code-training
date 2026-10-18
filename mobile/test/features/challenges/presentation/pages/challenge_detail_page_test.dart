@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -211,6 +213,146 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('first', findRichText: true), findsOneWidget);
+    });
+  });
+
+  group('actions', () {
+    setUp(() => when(() => bloc.isClosed).thenReturn(false));
+
+    testWidgets('a challenge you are not in has Join Challenge', (
+      tester,
+    ) async {
+      await pumpPage(tester, loaded());
+
+      expect(
+        find.widgetWithText(FilledButton, 'Join Challenge'),
+        findsOneWidget,
+      );
+      expect(find.text('Joined'), findsNothing);
+
+      await tester.tap(find.text('Join Challenge'));
+
+      verify(
+        () => bloc.add(const ChallengeActionRequested(ChallengeAction.join)),
+      ).called(1);
+    });
+
+    testWidgets('joined shows the Joined label with Pause and Leave', (
+      tester,
+    ) async {
+      await pumpPage(tester, loaded(challenge(enrollment: enrolled())));
+
+      expect(find.text('Joined'), findsOneWidget);
+      expect(find.text('Pause'), findsOneWidget);
+      expect(find.text('Leave'), findsOneWidget);
+
+      await tester.tap(find.text('Pause'));
+
+      verify(
+        () => bloc.add(const ChallengeActionRequested(ChallengeAction.pause)),
+      ).called(1);
+    });
+
+    testWidgets('paused shows Paused with Resume', (tester) async {
+      await pumpPage(
+        tester,
+        loaded(challenge(enrollment: enrolled(EnrollmentStatus.paused))),
+      );
+
+      expect(find.text('Paused'), findsOneWidget);
+
+      await tester.tap(find.text('Resume'));
+
+      verify(
+        () => bloc.add(const ChallengeActionRequested(ChallengeAction.resume)),
+      ).called(1);
+    });
+
+    testWidgets('Leave asks first, and only Leave challenge leaves', (
+      tester,
+    ) async {
+      await pumpPage(tester, loaded(challenge(enrollment: enrolled())));
+
+      await tester.tap(find.text('Leave'));
+      await tester.pumpAndSettle();
+      expect(find.text('Leave this challenge?'), findsOneWidget);
+      await tester.tap(find.text('Keep it'));
+      await tester.pumpAndSettle();
+      verifyNever(
+        () => bloc.add(const ChallengeActionRequested(ChallengeAction.leave)),
+      );
+
+      await tester.tap(find.text('Leave'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Leave challenge'));
+      await tester.pumpAndSettle();
+
+      verify(
+        () => bloc.add(const ChallengeActionRequested(ChallengeAction.leave)),
+      ).called(1);
+    });
+
+    testWidgets('an overlapping challenge is named and Join is disabled', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        loaded(
+          challenge(
+            blockedBy: const BlockingChallenge(id: 2, title: 'Old Quarter'),
+          ),
+        ),
+      );
+
+      expect(find.textContaining('“Old Quarter”'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Join Challenge'),
+            )
+            .onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets('a refusal shows its message in a snackbar once', (
+      tester,
+    ) async {
+      final states = StreamController<ChallengeDetailState>();
+      addTearDown(states.close);
+      whenListen(bloc, states.stream, initialState: loaded());
+      await pumpScreen(
+        tester,
+        BlocProvider<ChallengeDetailBloc>.value(
+          value: bloc,
+          child: ChallengeDetailPage(challengeId: 1, clock: () => _now),
+        ),
+      );
+
+      states.add(
+        ChallengeDetailLoaded(
+          challenge(),
+          notice: const ChallengeFailure(
+            ChallengeFailureCode.overlappingChallenge,
+            serverMessage: 'You are already in “X”.',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('You are already in “X”.'), findsWidgets);
+    });
+
+    testWidgets('while an action runs the bar shows progress', (tester) async {
+      await pumpPage(
+        tester,
+        ChallengeDetailLoaded(challenge(), busy: true),
+        settle: false,
+      );
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
   });
 

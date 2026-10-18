@@ -20,6 +20,14 @@ abstract interface class ChallengeRemoteDataSource {
   });
 
   Future<ChallengeModel> get(int id);
+
+  Future<ChallengeModel> join(int id);
+
+  Future<ChallengeModel> pause(int id);
+
+  Future<ChallengeModel> resume(int id);
+
+  Future<ChallengeModel> leave(int id);
 }
 
 /// [ChallengeRemoteDataSource] over the authenticated [Dio]: it adds the access
@@ -53,6 +61,23 @@ class DioChallengeRemoteDataSource implements ChallengeRemoteDataSource {
   @override
   Future<ChallengeModel> get(int id) async {
     final json = await _request('GET', 'challenges/$id');
+    return _parse(json, ChallengeModel.fromJson);
+  }
+
+  @override
+  Future<ChallengeModel> join(int id) => _act(id, 'join');
+
+  @override
+  Future<ChallengeModel> pause(int id) => _act(id, 'pause');
+
+  @override
+  Future<ChallengeModel> resume(int id) => _act(id, 'resume');
+
+  @override
+  Future<ChallengeModel> leave(int id) => _act(id, 'leave');
+
+  Future<ChallengeModel> _act(int id, String action) async {
+    final json = await _request('POST', 'challenges/$id/$action');
     return _parse(json, ChallengeModel.fromJson);
   }
 

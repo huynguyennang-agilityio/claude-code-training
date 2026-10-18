@@ -13,4 +13,17 @@ abstract interface class ChallengeRepository {
   });
 
   Future<Challenge> get(int id);
+
+  /// Join, pause, resume or leave challenge [id]. Each answers with the
+  /// challenge as the caller now sees it, so a screen can redraw from it.
+  /// Failures: `challengeEnded`, `alreadyJoined`, `overlappingChallenge`
+  /// (its message names the other challenge), `enrollmentNotFound`,
+  /// `notActive`, `notPaused`, `challengeNotFound`.
+  Future<Challenge> join(int id);
+
+  Future<Challenge> pause(int id);
+
+  Future<Challenge> resume(int id);
+
+  Future<Challenge> leave(int id);
 }

@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:stridequest/features/challenges/domain/entities/challenge.dart';
 import 'package:stridequest/features/challenges/domain/failures/challenge_failure.dart';
 import 'package:stridequest/features/challenges/presentation/bloc/challenge_detail_bloc.dart';
 import 'package:stridequest/features/challenges/presentation/pages/challenge_detail_page.dart';
@@ -54,6 +55,44 @@ void main() {
     _page(
       const ChallengeDetailFailed(
         ChallengeFailure(ChallengeFailureCode.challengeNotFound),
+      ),
+    ),
+  );
+  goldenScreen(
+    'ChallengeDetailPage, joined',
+    'challenge_detail_page_joined',
+    _page(
+      ChallengeDetailLoaded(
+        challenge(
+          type: ChallengeType.swim,
+          target: 20000,
+          title: 'Mỹ Khê Bay 20 km',
+          enrollment: enrolled(),
+        ),
+      ),
+    ),
+  );
+  goldenScreen(
+    'ChallengeDetailPage, paused',
+    'challenge_detail_page_paused',
+    _page(
+      ChallengeDetailLoaded(
+        challenge(enrollment: enrolled(EnrollmentStatus.paused)),
+      ),
+    ),
+  );
+  goldenScreen(
+    'ChallengeDetailPage, blocked by an overlapping challenge',
+    'challenge_detail_page_blocked',
+    _page(
+      ChallengeDetailLoaded(
+        challenge(
+          title: 'Hanoi Autumn 30K Steps',
+          blockedBy: const BlockingChallenge(
+            id: 2,
+            title: 'Old Quarter 50K Steps',
+          ),
+        ),
       ),
     ),
   );

@@ -112,6 +112,53 @@ void main() {
     });
   });
 
+  group('actions', () {
+    for (final action in ['join', 'pause', 'resume', 'leave']) {
+      test('$action posts to the challenge and parses the answer', () async {
+        late RequestOptions sent;
+        final source = _source((request) async {
+          sent = request;
+          return jsonBody({
+            ..._card,
+            'description_md': '',
+            'terms_md': '',
+            'medals': [],
+            'blocked_by': null,
+            'enrollment': {
+              'status': 'active',
+              'joined_at': '2026-10-20T08:30:00Z',
+            },
+          }, 200);
+        });
+
+        final challenge = switch (action) {
+          'join' => await source.join(7),
+          'pause' => await source.pause(7),
+          'resume' => await source.resume(7),
+          _ => await source.leave(7),
+        };
+
+        expect(sent.method, 'POST');
+        expect(sent.path, 'challenges/7/$action');
+        expect(challenge.enrollment?.status, 'active');
+      });
+    }
+
+    for (final (code, status, expected) in [
+      ('challenge_ended', 409, ChallengeFailureCode.challengeEnded),
+      ('already_joined', 409, ChallengeFailureCode.alreadyJoined),
+      ('not_active', 409, ChallengeFailureCode.notActive),
+      ('not_paused', 409, ChallengeFailureCode.notPaused),
+      ('enrollment_not_found', 404, ChallengeFailureCode.enrollmentNotFound),
+    ]) {
+      test('$code maps to its failure', () async {
+        final source = _source((_) async => _error(code, status));
+
+        expect((await _failureOf(source.join(7))).code, expected);
+      });
+    }
+  });
+
   group('errors', () {
     test('a documented code becomes its failure', () async {
       final source = _source((_) async => _error('challenge_not_found', 404));

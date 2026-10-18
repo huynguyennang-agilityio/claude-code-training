@@ -32,3 +32,13 @@ final class ChallengesFilterChanged extends ChallengesEvent {
 final class ChallengesMoreRequested extends ChallengesEvent {
   const ChallengesMoreRequested();
 }
+
+/// The Join button of a card was tapped.
+final class ChallengesJoinRequested extends ChallengesEvent {
+  const ChallengesJoinRequested(this.id);
+
+  final int id;
+
+  @override
+  List<Object?> get props => [id];
+}

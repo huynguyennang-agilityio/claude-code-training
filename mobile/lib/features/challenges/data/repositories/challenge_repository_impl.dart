@@ -28,4 +28,17 @@ class ChallengeRepositoryImpl implements ChallengeRepository {
 
   @override
   Future<Challenge> get(int id) async => (await _remote.get(id)).toEntity();
+
+  @override
+  Future<Challenge> join(int id) async => (await _remote.join(id)).toEntity();
+
+  @override
+  Future<Challenge> pause(int id) async => (await _remote.pause(id)).toEntity();
+
+  @override
+  Future<Challenge> resume(int id) async =>
+      (await _remote.resume(id)).toEntity();
+
+  @override
+  Future<Challenge> leave(int id) async => (await _remote.leave(id)).toEntity();
 }
