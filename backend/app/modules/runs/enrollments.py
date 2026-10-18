@@ -48,6 +48,11 @@ class NotActiveError(DomainError):
     code = "not_active"
 
 
+class ChallengeNotStartedError(DomainError):
+    status_code = 409
+    code = "challenge_not_started"
+
+
 class NotPausedError(DomainError):
     status_code = 409
     code = "not_paused"
@@ -96,10 +101,13 @@ class EnrollmentService:
         await self._save(run)
 
     async def pause(self, user_id: uuid.UUID, challenge_id: int) -> None:
-        """Pause: the slot is free for another challenge of the type until the user resumes."""
+        """Pause: the slot is free for another challenge of the type until the user resumes.
+        Before the start there is nothing to pause (leave instead)."""
         run = await self._own_run(user_id, challenge_id)
         if run.status != RunStatus.ACTIVE.value:
             raise NotActiveError("Only an active challenge can be paused.")
+        if self._now() < run.starts_at:
+            raise ChallengeNotStartedError("A challenge that has not started cannot be paused.")
         run.status = RunStatus.PAUSED.value
         await self._session.commit()
 

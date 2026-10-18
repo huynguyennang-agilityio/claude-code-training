@@ -15,6 +15,10 @@ enum ChallengeFailureCode {
     'You are already in a challenge of this type that runs at the same time.',
   ),
   notActive('not_active', 'Only an active challenge can be paused.'),
+  challengeNotStarted(
+    'challenge_not_started',
+    'This challenge has not started yet, so it cannot be paused.',
+  ),
   notPaused('not_paused', 'Only a paused challenge can be resumed.'),
   notAuthenticated('not_authenticated', 'Sign in to continue.'),
   invalidToken('invalid_token', 'Your session has expired. Sign in again.'),

@@ -162,7 +162,7 @@ All four act on the **caller's own** enrollment and answer `200` with the `Chall
 | Route | What it does | Errors |
 | --- | --- | --- |
 | `join` | Enroll in a published challenge, also before it starts, until it ends (`now < ends_at`). Someone who left joins again on the same enrollment. | `404 challenge_not_found` (unknown or a draft), `409 challenge_ended`, `409 already_joined` (active or paused), `409 overlapping_challenge` |
-| `pause` | Active to paused. A paused challenge frees its slot for another challenge of the type. | `404 enrollment_not_found`, `409 not_active` |
+| `pause` | Active to paused. A paused challenge frees its slot for another challenge of the type. Only after the challenge has started: before `starts_at` there is nothing to pause (the user can leave instead). | `404 enrollment_not_found`, `409 not_active`, `409 challenge_not_started` |
 | `resume` | Paused to active. | `404 enrollment_not_found`, `409 not_paused`, `409 challenge_ended`, `409 overlapping_challenge` |
 | `leave` | Active or paused to left; the enrollment is no longer shown. | `404 enrollment_not_found` |
 
@@ -439,4 +439,5 @@ The response is the updated `Challenge`.
 | 409 | `already_joined` | The caller is already active or paused in the challenge. |
 | 409 | `overlapping_challenge` | Another active challenge of the same type overlaps this one in time. The message names it. |
 | 409 | `not_active` | Only an active enrollment can be paused. |
+| 409 | `challenge_not_started` | The challenge has not started (`now < starts_at`), so it can't be paused. |
 | 409 | `not_paused` | Only a paused enrollment can be resumed. |

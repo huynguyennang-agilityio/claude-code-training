@@ -282,10 +282,14 @@ async def test_the_list_shows_active_and_paused_with_progress_and_hides_left(
     client: AsyncClient, admin: dict[str, str], user: dict[str, str], session: AsyncSession
 ) -> None:
     running = await join_running(client, admin, user, session)
-    swim = await publish(client, admin, start=3 * DAY, end=20 * DAY, kind="swim", title="Swim")
+    swim = await publish(client, admin, start=-2 * DAY, end=20 * DAY, kind="swim", title="Swim")
+    upcoming = await publish(
+        client, admin, start=5 * DAY, end=30 * DAY, kind="swim", title="Upcoming"
+    )
     cycle = await publish(client, admin, start=4 * DAY, end=20 * DAY, kind="cycle", title="Ride")
     await act(client, user, swim, "join")
     await act(client, user, swim, "pause")
+    await act(client, user, upcoming, "join")
     await act(client, user, cycle, "join")
     await act(client, user, cycle, "leave")
     await sync(client, user, sample("a", 25_000))
@@ -295,8 +299,12 @@ async def test_the_list_shows_active_and_paused_with_progress_and_hides_left(
     assert response.status_code == 200, response.text
     body = response.json()
     assert set(body) == set(load_example("runs/my_challenge_page.json"))
-    assert [item["challenge"]["id"] for item in body["items"]] == [running["id"], swim["id"]]
-    first, second = body["items"]
+    assert [item["challenge"]["id"] for item in body["items"]] == [
+        running["id"],
+        swim["id"],
+        upcoming["id"],
+    ]
+    first, second, third = body["items"]
     assert first["challenge"]["enrollment"]["status"] == "active"
     assert first["progress"] == {
         "current_value": 25_000,
@@ -306,8 +314,10 @@ async def test_the_list_shows_active_and_paused_with_progress_and_hides_left(
         "started": True,
     }
     assert second["challenge"]["enrollment"]["status"] == "paused"
-    assert second["progress"]["started"] is False
+    assert second["progress"]["started"] is True
     assert second["progress"]["tracked"] is False
+    assert third["challenge"]["enrollment"]["status"] == "active"
+    assert third["progress"]["started"] is False
     assert body["next_cursor"] is None
 
 
@@ -323,7 +333,7 @@ async def test_the_list_pages_with_a_cursor(
     client: AsyncClient, admin: dict[str, str], user: dict[str, str]
 ) -> None:
     ids = []
-    for number, start in enumerate((2, 4, 6), 1):
+    for number, start in enumerate((-6, -4, -2), 1):
         challenge = await publish(
             client, admin, start=start * DAY, end=40 * DAY, kind="swim", title=f"Swim {number}"
         )
@@ -384,7 +394,7 @@ async def test_the_list_sends_a_fixed_number_of_queries(
 ) -> None:
     for number in range(4):
         challenge = await publish(
-            client, admin, start=(number + 1) * DAY, end=60 * DAY, kind="swim", title=f"S{number}"
+            client, admin, start=-(number + 1) * DAY, end=60 * DAY, kind="swim", title=f"S{number}"
         )
         await act(client, user, challenge, "join")
         await act(client, user, challenge, "pause")
