@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stridequest/features/challenges/presentation/pages/active_challenges_page.dart';
-import 'package:stridequest/features/challenges/presentation/pages/challenges_page.dart';
 import 'package:stridequest/features/medals/presentation/pages/medals_page.dart';
 import 'package:stridequest/shared/widgets/tab_placeholder.dart';
 
@@ -21,7 +20,6 @@ void main() {
 
   group('the placeholder tabs', () {
     final tabs = <String, (Widget, String)>{
-      'Challenges': (const ChallengesPage(), '/challenges'),
       'Active': (const ActiveChallengesPage(), '/active'),
       'Medals': (const MedalsPage(), '/medals'),
     };

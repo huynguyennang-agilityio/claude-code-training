@@ -31,6 +31,16 @@ import 'package:stridequest/features/auth/presentation/bloc/sign_in_bloc.dart'
     as _i696;
 import 'package:stridequest/features/auth/presentation/bloc/sign_up_bloc.dart'
     as _i43;
+import 'package:stridequest/features/challenges/data/datasources/challenge_remote_data_source.dart'
+    as _i216;
+import 'package:stridequest/features/challenges/data/repositories/challenge_repository_impl.dart'
+    as _i743;
+import 'package:stridequest/features/challenges/domain/repositories/challenge_repository.dart'
+    as _i756;
+import 'package:stridequest/features/challenges/presentation/bloc/challenge_detail_bloc.dart'
+    as _i530;
+import 'package:stridequest/features/challenges/presentation/bloc/challenges_bloc.dart'
+    as _i909;
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
@@ -81,6 +91,21 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i361.Dio>(
       () => networkModule.authenticatedDio(gh<_i713.AuthTokenHandler>()),
       instanceName: 'authenticatedDio',
+    );
+    gh.lazySingleton<_i216.ChallengeRemoteDataSource>(
+      () => _i216.DioChallengeRemoteDataSource(
+        gh<_i361.Dio>(instanceName: 'authenticatedDio'),
+      ),
+    );
+    gh.lazySingleton<_i756.ChallengeRepository>(
+      () =>
+          _i743.ChallengeRepositoryImpl(gh<_i216.ChallengeRemoteDataSource>()),
+    );
+    gh.factory<_i530.ChallengeDetailBloc>(
+      () => _i530.ChallengeDetailBloc(gh<_i756.ChallengeRepository>()),
+    );
+    gh.factory<_i909.ChallengesBloc>(
+      () => _i909.ChallengesBloc(gh<_i756.ChallengeRepository>()),
     );
     return this;
   }

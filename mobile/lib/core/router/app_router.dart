@@ -7,7 +7,10 @@ import '../../features/auth/presentation/bloc/sign_in_bloc.dart';
 import '../../features/auth/presentation/bloc/sign_up_bloc.dart';
 import '../../features/auth/presentation/pages/sign_in_page.dart';
 import '../../features/auth/presentation/pages/sign_up_page.dart';
+import '../../features/challenges/presentation/bloc/challenge_detail_bloc.dart';
+import '../../features/challenges/presentation/bloc/challenges_bloc.dart';
 import '../../features/challenges/presentation/pages/active_challenges_page.dart';
+import '../../features/challenges/presentation/pages/challenge_detail_page.dart';
 import '../../features/challenges/presentation/pages/challenges_page.dart';
 import '../../features/home/presentation/pages/home_shell.dart';
 import '../../features/medals/presentation/pages/medals_page.dart';
@@ -24,6 +27,7 @@ import '../di/injection.dart';
 const protectedPaths = <String>{
   HomeShell.path,
   ChallengesPage.path,
+  ChallengeDetailPage.path,
   ActiveChallengesPage.path,
   MedalsPage.path,
   ProfilePage.path,
@@ -43,7 +47,11 @@ final appRoutes = <RouteBase>[
         routes: [
           GoRoute(
             path: ChallengesPage.path,
-            builder: (context, state) => const ChallengesPage(),
+            builder: (context, state) => BlocProvider(
+              create: (_) =>
+                  getIt<ChallengesBloc>()..add(const ChallengesStarted()),
+              child: const ChallengesPage(),
+            ),
           ),
         ],
       ),
@@ -72,6 +80,21 @@ final appRoutes = <RouteBase>[
         ],
       ),
     ],
+  ),
+  // The detail has no tab bar, so it sits above the shell. The route carries the id only.
+  GoRoute(
+    path: ChallengeDetailPage.path,
+    builder: (context, state) {
+      final id = int.tryParse(state.pathParameters['id'] ?? '');
+      return BlocProvider(
+        create: (_) {
+          final bloc = getIt<ChallengeDetailBloc>();
+          if (id != null) bloc.add(ChallengeDetailStarted(id));
+          return bloc;
+        },
+        child: ChallengeDetailPage(challengeId: id ?? 0),
+      );
+    },
   ),
   GoRoute(
     path: SignInPage.path,
