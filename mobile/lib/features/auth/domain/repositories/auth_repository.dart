@@ -20,6 +20,11 @@ abstract interface class AuthRepository {
   /// Clears the local session and revokes the refresh token on the backend.
   Future<void> signOut();
 
+  /// Emits the user after a successful sign in or sign up, so whatever owns the
+  /// session state (the `AuthBloc`) learns of it without the sign-in and
+  /// sign-up forms having to tell it.
+  Stream<AuthUser> get sessionStarted;
+
   /// Emits when the session ends without the user signing out, for example
   /// when a token refresh fails.
   Stream<void> get sessionExpired;

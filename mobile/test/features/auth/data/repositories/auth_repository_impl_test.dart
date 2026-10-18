@@ -38,6 +38,53 @@ void main() {
     expect(await repository.accessToken(), 'access-1');
   });
 
+  test('signIn and signUp announce the new session', () async {
+    final started = <Object>[];
+    final subscription = repository.sessionStarted.listen(started.add);
+    addTearDown(subscription.cancel);
+    when(
+      () => remote.signIn(email: 'a@b.co', password: 'abc12345'),
+    ).thenAnswer((_) async => testSession());
+    when(
+      () => remote.signUp(
+        email: 'a@b.co',
+        password: 'abc12345',
+        displayName: 'A',
+      ),
+    ).thenAnswer((_) async => testSession());
+
+    final user = await repository.signIn(email: 'a@b.co', password: 'abc12345');
+    await repository.signUp(
+      email: 'a@b.co',
+      password: 'abc12345',
+      displayName: 'A',
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(started, hasLength(2));
+    expect(started.first, user);
+  });
+
+  test('a failed signIn announces nothing', () async {
+    final started = <Object>[];
+    final subscription = repository.sessionStarted.listen(started.add);
+    addTearDown(subscription.cancel);
+    when(
+      () => remote.signIn(
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    ).thenThrow(AuthFailure(AuthFailureCode.invalidCredentials));
+
+    await expectLater(
+      repository.signIn(email: 'a@b.co', password: 'wrong123'),
+      throwsA(isA<AuthFailure>()),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(started, isEmpty);
+  });
+
   test('signIn failure stores nothing and rethrows', () async {
     when(
       () => remote.signIn(

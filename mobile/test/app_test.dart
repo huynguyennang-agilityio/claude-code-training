@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stridequest/app.dart';
+import 'package:stridequest/core/di/injection.dart';
 import 'package:stridequest/features/auth/data/datasources/fake_auth_remote_data_source.dart';
 import 'package:stridequest/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 
+import 'helpers/auth_di.dart';
 import 'helpers/in_memory_auth_local_data_source.dart';
 
 void main() {
@@ -14,6 +16,8 @@ void main() {
       InMemoryAuthLocalDataSource(),
     );
     final authBloc = AuthBloc(repository)..add(const AuthStarted());
+    registerAuthFormBlocs(repository);
+    addTearDown(getIt.reset);
     addTearDown(authBloc.close);
     addTearDown(repository.dispose);
 

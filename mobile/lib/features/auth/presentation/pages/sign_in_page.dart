@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_tokens.dart';
 import '../../domain/failures/auth_failure.dart';
 import '../bloc/auth_bloc.dart';
+import '../bloc/sign_in_bloc.dart';
 import '../widgets/auth_banner.dart';
 import '../widgets/auth_form_layout.dart';
 import '../widgets/auth_switch_link.dart';
@@ -42,8 +43,8 @@ class _SignInPageState extends State<SignInPage> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    context.read<AuthBloc>().add(
-      AuthSignInRequested(email: _email.text.trim(), password: _password.text),
+    context.read<SignInBloc>().add(
+      SignInSubmitted(email: _email.text.trim(), password: _password.text),
     );
   }
 
@@ -62,11 +63,18 @@ class _SignInPageState extends State<SignInPage> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AuthBloc, AuthState>(
+    // The session notice comes from the session bloc, not from this form.
+    final sessionExpired = context.select<AuthBloc, bool>(
+      (bloc) => switch (bloc.state) {
+        AuthUnauthenticated(:final sessionExpired) => sessionExpired,
+        _ => false,
+      },
+    );
+    return BlocBuilder<SignInBloc, SignInState>(
       builder: (context, state) {
-        final busy = state is AuthInProgress;
-        final unauthenticated = state is AuthUnauthenticated ? state : null;
-        _adoptFailure(unauthenticated?.failure);
+        final busy = state is SignInInProgress;
+        final failure = state is SignInFailed ? state.failure : null;
+        _adoptFailure(failure);
 
         return Form(
           key: _formKey,
@@ -94,9 +102,9 @@ class _SignInPageState extends State<SignInPage> {
               ),
             ],
             children: [
-              if (unauthenticated?.failure case final failure?)
+              if (failure != null)
                 AuthBanner(message: _failureMessage(failure), isError: true)
-              else if (unauthenticated?.sessionExpired ?? false)
+              else if (sessionExpired)
                 const AuthBanner(
                   message: 'Your session has expired. Sign in again.',
                   isError: false,
