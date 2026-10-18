@@ -2,7 +2,7 @@
 
 Status: approved
 Approved: <the user fills in the date>
-Issues: <filled in after approval>
+Issues: #59, #60, #61, #62, #63, #64, #65, #66, #67, #68 (plan issues 1 to 10, in order)
 
 ## Context
 
