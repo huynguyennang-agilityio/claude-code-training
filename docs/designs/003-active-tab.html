@@ -23,15 +23,14 @@
   figcaption { font-size: 13px; color: var(--secondary); margin-top: 12px; line-height: 1.5; }
   figcaption b { color: var(--white); }
 
-  .phone { width: 375px; height: 760px; background: var(--darkest); border-radius: 28px; border: 1px solid var(--default);
+  .phone { width: 375px; height: 812px; background: var(--darkest); border-radius: 28px; border: 1px solid var(--default);
            display: flex; flex-direction: column; overflow: hidden; position: relative; }
   .status { height: 44px; padding: 14px var(--lg) 0; font-size: 13px; font-weight: 600; flex: none; }
   .appbar { text-align: center; font-size: 18px; font-weight: 600; padding: var(--xs) var(--md) var(--sm); flex: none; }
   .body { flex: 1; overflow: hidden; padding: 0 var(--md); display: flex; flex-direction: column; }
-  .tabbar { height: 56px; background: var(--dark); display: flex; flex: none; }
-  .tabbar div { flex: 1; text-align: center; font-size: 11px; color: var(--secondary); padding-top: 8px; }
+  .tabbar { height: 83px; padding: 8px 8px 34px; background: var(--dark); display: flex; flex: none; }
+  .tabbar div { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--secondary); }
   .tabbar div.on { color: var(--lime); }
-  .tabbar i { display: block; font-style: normal; font-size: 20px; line-height: 24px; }
 
   .seg { display: flex; border-bottom: 1px solid var(--default); margin: 0 calc(var(--md) * -1) var(--md); flex: none; }
   .seg div { flex: 1; text-align: center; padding: var(--sm) 0; font-size: 14px; font-weight: 600; color: var(--secondary); }
@@ -110,7 +109,7 @@
       <div class="btn fill">Allow access</div>
       <p class="note" style="margin-top:16px">Your steps, calories, distance and sleep time are sent to StrideQuest to track your challenges. You can change this in Settings at any time.</p>
     </div>
-    <div class="tabbar"><div><i>◎</i>Challenges</div><div class="on"><i>⚡</i>Active</div><div><i>✪</i>Medals</div><div><i>☺</i>Profile</div></div>
+    <div class="tabbar"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z"/></svg>Challenges</div><div class="on"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14.5" cy="4.5" r="1.7"/><path d="M5 12l3-3 4 1 2 3 3 1M9 21l2.5-5L9 13M12.5 16l2 5"/></svg>Active</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v5M16 3v5M12 3v3"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.9-1.6.9.3-1.7-1.2-1.2 1.7-.2z"/></svg>Medals</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>Profile</div></div>
   </div>
   <figcaption><b>Gate, access not given.</b> Shown every time the tab opens until steps are allowed. The user can still use the other tabs. When refused for good, the button reads <b>Open settings</b>; when Health Connect is missing, the title is "Health Connect needed" and the button is <b>Install Health Connect</b>.</figcaption>
 </figure>
@@ -132,7 +131,7 @@
       <div class="spacer"></div>
       <div class="bottom"><div class="btn fill">⟳ Refresh data</div></div>
     </div>
-    <div class="tabbar"><div><i>◎</i>Challenges</div><div class="on"><i>⚡</i>Active</div><div><i>✪</i>Medals</div><div><i>☺</i>Profile</div></div>
+    <div class="tabbar"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z"/></svg>Challenges</div><div class="on"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14.5" cy="4.5" r="1.7"/><path d="M5 12l3-3 4 1 2 3 3 1M9 21l2.5-5L9 13M12.5 16l2 5"/></svg>Active</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v5M16 3v5M12 3v3"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.9-1.6.9.3-1.7-1.2-1.2 1.7-.2z"/></svg>Medals</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>Profile</div></div>
   </div>
   <figcaption><b>Active tab, success.</b> Four tiles with icon, value, unit and the time of the last read. <b>Refresh data</b> is fixed at the bottom; while it works the label becomes "Syncing…" and the button takes the grey disabled style.</figcaption>
 </figure>
@@ -155,7 +154,7 @@
       <div class="spacer"></div>
       <div class="bottom"><div class="btn fill">⟳ Refresh data</div></div>
     </div>
-    <div class="tabbar"><div><i>◎</i>Challenges</div><div class="on"><i>⚡</i>Active</div><div><i>✪</i>Medals</div><div><i>☺</i>Profile</div></div>
+    <div class="tabbar"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z"/></svg>Challenges</div><div class="on"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14.5" cy="4.5" r="1.7"/><path d="M5 12l3-3 4 1 2 3 3 1M9 21l2.5-5L9 13M12.5 16l2 5"/></svg>Active</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v5M16 3v5M12 3v3"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.9-1.6.9.3-1.7-1.2-1.2 1.7-.2z"/></svg>Medals</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>Profile</div></div>
   </div>
   <figcaption><b>Active tab, optional metrics refused, sync failed.</b> A refused metric shows "Not allowed" and is not sent. A failed sync keeps the old values and shows the banner above the tiles.</figcaption>
 </figure>
@@ -185,7 +184,7 @@
         </div>
       </div>
     </div>
-    <div class="tabbar"><div><i>◎</i>Challenges</div><div class="on"><i>⚡</i>Active</div><div><i>✪</i>Medals</div><div><i>☺</i>Profile</div></div>
+    <div class="tabbar"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z"/></svg>Challenges</div><div class="on"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14.5" cy="4.5" r="1.7"/><path d="M5 12l3-3 4 1 2 3 3 1M9 21l2.5-5L9 13M12.5 16l2 5"/></svg>Active</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v5M16 3v5M12 3v3"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.9-1.6.9.3-1.7-1.2-1.2 1.7-.2z"/></svg>Medals</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>Profile</div></div>
   </div>
   <figcaption><b>My Challenges.</b> The challenges the user joined, in progress. Run challenges show a bar, "Goal n%" and the amount. A challenge that has not started shows "Starts &lt;date&gt;" and no progress. A swim or cycle challenge shows the note instead of a percentage. A paused one shows a <b>Paused</b> pill. Tapping a card opens the challenge detail.</figcaption>
 </figure>
@@ -204,7 +203,7 @@
         <div class="btn fill">Browse challenges</div>
       </div>
     </div>
-    <div class="tabbar"><div><i>◎</i>Challenges</div><div class="on"><i>⚡</i>Active</div><div><i>✪</i>Medals</div><div><i>☺</i>Profile</div></div>
+    <div class="tabbar"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z"/></svg>Challenges</div><div class="on"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14.5" cy="4.5" r="1.7"/><path d="M5 12l3-3 4 1 2 3 3 1M9 21l2.5-5L9 13M12.5 16l2 5"/></svg>Active</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v5M16 3v5M12 3v3"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.9-1.6.9.3-1.7-1.2-1.2 1.7-.2z"/></svg>Medals</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>Profile</div></div>
   </div>
   <figcaption><b>My Challenges, empty.</b> The button goes to the Challenges tab. Loading shows a spinner; an error shows the message with <b>Try again</b>, as on the Challenges tab.</figcaption>
 </figure>
