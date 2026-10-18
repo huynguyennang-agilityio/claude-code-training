@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stridequest/app.dart';
 import 'package:stridequest/features/auth/data/datasources/fake_auth_remote_data_source.dart';
@@ -20,6 +21,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Welcome back'), findsOneWidget);
-    expect(find.text('Every run is a quest.'), findsNothing);
+    expect(find.byType(NavigationBar), findsNothing);
   });
 }

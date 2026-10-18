@@ -9,6 +9,7 @@ import 'package:stridequest/core/router/app_router.dart';
 import 'package:stridequest/core/router/go_router_refresh_stream.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:stridequest/features/challenges/presentation/pages/challenges_page.dart';
 
 import '../../helpers/auth_fixtures.dart';
 
@@ -197,10 +198,12 @@ void main() {
       );
 
       expect(find.text('Welcome back'), findsOneWidget);
-      expect(find.text('Every run is a quest.'), findsNothing);
+      expect(find.byType(ChallengesPage), findsNothing);
     });
 
-    testWidgets('a signed-in user opens Home', (tester) async {
+    testWidgets('a signed-in user on / lands on the Challenges tab', (
+      tester,
+    ) async {
       await pumpRouter(
         tester,
         signedIn: true,
@@ -208,8 +211,64 @@ void main() {
         protected: protectedPaths,
       );
 
-      expect(find.textContaining('Welcome back, '), findsOneWidget);
-      expect(find.text('Every run is a quest.'), findsOneWidget);
+      expect(find.byType(ChallengesPage), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
+
+    testWidgets('the tabs switch pages and keep the bar', (tester) async {
+      await pumpRouter(
+        tester,
+        signedIn: true,
+        at: '/',
+        protected: protectedPaths,
+      );
+
+      for (final (label, title) in [
+        ('Active', 'Active'),
+        ('Medals', 'Medals'),
+        ('Profile', 'Profile'),
+        ('Challenges', 'Challenges'),
+      ]) {
+        await tester.tap(
+          find.descendant(
+            of: find.byType(NavigationBar),
+            matching: find.text(label),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.descendant(of: find.byType(AppBar), matching: find.text(title)),
+          findsOneWidget,
+        );
+        expect(find.byType(NavigationBar), findsOneWidget);
+      }
+    });
+
+    testWidgets('Sign in and Sign up have no tab bar', (tester) async {
+      await pumpRouter(
+        tester,
+        signedIn: false,
+        at: '/sign-up',
+        protected: protectedPaths,
+      );
+
+      expect(find.text('Create your account'), findsOneWidget);
+      expect(find.byType(NavigationBar), findsNothing);
+    });
+
+    testWidgets('every tab route is protected', (tester) async {
+      for (final path in ['/challenges', '/active', '/medals', '/profile']) {
+        await pumpRouter(
+          tester,
+          signedIn: false,
+          at: path,
+          protected: protectedPaths,
+        );
+
+        expect(find.text('Welcome back'), findsOneWidget, reason: path);
+        expect(find.byType(NavigationBar), findsNothing, reason: path);
+      }
     });
 
     testWidgets('Home never shows its content while the session is read', (
@@ -238,7 +297,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.text('Every run is a quest.'), findsNothing);
+      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.byType(ChallengesPage), findsNothing);
 
       await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
@@ -246,16 +306,20 @@ void main() {
     });
   });
 
-  testWidgets('a signed-in user on sign in goes home', (tester) async {
+  testWidgets('a signed-in user on sign in goes to the first tab', (
+    tester,
+  ) async {
     await pumpRouter(tester, signedIn: true, at: '/sign-in');
 
-    expect(find.text('Every run is a quest.'), findsOneWidget);
+    expect(find.byType(ChallengesPage), findsOneWidget);
   });
 
-  testWidgets('a signed-in user on sign up goes home', (tester) async {
+  testWidgets('a signed-in user on sign up goes to the first tab', (
+    tester,
+  ) async {
     await pumpRouter(tester, signedIn: true, at: '/sign-up');
 
-    expect(find.text('Every run is a quest.'), findsOneWidget);
+    expect(find.byType(ChallengesPage), findsOneWidget);
   });
 
   testWidgets('a signed-out user can open sign up', (tester) async {

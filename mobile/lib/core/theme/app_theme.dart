@@ -104,6 +104,37 @@ abstract final class AppTheme {
           textStyle: _textTheme.labelLarge,
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _lime,
+          side: const BorderSide(color: _lime),
+          minimumSize: const Size.fromHeight(AppSizes.buttonHeight),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.button),
+          ),
+          textStyle: _textTheme.labelLarge,
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        height: AppSizes.tabBarHeight,
+        backgroundColor: _dark,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        indicatorColor: Colors.transparent,
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? _inter(11, FontWeight.w500).copyWith(color: _lime)
+              : _inter(11, FontWeight.w400).copyWith(color: _textSecondary),
+        ),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            size: 24,
+            color: states.contains(WidgetState.selected)
+                ? _lime
+                : _textSecondary,
+          ),
+        ),
+      ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: _lime,
