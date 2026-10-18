@@ -21,8 +21,8 @@ from app.modules.auth.models import UserRole
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.service import AuthService
 from app.modules.challenges.deps import get_storage
-from app.modules.runs.models import Run
 from tests.api_docs import load_example
+from tests.integration.enrollment_helpers import add_user, join_directly
 from tests.integration.query_counter import QueryCounter
 from tests.integration.test_auth_api import (  # noqa: F401  (autouse fixture)
     PREFIX,
@@ -256,11 +256,8 @@ async def test_edit_of_an_unknown_challenge_is_not_found(
 async def test_counted_fields_are_frozen_once_someone_joined(
     client: AsyncClient, admin: dict[str, str], session: AsyncSession
 ) -> None:
-    from datetime import UTC, datetime
-
     challenge = await create(client, admin)
-    session.add(Run(user_id="u1", challenge_id=challenge["id"], started_at=datetime.now(UTC)))
-    await session.flush()
+    await join_directly(session, challenge["id"], await add_user(session))
 
     frozen = await client.patch(
         f"{PREFIX}/challenges/{challenge['id']}", json={"type": "swim"}, headers=admin

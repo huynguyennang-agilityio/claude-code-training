@@ -280,3 +280,167 @@ Authorization: Bearer {{user_token}}
 kind: covers
 file: file,not_an_image.txt; text/plain
 HTTP 403
+
+# Join, pause, resume and leave (as the normal user), then the overlap rule
+POST {{base}}/challenges
+Authorization: Bearer {{admin_token}}
+{
+  "title": "{{title}} first",
+  "type": "run",
+  "target_value": 1000,
+  "starts_at": "2098-01-01T00:00:00Z",
+  "ends_at": "2098-02-01T00:00:00Z",
+  "description_md": "First.",
+  "cover_image_url": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+  "medals": [
+    {
+      "tier": "gold",
+      "name": "Gold",
+      "threshold_value": 1000,
+      "image_url": "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+    }
+  ]
+}
+HTTP 201
+[Captures]
+first_id: jsonpath "$.id"
+
+POST {{base}}/challenges
+Authorization: Bearer {{admin_token}}
+{
+  "title": "{{title}} second",
+  "type": "run",
+  "target_value": 1000,
+  "starts_at": "2098-01-15T00:00:00Z",
+  "ends_at": "2098-03-01T00:00:00Z",
+  "description_md": "Overlaps the first.",
+  "cover_image_url": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+  "medals": [
+    {
+      "tier": "gold",
+      "name": "Gold",
+      "threshold_value": 1000,
+      "image_url": "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+    }
+  ]
+}
+HTTP 201
+[Captures]
+second_id: jsonpath "$.id"
+
+POST {{base}}/challenges/{{first_id}}/publish
+Authorization: Bearer {{admin_token}}
+HTTP 200
+
+POST {{base}}/challenges/{{second_id}}/publish
+Authorization: Bearer {{admin_token}}
+HTTP 200
+
+# Not in the challenge yet
+POST {{base}}/challenges/{{first_id}}/pause
+Authorization: Bearer {{user_token}}
+HTTP 404
+[Asserts]
+jsonpath "$.error.code" == "enrollment_not_found"
+
+POST {{base}}/challenges/{{first_id}}/join
+Authorization: Bearer {{user_token}}
+HTTP 200
+[Asserts]
+jsonpath "$.enrollment.status" == "active"
+jsonpath "$.participant_count" == 1
+jsonpath "$.blocked_by" == null
+
+POST {{base}}/challenges/{{first_id}}/join
+Authorization: Bearer {{user_token}}
+HTTP 409
+[Asserts]
+jsonpath "$.error.code" == "already_joined"
+
+# The overlapping challenge is blocked, and the detail says by which
+GET {{base}}/challenges/{{second_id}}
+Authorization: Bearer {{user_token}}
+HTTP 200
+[Asserts]
+jsonpath "$.blocked_by.id" == {{first_id}}
+jsonpath "$.blocked_by.title" == "{{title}} first"
+
+POST {{base}}/challenges/{{second_id}}/join
+Authorization: Bearer {{user_token}}
+HTTP 409
+[Asserts]
+jsonpath "$.error.code" == "overlapping_challenge"
+jsonpath "$.error.message" contains "{{title}} first"
+
+POST {{base}}/challenges/{{first_id}}/resume
+Authorization: Bearer {{user_token}}
+HTTP 409
+[Asserts]
+jsonpath "$.error.code" == "not_paused"
+
+# Pausing frees the slot
+POST {{base}}/challenges/{{first_id}}/pause
+Authorization: Bearer {{user_token}}
+HTTP 200
+[Asserts]
+jsonpath "$.enrollment.status" == "paused"
+
+POST {{base}}/challenges/{{first_id}}/pause
+Authorization: Bearer {{user_token}}
+HTTP 409
+[Asserts]
+jsonpath "$.error.code" == "not_active"
+
+POST {{base}}/challenges/{{second_id}}/join
+Authorization: Bearer {{user_token}}
+HTTP 200
+[Asserts]
+jsonpath "$.enrollment.status" == "active"
+
+# Resuming is refused while the second is active
+POST {{base}}/challenges/{{first_id}}/resume
+Authorization: Bearer {{user_token}}
+HTTP 409
+[Asserts]
+jsonpath "$.error.code" == "overlapping_challenge"
+
+GET {{base}}/challenges
+Authorization: Bearer {{user_token}}
+[QueryStringParams]
+q: {{title}}
+HTTP 200
+[Asserts]
+jsonpath "$.items" count == 2
+jsonpath "$.items[?(@.id == {{first_id}})].enrollment.status" == "paused"
+jsonpath "$.items[?(@.id == {{second_id}})].enrollment.status" == "active"
+
+# Leaving frees it again; the admin's own enrollment is separate
+POST {{base}}/challenges/{{second_id}}/leave
+Authorization: Bearer {{user_token}}
+HTTP 200
+[Asserts]
+jsonpath "$.enrollment" == null
+jsonpath "$.participant_count" == 0
+
+POST {{base}}/challenges/{{first_id}}/resume
+Authorization: Bearer {{user_token}}
+HTTP 200
+[Asserts]
+jsonpath "$.enrollment.status" == "active"
+
+# Someone else cannot touch it
+POST {{base}}/challenges/{{first_id}}/leave
+Authorization: Bearer {{admin_token}}
+HTTP 404
+[Asserts]
+jsonpath "$.error.code" == "enrollment_not_found"
+
+# A challenge with participants is frozen
+PATCH {{base}}/challenges/{{first_id}}
+Authorization: Bearer {{admin_token}}
+{
+  "ends_at": "2098-04-01T00:00:00Z"
+}
+HTTP 409
+[Asserts]
+jsonpath "$.error.code" == "challenge_in_use"

@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -6,7 +7,13 @@ import pytest
 
 from app.modules.challenges.models import Challenge, ChallengeStatus, ChallengeType, Quest
 from app.modules.challenges.repository import ChallengeRepository
-from app.modules.challenges.schemas import ChallengeCreate, ChallengeUpdate, QuestCreate
+from app.modules.challenges.schemas import (
+    BlockedByRead,
+    ChallengeCreate,
+    ChallengeUpdate,
+    EnrollmentRead,
+    QuestCreate,
+)
 from app.modules.challenges.service import (
     DEFAULT_QUEST_TITLE,
     MAX_PAGE_SIZE,
@@ -25,6 +32,7 @@ from app.modules.medals.models import Medal
 from app.modules.medals.service import MedalService
 
 NOW = datetime(2026, 10, 18, tzinfo=UTC)
+USER = uuid.UUID("00000000-0000-0000-0000-000000000001")
 IMAGE = "https://res.cloudinary.com/demo/image/upload/a.png"
 
 
@@ -75,34 +83,35 @@ def medals() -> AsyncMock:
 
 
 @pytest.fixture
-def participants() -> AsyncMock:
-    return AsyncMock(return_value=0)
+def runs() -> MagicMock:
+    """What the runs module answers: nobody joined, and the caller is not enrolled."""
+    mock = MagicMock()
+    mock.count_participants = AsyncMock(return_value=0)
 
-
-@pytest.fixture
-def participant_counts() -> AsyncMock:
     async def counts(ids: Any) -> dict[int, int]:
         return {challenge_id: challenge_id * 10 for challenge_id in ids}
 
-    return AsyncMock(side_effect=counts)
+    mock.count_participants_for = AsyncMock(side_effect=counts)
+    mock.enrollments_for = AsyncMock(return_value={})
+    mock.blocked_by = AsyncMock(return_value=None)
+    return mock
+
+
+@pytest.fixture
+def participants(runs: MagicMock) -> AsyncMock:
+    return runs.count_participants  # type: ignore[no-any-return]
+
+
+@pytest.fixture
+def participant_counts(runs: MagicMock) -> AsyncMock:
+    return runs.count_participants_for  # type: ignore[no-any-return]
 
 
 @pytest.fixture
 def service(
-    session: AsyncMock,
-    repository: AsyncMock,
-    medals: AsyncMock,
-    participants: AsyncMock,
-    participant_counts: AsyncMock,
+    session: AsyncMock, repository: AsyncMock, medals: AsyncMock, runs: MagicMock
 ) -> ChallengeService:
-    return ChallengeService(
-        session,
-        repository,
-        medals,
-        participants=participants,
-        participant_counts=participant_counts,
-        now=lambda: NOW,
-    )
+    return ChallengeService(session, repository, medals, runs=runs, now=lambda: NOW)
 
 
 def create_request(**changes: Any) -> ChallengeCreate:
@@ -264,7 +273,7 @@ class TestPage:
     ) -> None:
         repository.list_challenges.return_value = []
 
-        await service.page(limit=20, search="  Hồ ")
+        await service.page(USER, limit=20, search="  Hồ ")
 
         kwargs = repository.list_challenges.await_args.kwargs
         assert (kwargs["limit"], kwargs["search"], kwargs["status"]) == (21, "Hồ", "published")
@@ -276,7 +285,7 @@ class TestPage:
     ) -> None:
         repository.list_challenges.return_value = [make_challenge(id=i) for i in (1, 2, 3)]
 
-        listing = await service.page(limit=2)
+        listing = await service.page(USER, limit=2)
 
         assert [view.challenge.id for view in listing.items] == [1, 2]
         assert listing.next_cursor is not None
@@ -288,7 +297,7 @@ class TestPage:
     ) -> None:
         repository.list_challenges.return_value = [make_challenge(id=i) for i in (1, 2)]
 
-        listing = await service.page(limit=2)
+        listing = await service.page(USER, limit=2)
 
         assert len(listing.items) == 2
         assert listing.next_cursor is None
@@ -299,7 +308,7 @@ class TestPage:
     ) -> None:
         repository.list_challenges.return_value = [make_challenge(id=i) for i in (1, 2)]
 
-        listing = await service.page()
+        listing = await service.page(USER)
 
         assert [view.participant_count for view in listing.items] == [10, 20]
         participant_counts.assert_awaited_once_with([1, 2])
@@ -310,7 +319,7 @@ class TestPage:
     ) -> None:
         repository.list_challenges.return_value = []
 
-        await service.page(cursor=encode_cursor(7))
+        await service.page(USER, cursor=encode_cursor(7))
 
         assert repository.list_challenges.await_args.kwargs["after_id"] == 7
 
@@ -320,7 +329,7 @@ class TestPage:
     ) -> None:
         repository.list_challenges.return_value = []
 
-        await service.page(status=ChallengeStatus.DRAFT)
+        await service.page(USER, status=ChallengeStatus.DRAFT)
 
         kwargs = repository.list_challenges.await_args.kwargs
         assert (kwargs["status"], kwargs["include_drafts"]) == ("draft", True)
@@ -331,7 +340,7 @@ class TestPage:
         self, service: ChallengeService, cursor: str
     ) -> None:
         with pytest.raises(InvalidCursorError):
-            await service.page(cursor=cursor)
+            await service.page(USER, cursor=cursor)
 
 
 class TestView:
@@ -342,7 +351,7 @@ class TestView:
         repository.get.return_value = make_challenge(status="published")
         participants.return_value = 813
 
-        view = await service.view(1)
+        view = await service.view(1, USER)
 
         assert (view.challenge.id, view.participant_count) == (1, 813)
 
@@ -351,9 +360,41 @@ class TestView:
         self, service: ChallengeService
     ) -> None:
         with pytest.raises(ChallengeNotFoundError):
-            await service.view(1)
+            await service.view(1, USER)
 
-        assert (await service.view(1, include_drafts=True)).challenge.status == "draft"
+        assert (await service.view(1, USER, include_drafts=True)).challenge.status == "draft"
+
+
+class TestEnrollmentInTheViews:
+    @pytest.mark.anyio
+    async def test_the_view_has_the_callers_enrollment_and_what_blocks_them(
+        self, service: ChallengeService, repository: AsyncMock, runs: MagicMock
+    ) -> None:
+        repository.get.return_value = make_challenge(status="published")
+        enrollment = EnrollmentRead(status="paused", joined_at=NOW)
+        blocker = BlockedByRead(id=5, title="Other")
+        runs.enrollments_for.return_value = {1: enrollment}
+        runs.blocked_by.return_value = blocker
+
+        view = await service.view(1, USER)
+
+        assert (view.enrollment, view.blocked_by) == (enrollment, blocker)
+        runs.enrollments_for.assert_awaited_once_with(USER, [1])
+        kwargs = runs.blocked_by.await_args.kwargs
+        assert (kwargs["challenge_type"], kwargs["enrollment"]) == ("run", enrollment)
+
+    @pytest.mark.anyio
+    async def test_a_page_has_the_enrollment_of_each_card(
+        self, service: ChallengeService, repository: AsyncMock, runs: MagicMock
+    ) -> None:
+        repository.list_challenges.return_value = [make_challenge(id=i) for i in (1, 2)]
+        enrollment = EnrollmentRead(status="active", joined_at=NOW)
+        runs.enrollments_for.return_value = {2: enrollment}
+
+        listing = await service.page(USER)
+
+        assert [view.enrollment for view in listing.items] == [None, enrollment]
+        runs.enrollments_for.assert_awaited_once_with(USER, [1, 2])
 
 
 class TestPublish:
@@ -444,6 +485,17 @@ class TestUnpublishAndDelete:
 
         repository.delete.assert_awaited_once()
         session.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_draft_with_participants_cannot_be_deleted(
+        self, service: ChallengeService, repository: AsyncMock, participants: AsyncMock
+    ) -> None:
+        participants.return_value = 2
+
+        with pytest.raises(ChallengeInUseError):
+            await service.delete(1)
+
+        repository.delete.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_a_published_challenge_cannot_be_deleted(

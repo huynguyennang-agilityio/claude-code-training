@@ -1,9 +1,10 @@
 import base64
 import binascii
-from collections.abc import Awaitable, Callable, Sequence
+import uuid
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol
 
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +19,13 @@ from app.modules.challenges.models import (
 )
 from app.modules.challenges.paging import MAX_PAGE_SIZE
 from app.modules.challenges.repository import ChallengeRepository
-from app.modules.challenges.schemas import ChallengeCreate, ChallengeUpdate, QuestCreate
+from app.modules.challenges.schemas import (
+    BlockedByRead,
+    ChallengeCreate,
+    ChallengeUpdate,
+    EnrollmentRead,
+    QuestCreate,
+)
 from app.modules.medals.service import MedalService
 
 DEFAULT_QUEST_TITLE = "General"
@@ -62,12 +69,37 @@ class InvalidCursorError(DomainError):
     code = "invalid_cursor"
 
 
+class RunReads(Protocol):
+    """What this module asks the runs module: `RunService` is the one implementation."""
+
+    async def count_participants(self, challenge_id: int) -> int: ...
+
+    async def count_participants_for(self, challenge_ids: Sequence[int]) -> dict[int, int]: ...
+
+    async def enrollments_for(
+        self, user_id: uuid.UUID, challenge_ids: Sequence[int]
+    ) -> dict[int, EnrollmentRead]: ...
+
+    async def blocked_by(
+        self,
+        user_id: uuid.UUID,
+        *,
+        challenge_id: int,
+        challenge_type: str,
+        starts_at: datetime,
+        ends_at: datetime,
+        enrollment: EnrollmentRead | None,
+    ) -> BlockedByRead | None: ...
+
+
 @dataclass(frozen=True)
 class ChallengeView:
     """A challenge with what the response adds to it for this caller."""
 
     challenge: Challenge
     participant_count: int
+    enrollment: EnrollmentRead | None = None
+    blocked_by: BlockedByRead | None = None
 
 
 @dataclass(frozen=True)
@@ -105,17 +137,15 @@ class ChallengeService:
         session: AsyncSession,
         repository: ChallengeRepository,
         medals: MedalService,
-        participants: Callable[[int], Awaitable[int]],
-        participant_counts: Callable[[Sequence[int]], Awaitable[dict[int, int]]],
+        runs: RunReads,
         now: Callable[[], datetime] = _utcnow,
     ) -> None:
         self._session = session
         self._repository = repository
         self._medals = medals
-        # How many users joined a challenge. The runs module owns it; the caller passes
-        # `RunService.count_participants`, so this module never imports the runs one.
-        self._participants = participants
-        self._participant_counts = participant_counts
+        # What the runs module knows about a challenge: who joined it, and where the caller
+        # stands. The caller passes `RunService`, so this module never imports the runs one.
+        self._runs = runs
         self._now = now
 
     async def create(self, data: ChallengeCreate) -> Challenge:
@@ -154,7 +184,7 @@ class ChallengeService:
         if not changes:
             return challenge
         merged = self._merge(challenge, changes)
-        if await self._participants(challenge.id):
+        if await self._runs.count_participants(challenge.id):
             frozen = [
                 name
                 for name in FROZEN_WITH_PARTICIPANTS
@@ -274,12 +304,30 @@ class ChallengeService:
             after_id=after_id,
         )
 
-    async def view(self, challenge_id: int, *, include_drafts: bool = False) -> ChallengeView:
+    async def view(
+        self, challenge_id: int, user_id: uuid.UUID, *, include_drafts: bool = False
+    ) -> ChallengeView:
+        """The challenge as `user_id` sees it: with how many joined, the user's own
+        enrollment, and the challenge that stops them joining it."""
         challenge = await self.get(challenge_id, include_drafts=include_drafts)
-        return ChallengeView(challenge, await self._participants(challenge.id))
+        enrollment = (await self._runs.enrollments_for(user_id, [challenge.id])).get(challenge.id)
+        return ChallengeView(
+            challenge,
+            await self._runs.count_participants(challenge.id),
+            enrollment,
+            await self._runs.blocked_by(
+                user_id,
+                challenge_id=challenge.id,
+                challenge_type=challenge.type,
+                starts_at=challenge.starts_at,
+                ends_at=challenge.ends_at,
+                enrollment=enrollment,
+            ),
+        )
 
     async def page(
         self,
+        user_id: uuid.UUID,
         *,
         status: ChallengeStatus = ChallengeStatus.PUBLISHED,
         challenge_type: ChallengeType | None = None,
@@ -298,9 +346,14 @@ class ChallengeService:
             after_id=decode_cursor(cursor) if cursor else None,
         )
         shown = rows[:size]
-        counts = await self._participant_counts([challenge.id for challenge in shown])
+        ids = [challenge.id for challenge in shown]
+        counts = await self._runs.count_participants_for(ids)
+        enrollments = await self._runs.enrollments_for(user_id, ids)
         return ChallengeListing(
-            items=[ChallengeView(challenge, counts.get(challenge.id, 0)) for challenge in shown],
+            items=[
+                ChallengeView(challenge, counts.get(challenge.id, 0), enrollments.get(challenge.id))
+                for challenge in shown
+            ],
             next_cursor=encode_cursor(shown[-1].id) if len(rows) > size else None,
         )
 
@@ -331,6 +384,8 @@ class ChallengeService:
         challenge = await self._get_or_raise(challenge_id)
         if challenge.status != ChallengeStatus.DRAFT.value:
             raise ChallengeNotDraftError("Only a draft can be deleted.")
+        if await self._runs.count_participants(challenge.id):
+            raise ChallengeInUseError("People have joined this challenge, so it cannot be deleted.")
         await self._repository.delete(challenge)
         await self._session.commit()
 

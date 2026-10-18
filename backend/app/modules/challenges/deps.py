@@ -18,13 +18,11 @@ from app.modules.runs.service import RunService
 def get_challenge_service(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ChallengeService:
-    runs = RunService(RunRepository(session))
     return ChallengeService(
         session,
         ChallengeRepository(session),
         MedalService(MedalRepository(session)),
-        participants=runs.count_participants,
-        participant_counts=runs.count_participants_for,
+        runs=RunService(RunRepository(session)),
     )
 
 
