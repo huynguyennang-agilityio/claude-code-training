@@ -114,4 +114,6 @@ class Challenge(Base):
         cascade="all, delete-orphan",
         order_by="Medal.threshold_value",
     )
-    runs: Mapped[list["Run"]] = relationship(back_populates="challenge")
+    # The database removes the rows of people who left (`ON DELETE CASCADE`); without
+    # `passive_deletes` the ORM would try to null `challenge_id` on them first.
+    runs: Mapped[list["Run"]] = relationship(back_populates="challenge", passive_deletes=True)

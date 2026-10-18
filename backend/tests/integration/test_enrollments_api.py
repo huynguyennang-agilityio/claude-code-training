@@ -359,6 +359,24 @@ async def test_a_draft_with_participants_cannot_be_deleted_and_the_counted_field
     assert (changed.status_code, changed.json()["error"]["code"]) == (409, "challenge_in_use")
 
 
+@pytest.mark.anyio
+async def test_a_draft_that_only_people_who_left_had_joined_can_be_deleted(
+    client: AsyncClient, admin: dict[str, str], user: dict[str, str], session: AsyncSession
+) -> None:
+    challenge = await publish(client, admin, start=DAY, end=30 * DAY)
+    await act(client, user, challenge, "join")
+    await act(client, user, challenge, "leave")
+    await client.post(f"{PREFIX}/challenges/{challenge['id']}/unpublish", headers=admin)
+
+    deleted = await client.delete(f"{PREFIX}/challenges/{challenge['id']}", headers=admin)
+
+    assert deleted.status_code == 204
+    session.expunge_all()
+    assert (
+        await session.scalars(select(Run).where(Run.challenge_id == challenge["id"]))
+    ).all() == []
+
+
 # the database refuses what the service would
 
 
