@@ -16,7 +16,7 @@ Presentation copies of the key diagrams in [`architecture.md`](../architecture.m
 - **The Mermaid blocks in the Markdown files are the source of truth for content.** Change those first.
 - **Each `<name>.html` is the editorial redraw** of one Mermaid block, and the source of the matching `.svg`. It is a simplified view, not a copy:
   - the sequence diagrams merge a few participants to stay within five lifelines;
-  - `phase-flow` folds the issue confirmation into the "Ready?" gate.
+  - `phase-flow` folds the evidence check into the plan step, and leaves out the trivial-change shortcut and the rule that a merge needs its own authorization.
 - **Each `<name>.svg`** is exported from its HTML with the skill's `scripts/export_svg.py`. Don't edit the SVG by hand.
 
 When a Mermaid block changes in a way that affects one of these diagrams:
