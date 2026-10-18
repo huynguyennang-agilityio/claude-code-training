@@ -19,7 +19,7 @@ import '../../helpers/auth_fixtures.dart';
 class _MockRepository extends Mock implements AuthRepository {}
 
 const _runsPath = '/runs';
-const _challengePath = '/challenges/:id';
+const _challengePath = '/quests/:id';
 
 /// The app routes plus protected routes, since the app has none yet: a static
 /// one, and one with a path parameter and a nested child.
@@ -161,7 +161,7 @@ void main() {
 
   testWidgets('a signed-out user cannot open a protected page with a path '
       'parameter', (tester) async {
-    await pumpRouter(tester, signedIn: false, at: '/challenges/abc');
+    await pumpRouter(tester, signedIn: false, at: '/quests/abc');
 
     expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('Challenge abc'), findsNothing);
@@ -170,7 +170,7 @@ void main() {
   testWidgets('a signed-in user sees a protected page with a path parameter', (
     tester,
   ) async {
-    await pumpRouter(tester, signedIn: true, at: '/challenges/abc');
+    await pumpRouter(tester, signedIn: true, at: '/quests/abc');
 
     expect(find.text('Challenge abc'), findsOneWidget);
   });
@@ -180,7 +180,7 @@ void main() {
     await pumpRouter(
       tester,
       signedIn: true,
-      at: '/challenges/abc',
+      at: '/quests/abc',
       restoreDelay: const Duration(milliseconds: 50),
     );
 
@@ -190,7 +190,7 @@ void main() {
   testWidgets('a route nested under a protected route is protected', (
     tester,
   ) async {
-    await pumpRouter(tester, signedIn: false, at: '/challenges/abc/edit');
+    await pumpRouter(tester, signedIn: false, at: '/quests/abc/edit');
 
     expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('Edit abc'), findsNothing);
