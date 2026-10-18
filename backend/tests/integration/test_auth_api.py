@@ -39,8 +39,6 @@ PREFIX = "/api/v1"
 def auth_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """The app reads its settings from the environment; give it known ones."""
     monkeypatch.setenv("JWT_SECRET", SECRET)
-    monkeypatch.setenv("S3_ENDPOINT_URL", "http://s3.test")
-    monkeypatch.setenv("S3_BUCKET", "medals")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

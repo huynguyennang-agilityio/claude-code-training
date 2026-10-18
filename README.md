@@ -24,7 +24,7 @@ The first version focuses on one complete user journey rather than many features
 | Backend | FastAPI on Python 3.12 as a modular monolith, async throughout, Pydantic schemas |
 | Backend data access | SQLAlchemy 2 (async) with Alembic migrations |
 | Database | PostgreSQL |
-| Medal images | S3-compatible object storage (AWS S3 in production, SeaweedFS locally) |
+| Challenge and medal images | Cloudinary (uploaded by the backend, delivered by URL) |
 | Health data | Apple Health (iOS) and Health Connect (Android), read on the device |
 
 ## Architecture
@@ -38,7 +38,7 @@ The Mermaid source of this diagram, and the other architecture diagrams, are in 
 - The app reads step data on the device and syncs it to the backend.
 - Protected routes need a JWT access token. Sign up, sign in, refresh, sign out and `/api/v1/health` don't; see [`docs/api/auth.md`](docs/api/auth.md).
 - The `runs` module validates a run against the challenge rules from `challenges` and gets the medal from `medals` when the run passes.
-- Medal images are static files in object storage; PostgreSQL stores only their URLs.
+- Challenge cover and medal images live in Cloudinary; PostgreSQL stores only their delivery URLs.
 
 More detail:
 - [`docs/architecture.md`](docs/architecture.md): layers, module diagrams, request and run-sync flows, data model and test strategy.
@@ -77,7 +77,7 @@ mobile/                     Flutter app
       medals/               Same layers
   test/                     Mirrors lib/
 docs/                       Architecture, workflow, ADRs, API contracts, diagrams
-docker-compose.yml          Local PostgreSQL and SeaweedFS (S3-compatible storage)
+docker-compose.yml          Local PostgreSQL
 ```
 
 ## Getting started
@@ -116,6 +116,18 @@ uvicorn app.main:app --reload
 
 The API will be available at http://localhost:8000, with interactive docs at http://localhost:8000/docs and a health check at `GET /api/v1/health`. Every API route is under `/api/v1`.
 
+### Image storage (Cloudinary)
+
+Challenge covers and medal images are stored in Cloudinary. The backend uploads them with signed requests; the mobile app never uploads, and the database keeps only the delivery URL (`https://res.cloudinary.com/<cloud>/image/upload/...`). The backend starts without these settings, and an upload then fails with a "not configured" error.
+
+1. Create a Cloudinary account (the free plan is enough to start) and note the **cloud name**.
+2. Create the folders `stridequest/challenges/covers` and `stridequest/challenges/medals` (the `stridequest` base folder is `CLOUDINARY_FOLDER`).
+3. Don't create an unsigned upload preset: uploads are signed by the backend.
+4. Put the credentials in `.env` (never commit it): `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, and optionally `CLOUDINARY_FOLDER`.
+5. Check the plan's quota (storage and monthly credits) before a bulk upload, and keep the original of every image outside Cloudinary.
+
+The delivery URL accepts size and format parameters: `app.core.storage.resized_url` inserts `f_auto,q_auto,w_<width>` so a screen asks for the size it needs.
+
 ### Database migrations
 
 The schema is managed by Alembic in `backend/alembic/`. The database URL comes from `DATABASE_URL` (via `DatabaseSettings` in `app/core/config.py`), never from `alembic.ini`. Migrations need only `DATABASE_URL`: the S3 and JWT settings are not required, so a migration job in CI or a deploy doesn't need them. Run these from `backend/` with the virtual environment active:
@@ -137,7 +149,7 @@ alembic check
 
 **One-time reset for databases created before Alembic.** If your local database was created before migrations existed, recreate it instead of stamping it.
 
-This **deletes all local database data** (the `db-data` volume). It keeps the medal images in object storage (the `storage-data` volume), so don't use `docker compose down -v`, which deletes both.
+This **deletes all local database data** (the `db-data` volume). Images are in Cloudinary, not in a local volume, so nothing else is lost. If you ran an older Compose file that had the SeaweedFS `storage` service, remove its leftover volume with `docker volume rm <project>_storage-data`.
 
 1. Stop and remove the database container:
 

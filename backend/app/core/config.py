@@ -19,11 +19,17 @@ class DatabaseSettings(BaseSettings):
 class Settings(DatabaseSettings):
     """All backend settings, read from the environment or a `.env` file."""
 
-    s3_endpoint_url: str
-    s3_bucket: str
     jwt_secret: SecretStr
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30
+
+    # Cloudinary, for challenge cover and medal images. All optional so the app and
+    # its tests start without credentials; `app.core.storage` raises
+    # `StorageNotConfiguredError` when an upload needs them.
+    cloudinary_cloud_name: str | None = None
+    cloudinary_api_key: str | None = None
+    cloudinary_api_secret: SecretStr | None = None
+    cloudinary_folder: str = "stridequest"
 
 
 @lru_cache

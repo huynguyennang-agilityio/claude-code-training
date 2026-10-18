@@ -46,7 +46,7 @@ References: `app/core/database.py`, `app/modules/challenges/models.py`, `app/mod
 - Timestamps are `DateTime(timezone=True)`.
 - Add every new model to `app/modules/models.py` (import and `__all__`). Tests and Alembic load the schema from there; a model missing from it is invisible to `alembic revision --autogenerate`.
 - A relationship to another module's model imports that model only under `TYPE_CHECKING`, as `challenges/models.py` does for `Medal` and `Run`. That relationship maps the foreign key. The only read allowed through it is eager-loading for a nested response schema (section 3); anything else goes through the other module's service (see `docs/architecture.md`, "Modules and layers").
-- Medal images and other files: store the object storage URL, never the bytes.
+- Medal images and other files: store the Cloudinary delivery URL, never the bytes. Upload through `app.core.storage.CloudinaryStorage`.
 
 **Migration.** Every schema change ships with an Alembic revision in the same MR (CLAUDE.md). Against the local docker-compose database (`docker compose up -d --wait db`, `DATABASE_URL` in `.env`):
 

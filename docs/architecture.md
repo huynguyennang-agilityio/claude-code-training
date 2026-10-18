@@ -6,14 +6,14 @@ The Mermaid blocks in this file are the source for the diagrams. Exported SVG co
 
 ## 1. System context
 
-The app reads steps on the device and syncs them to one FastAPI app, which validates runs and awards medals. Medal images are static files in object storage; the database only stores their URLs. Presentation copy: [`diagrams/system-context.svg`](diagrams/system-context.svg).
+The app reads steps on the device and syncs them to one FastAPI app, which validates runs and awards medals. Challenge cover and medal images are stored in Cloudinary; the database only stores their delivery URLs. Presentation copy: [`diagrams/system-context.svg`](diagrams/system-context.svg).
 
 ```mermaid
 flowchart LR
     HK["Apple Health / Health Connect"] -->|steps| APP["Flutter app"]
     APP -->|"HTTPS + JWT, /api/v1"| API["FastAPI modular monolith"]
     API --> DB[("PostgreSQL")]
-    S3[("Object storage<br/>S3 / SeaweedFS")] -->|"medal images by URL"| APP
+    IMG[("Cloudinary<br/>images")] -->|"cover and medal images by URL"| APP
     subgraph API_MODULES["Backend modules"]
         AUTH["auth"]
         CH["challenges"]
@@ -147,7 +147,7 @@ backend/
 │   │   ├── config.py          # Pydantic settings
 │   │   ├── database.py        # Async engine, session dependency
 │   │   ├── security.py        # JWT, password hashing (pwdlib)
-│   │   ├── storage.py         # S3 / SeaweedFS client
+│   │   ├── storage.py         # Cloudinary client (signed uploads), URL helper
 │   │   └── errors.py          # Domain exceptions, ErrorResponse, handlers
 │   ├── modules/
 │   │   ├── auth/
@@ -314,7 +314,7 @@ erDiagram
         int id PK
         int challenge_id FK "unique"
         string name
-        string image_url "object storage URL"
+        string image_url "Cloudinary delivery URL"
     }
     RUNS {
         int id PK

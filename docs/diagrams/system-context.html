@@ -29,7 +29,7 @@
     <div class="diagram-container">
       <svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="system-context-title system-context-desc">
         <title id="system-context-title">StrideQuest system context</title>
-        <desc id="system-context-desc">Architecture diagram showing step data flowing from Apple Health or Health Connect into the Flutter app, which calls a FastAPI modular monolith backed by PostgreSQL, with medal images served from object storage.</desc>
+        <desc id="system-context-desc">Architecture diagram showing step data flowing from Apple Health or Health Connect into the Flutter app, which calls a FastAPI modular monolith backed by PostgreSQL, with challenge and medal images served from Cloudinary.</desc>
         <defs>
           <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
           <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#bf4520"/></marker>
@@ -53,7 +53,7 @@
 <rect x="754.0" y="260" width="28" height="12" rx="2" fill="#f5f5f5"/>
 <text x="768.0" y="269" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SQL</text>
 <rect x="352" y="350" width="76" height="12" rx="2" fill="#f5f5f5"/>
-<text x="390.0" y="359" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MEDAL IMAGES</text>
+<text x="390.0" y="359" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">IMAGES</text>
 <!-- nodes -->
 <rect x="40" y="248" width="160" height="64" rx="6" fill="#f5f5f5"/>
 <rect x="40" y="248" width="160" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#5a6580" stroke-width="1"/>
@@ -92,9 +92,9 @@
 <rect x="264" y="400" width="160" height="64" rx="6" fill="#f5f5f5"/>
 <rect x="264" y="400" width="160" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
 <rect x="272" y="406" width="20" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.50)" stroke-width="0.8"/>
-<text x="282.0" y="415" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">S3</text>
-<text x="344.0" y="436.0" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Object storage</text>
-<text x="344.0" y="451.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">S3 · SeaweedFS</text>
+<text x="282.0" y="415" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">IMG</text>
+<text x="344.0" y="436.0" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Image storage</text>
+<text x="344.0" y="451.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Cloudinary</text>
 <!-- legend -->
 <line x1="40" y1="548" x2="920" y2="548" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
 <text x="40" y="564" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.18em">LEGEND</text>

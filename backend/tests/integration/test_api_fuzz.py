@@ -62,8 +62,6 @@ def live_server(database_url: str) -> Iterator[str]:
     """The app served on a local port, using the test database. Yields its API origin."""
     with pytest.MonkeyPatch.context() as env:
         env.setenv("JWT_SECRET", "a-fuzz-test-secret-that-is-long-enough-for-hs256")
-        env.setenv("S3_ENDPOINT_URL", "http://s3.test")
-        env.setenv("S3_BUCKET", "medals")
         get_settings.cache_clear()
 
         # NullPool opens a connection per use, so the engine isn't tied to one event loop.
