@@ -14,6 +14,9 @@ final class ChallengesState extends Equatable {
     this.loadingMore = false,
     this.moreFailed = false,
     this.failure,
+    this.joiningId,
+    this.notice,
+    this.noticeCount = 0,
   });
 
   final ChallengesStatus status;
@@ -27,6 +30,14 @@ final class ChallengesState extends Equatable {
   final bool moreFailed;
   final ChallengeFailure? failure;
 
+  /// The card whose Join is running, so it can't be tapped twice.
+  final int? joiningId;
+
+  /// Why the last Join was refused, for the page to show. [noticeCount] grows
+  /// with every notice, so the same refusal twice is shown twice.
+  final ChallengeFailure? notice;
+  final int noticeCount;
+
   bool get isFiltered => type != null || query.isNotEmpty;
 
   /// Nullable fields use a sentinel so `null` can be set on purpose.
@@ -39,6 +50,9 @@ final class ChallengesState extends Equatable {
     bool? loadingMore,
     bool? moreFailed,
     Object? failure = _keep,
+    Object? joiningId = _keep,
+    Object? notice = _keep,
+    int? noticeCount,
   }) {
     return ChallengesState(
       status: status ?? this.status,
@@ -53,6 +67,13 @@ final class ChallengesState extends Equatable {
       failure: identical(failure, _keep)
           ? this.failure
           : failure as ChallengeFailure?,
+      joiningId: identical(joiningId, _keep)
+          ? this.joiningId
+          : joiningId as int?,
+      notice: identical(notice, _keep)
+          ? this.notice
+          : notice as ChallengeFailure?,
+      noticeCount: noticeCount ?? this.noticeCount,
     );
   }
 
@@ -66,6 +87,9 @@ final class ChallengesState extends Equatable {
     loadingMore,
     moreFailed,
     failure,
+    joiningId,
+    notice,
+    noticeCount,
   ];
 }
 

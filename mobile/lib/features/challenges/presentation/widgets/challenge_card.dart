@@ -5,6 +5,7 @@ import '../../domain/entities/challenge.dart';
 import '../format.dart';
 import 'challenge_cover.dart';
 import 'cover_tag.dart';
+import 'enrollment_pill.dart';
 import 'meta_item.dart';
 
 /// One challenge in the list: the cover with the type and the city, the title,
@@ -16,9 +17,13 @@ class ChallengeCard extends StatelessWidget {
     required this.challenge,
     required this.onOpen,
     required this.onJoin,
+    this.joining = false,
   });
 
   final ChallengeSummary challenge;
+
+  /// A join from this card is running.
+  final bool joining;
 
   /// The card was tapped: open the detail.
   final VoidCallback onOpen;
@@ -108,7 +113,11 @@ class ChallengeCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: AppSpacing.xs),
-                        _Action(challenge: challenge, onJoin: onJoin),
+                        _Action(
+                          challenge: challenge,
+                          onJoin: onJoin,
+                          joining: joining,
+                        ),
                       ],
                     ),
                   ],
@@ -123,40 +132,23 @@ class ChallengeCard extends StatelessWidget {
 }
 
 class _Action extends StatelessWidget {
-  const _Action({required this.challenge, required this.onJoin});
+  const _Action({
+    required this.challenge,
+    required this.onJoin,
+    required this.joining,
+  });
 
   final ChallengeSummary challenge;
   final VoidCallback onJoin;
+  final bool joining;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final enrollment = challenge.enrollment;
-    if (enrollment != null) {
-      final paused = enrollment.status == EnrollmentStatus.paused;
-      return DecoratedBox(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.xs,
-          ),
-          child: Text(
-            paused ? 'Paused' : 'Joined',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: paused
-                  ? theme.colorScheme.onSurfaceVariant
-                  : theme.colorScheme.primary,
-            ),
-          ),
-        ),
-      );
-    }
+    if (enrollment != null) return EnrollmentPill(status: enrollment.status);
     return FilledButton(
-      onPressed: onJoin,
+      onPressed: joining ? null : onJoin,
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, AppSizes.minTapTarget),
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),

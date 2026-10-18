@@ -75,6 +75,10 @@ abstract final class AppChallengeSizes {
   static const double avatar = 36;
   static const double avatarOverlap = 12;
 
+  /// The most of the screen the reason above the action bar may take, so large
+  /// text still leaves the challenge visible (the reason scrolls).
+  static const double actionBarReasonShare = 0.3;
+
   /// The smallest height of the fixed action bar button.
   static const double actionButtonHeight = 50;
 }

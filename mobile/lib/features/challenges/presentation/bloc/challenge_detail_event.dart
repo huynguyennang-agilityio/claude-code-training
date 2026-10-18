@@ -16,3 +16,16 @@ final class ChallengeDetailStarted extends ChallengeDetailEvent {
   @override
   List<Object?> get props => [id];
 }
+
+/// What the caller can do to their place in a challenge.
+enum ChallengeAction { join, pause, resume, leave }
+
+/// The user tapped Join, Pause, Resume or Leave (after confirming).
+final class ChallengeActionRequested extends ChallengeDetailEvent {
+  const ChallengeActionRequested(this.action);
+
+  final ChallengeAction action;
+
+  @override
+  List<Object?> get props => [action];
+}

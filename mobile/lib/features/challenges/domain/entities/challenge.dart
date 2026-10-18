@@ -165,6 +165,21 @@ class Challenge extends ChallengeSummary {
   /// Set when an active challenge of the same type overlaps this one.
   final BlockingChallenge? blockedBy;
 
+  /// This challenge as a card of the list, for when an action changed it.
+  ChallengeSummary toSummary() => ChallengeSummary(
+    id: id,
+    title: title,
+    type: type,
+    target: target,
+    startsAt: startsAt,
+    endsAt: endsAt,
+    participantCount: participantCount,
+    coverImageUrl: coverImageUrl,
+    city: city,
+    landmark: landmark,
+    enrollment: enrollment,
+  );
+
   @override
   List<Object?> get props => [
     ...super.props,

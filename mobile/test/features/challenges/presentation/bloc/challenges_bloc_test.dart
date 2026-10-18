@@ -220,4 +220,64 @@ void main() {
     expect(bloc.state.query, 'ab');
     await bloc.close();
   });
+
+  group('join from a card', () {
+    final joinedFirst = challenge(
+      id: 1,
+      participants: 1235,
+      enrollment: enrolled(),
+    );
+    final ready = ChallengesState(
+      status: ChallengesStatus.ready,
+      items: [first, second],
+    );
+
+    blocTest<ChallengesBloc, ChallengesState>(
+      'the card turns into Joined',
+      setUp: () =>
+          when(() => repository.join(1)).thenAnswer((_) async => joinedFirst),
+      build: () => ChallengesBloc(repository),
+      seed: () => ready,
+      act: (bloc) => bloc.add(const ChallengesJoinRequested(1)),
+      verify: (bloc) {
+        expect(bloc.state.joiningId, isNull);
+        expect(bloc.state.items.first.enrollment, enrolled());
+        expect(bloc.state.items.first.participantCount, 1235);
+        expect(bloc.state.items.last, second);
+      },
+    );
+
+    blocTest<ChallengesBloc, ChallengesState>(
+      'a refusal is a notice and the list reloads',
+      setUp: () {
+        when(() => repository.join(1)).thenThrow(
+          const ChallengeFailure(
+            ChallengeFailureCode.overlappingChallenge,
+            serverMessage: 'You are already in “X”.',
+          ),
+        );
+        stubList(
+          query: '',
+          answer: ChallengePage(items: [first, second]),
+        );
+      },
+      build: () => ChallengesBloc(repository),
+      seed: () => ready,
+      act: (bloc) => bloc.add(const ChallengesJoinRequested(1)),
+      verify: (bloc) {
+        expect(bloc.state.joiningId, isNull);
+        expect(bloc.state.notice?.message, 'You are already in “X”.');
+        expect(bloc.state.noticeCount, 1);
+        verify(() => repository.list(query: '')).called(1);
+      },
+    );
+
+    blocTest<ChallengesBloc, ChallengesState>(
+      'a second join while one runs is ignored',
+      build: () => ChallengesBloc(repository),
+      seed: () => ready.copyWith(joiningId: 1),
+      act: (bloc) => bloc.add(const ChallengesJoinRequested(2)),
+      expect: () => <ChallengesState>[],
+    );
+  });
 }

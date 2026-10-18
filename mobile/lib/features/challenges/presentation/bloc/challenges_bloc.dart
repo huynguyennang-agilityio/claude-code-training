@@ -18,6 +18,7 @@ class ChallengesBloc extends Bloc<ChallengesEvent, ChallengesState> {
     on<ChallengesRefreshed>((_, emit) => _loadFirstPage(emit, quiet: true));
     on<ChallengesFilterChanged>(_onFilterChanged);
     on<ChallengesMoreRequested>(_onMoreRequested);
+    on<ChallengesJoinRequested>(_onJoin);
   }
 
   final ChallengeRepository _repository;
@@ -70,6 +71,38 @@ class ChallengesBloc extends Bloc<ChallengesEvent, ChallengesState> {
       // A quiet refresh that fails leaves the old list in place.
       if (quiet && state.status == ChallengesStatus.ready) return;
       emit(state.copyWith(status: ChallengesStatus.failed, failure: failure));
+    }
+  }
+
+  /// Joins from a card. On success the card shows Joined; a refusal (it
+  /// overlaps another challenge, it ended) is a notice, and the list reloads
+  /// quietly so the cards are up to date.
+  Future<void> _onJoin(
+    ChallengesJoinRequested event,
+    Emitter<ChallengesState> emit,
+  ) async {
+    if (state.joiningId != null) return;
+    emit(state.copyWith(joiningId: event.id, notice: null));
+    try {
+      final joined = (await _repository.join(event.id)).toSummary();
+      emit(
+        state.copyWith(
+          joiningId: null,
+          items: [
+            for (final item in state.items)
+              if (item.id == joined.id) joined else item,
+          ],
+        ),
+      );
+    } on ChallengeFailure catch (failure) {
+      emit(
+        state.copyWith(
+          joiningId: null,
+          notice: failure,
+          noticeCount: state.noticeCount + 1,
+        ),
+      );
+      await _loadFirstPage(emit, quiet: true);
     }
   }
 

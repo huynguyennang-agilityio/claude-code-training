@@ -6,9 +6,12 @@ import '../../../../core/theme/app_tokens.dart';
 import '../../domain/entities/challenge.dart';
 import '../bloc/challenge_detail_bloc.dart';
 import '../format.dart';
+import '../widgets/challenge_action_bar.dart';
 import '../widgets/challenge_cover.dart';
 import '../widgets/countdown_card.dart';
 import '../widgets/details_card.dart';
+import '../widgets/enrollment_pill.dart';
+import '../widgets/leave_sheet.dart';
 import '../widgets/markdown_text.dart';
 import '../widgets/medal_tiles.dart';
 import '../widgets/meta_item.dart';
@@ -34,9 +37,21 @@ class ChallengeDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: BlocBuilder<ChallengeDetailBloc, ChallengeDetailState>(
-        builder: (context, state) => switch (state) {
+    return BlocConsumer<ChallengeDetailBloc, ChallengeDetailState>(
+      // A refused action says why, once.
+      listenWhen: (before, after) =>
+          after is ChallengeDetailLoaded &&
+          after.notice != null &&
+          (before is! ChallengeDetailLoaded || before.notice != after.notice),
+      listener: (context, state) {
+        final notice = (state as ChallengeDetailLoaded).notice;
+        if (notice == null) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(notice.message)));
+      },
+      builder: (context, state) => Scaffold(
+        body: switch (state) {
           ChallengeDetailLoading() => const _Frame(
             child: Center(child: CircularProgressIndicator()),
           ),
@@ -70,6 +85,26 @@ class ChallengeDetailPage extends StatelessWidget {
             challenge: challenge,
             clock: clock,
           ),
+        },
+        bottomNavigationBar: switch (state) {
+          ChallengeDetailLoaded(:final challenge, :final busy) =>
+            ChallengeActionBar(
+              challenge: challenge,
+              now: clock(),
+              busy: busy,
+              onAction: (action) => context.read<ChallengeDetailBloc>().add(
+                ChallengeActionRequested(action),
+              ),
+              onLeave: () async {
+                final bloc = context.read<ChallengeDetailBloc>();
+                if (await confirmLeave(context, challenge) && !bloc.isClosed) {
+                  bloc.add(
+                    const ChallengeActionRequested(ChallengeAction.leave),
+                  );
+                }
+              },
+            ),
+          _ => null,
         },
       ),
     );
@@ -190,17 +225,31 @@ class _Detail extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Wrap(
-                spacing: AppSpacing.md,
-                runSpacing: AppSpacing.xxs,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  MetaItem(
-                    icon: iconForType(challenge.type),
-                    text: challenge.type.label,
+                  Expanded(
+                    child: Wrap(
+                      spacing: AppSpacing.md,
+                      runSpacing: AppSpacing.xxs,
+                      children: [
+                        MetaItem(
+                          icon: iconForType(challenge.type),
+                          text: challenge.type.label,
+                        ),
+                        const MetaItem(
+                          icon: Icons.person_outline,
+                          text: 'Solo',
+                        ),
+                        if (place != null)
+                          MetaItem(icon: Icons.place_outlined, text: place),
+                      ],
+                    ),
                   ),
-                  const MetaItem(icon: Icons.person_outline, text: 'Solo'),
-                  if (place != null)
-                    MetaItem(icon: Icons.place_outlined, text: place),
+                  if (challenge.enrollment case final enrollment?) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    EnrollmentPill(status: enrollment.status),
+                  ],
                 ],
               ),
               const SizedBox(height: AppSpacing.xs),

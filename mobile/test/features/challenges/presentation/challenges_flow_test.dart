@@ -153,4 +153,160 @@ void main() {
       '/sign-in',
     );
   });
+
+  group('joining', () {
+    // The fake backend: remembers the caller's place in the challenge.
+    Enrollment? place;
+    Challenge answer(String action, int id) {
+      place = switch (action) {
+        'join' => enrolled(),
+        'pause' => enrolled(EnrollmentStatus.paused),
+        'resume' => enrolled(),
+        _ => null,
+      };
+      return challenge(id: id, enrollment: place);
+    }
+
+    setUp(() => place = null);
+
+    testWidgets('join, pause, resume and leave from the detail', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      repository.onAction = answer;
+      await tester.tap(find.text('Mỹ Khê Bay 20 km'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Join Challenge'));
+      await tester.pumpAndSettle();
+      expect(find.text('Joined'), findsOneWidget);
+
+      await tester.tap(find.text('Pause'));
+      await tester.pumpAndSettle();
+      expect(find.text('Paused'), findsOneWidget);
+      expect(find.text('Resume'), findsOneWidget);
+
+      await tester.tap(find.text('Resume'));
+      await tester.pumpAndSettle();
+      expect(find.text('Joined'), findsOneWidget);
+
+      await tester.tap(find.text('Leave'));
+      await tester.pumpAndSettle();
+      expect(find.text('Leave this challenge?'), findsOneWidget);
+      await tester.tap(find.text('Leave challenge'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Join Challenge'), findsOneWidget);
+      expect(find.text('Joined'), findsNothing);
+      expect(repository.actions, ['join 2', 'pause 2', 'resume 2', 'leave 2']);
+    });
+
+    testWidgets('keeping the challenge at the Leave question leaves nothing', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      repository.onAction = answer;
+      await tester.tap(find.text('Mỹ Khê Bay 20 km'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Join Challenge'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Leave'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Keep it'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Joined'), findsOneWidget);
+      expect(repository.actions, ['join 2']);
+    });
+
+    testWidgets('Joined shows on the card after coming back', (tester) async {
+      await pumpApp(tester);
+      repository.onAction = answer;
+      await tester.tap(find.text('Mỹ Khê Bay 20 km'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Join Challenge'));
+      await tester.pumpAndSettle();
+      // The list now answers with the joined card.
+      repository.items = [
+        for (final item in repository.items)
+          if (item.id == 2)
+            summary(id: 2, title: 'Mỹ Khê Bay 20 km', enrollment: enrolled())
+          else
+            item,
+      ];
+
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Joined'), findsOneWidget);
+    });
+
+    testWidgets('Join on a card joins and the card turns into Joined', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      repository.onAction = answer;
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Join').first);
+      await tester.pumpAndSettle();
+
+      expect(repository.actions, ['join 1']);
+      expect(find.text('Joined'), findsOneWidget);
+    });
+
+    testWidgets('a refused join on a card says why', (tester) async {
+      await pumpApp(tester);
+      repository.failure = const ChallengeFailure(
+        ChallengeFailureCode.overlappingChallenge,
+        serverMessage: 'You are already in “Old Quarter 50K Steps”.',
+      );
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Join').first);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('You are already in “Old Quarter 50K Steps”.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a refused join on the detail says why and refreshes', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      repository.onAction = (action, id) => throw const ChallengeFailure(
+        ChallengeFailureCode.overlappingChallenge,
+        serverMessage: 'You are already in “Old Quarter 50K Steps”.',
+      );
+      await tester.tap(find.text('Mỹ Khê Bay 20 km'));
+      await tester.pumpAndSettle();
+      repository.detail = challenge(
+        id: 2,
+        title: 'Mỹ Khê Bay 20 km',
+        blockedBy: const BlockingChallenge(
+          id: 1,
+          title: 'Old Quarter 50K Steps',
+        ),
+      );
+
+      await tester.tap(find.text('Join Challenge'));
+      await tester.pumpAndSettle();
+
+      // The snackbar and the reason above the disabled button.
+      expect(
+        find.text('You are already in “Old Quarter 50K Steps”.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Finish, pause or leave it'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Join Challenge'),
+            )
+            .onPressed,
+        isNull,
+      );
+    });
+  });
 }

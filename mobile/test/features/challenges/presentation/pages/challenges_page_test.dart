@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -225,6 +227,64 @@ void main() {
         () => bloc.add(const ChallengesMoreRequested()),
       ).called(greaterThan(0));
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+  });
+
+  group('joining from a card', () {
+    testWidgets('Join asks the bloc to join that challenge', (tester) async {
+      await pumpPage(tester, ready());
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Join'));
+
+      verify(() => bloc.add(const ChallengesJoinRequested(1))).called(1);
+    });
+
+    testWidgets('the card whose join is running cannot be tapped again', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        ChallengesState(
+          status: ChallengesStatus.ready,
+          items: cards,
+          joiningId: 1,
+        ),
+      );
+
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, 'Join'))
+            .onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets('a refused join shows why', (tester) async {
+      final states = StreamController<ChallengesState>();
+      addTearDown(states.close);
+      whenListen(bloc, states.stream, initialState: ready());
+      await pumpScreen(
+        tester,
+        BlocProvider<ChallengesBloc>.value(
+          value: bloc,
+          child: const ChallengesPage(),
+        ),
+      );
+
+      states.add(
+        ChallengesState(
+          status: ChallengesStatus.ready,
+          items: cards,
+          notice: const ChallengeFailure(
+            ChallengeFailureCode.overlappingChallenge,
+            serverMessage: 'You are already in “X”.',
+          ),
+          noticeCount: 1,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('You are already in “X”.'), findsOneWidget);
     });
   });
 
