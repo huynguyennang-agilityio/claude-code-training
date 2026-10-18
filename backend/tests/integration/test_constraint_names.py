@@ -38,6 +38,7 @@ CONVENTION_NAMES = {
     "ck_challenges_window_valid",
     "ck_step_samples_steps_non_negative",
     "ck_step_samples_time_order",
+    "ck_users_role_valid",
 }
 
 POSTGRES_NAMES = {

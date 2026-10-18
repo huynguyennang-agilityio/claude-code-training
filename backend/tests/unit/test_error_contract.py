@@ -17,12 +17,14 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.errors import ErrorResponse
 from app.main import create_app
+from app.modules.auth.service import ForbiddenError
 from tests.api_docs import API_DOCS_DIR, AUTH_MODULE_ERROR_CODES, error_codes, load_example
 
 # code -> (method, path, status). The routes under /test are added by `app_under_test`.
 IMPLEMENTED: dict[str, tuple[str, str, int]] = {
     "validation_error": ("POST", "/test/validate", 422),
     "not_authenticated": ("GET", "/test/protected", 401),
+    "forbidden": ("GET", "/test/forbidden", 403),
     "not_found": ("GET", "/api/v1/nope", 404),
     "method_not_allowed": ("POST", "/api/v1/health", 405),
     "http_error": ("GET", "/test/teapot", 418),
@@ -52,6 +54,10 @@ def app_under_test() -> FastAPI:
     @app.get("/test/protected", dependencies=[Depends(HTTPBearer())])
     async def protected() -> None:
         return None
+
+    @app.get("/test/forbidden")
+    async def forbidden() -> None:
+        raise ForbiddenError("This action needs an admin.")
 
     @app.get("/test/teapot")
     async def teapot() -> None:

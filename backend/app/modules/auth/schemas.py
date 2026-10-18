@@ -102,6 +102,7 @@ class UserRead(BaseModel):
     id: uuid.UUID
     email: str
     display_name: str
+    role: Literal["user", "admin"]
     created_at: datetime
 
 

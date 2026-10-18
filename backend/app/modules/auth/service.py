@@ -18,7 +18,7 @@ from app.core.security import (
     new_refresh_token,
     verify_password_async,
 )
-from app.modules.auth.models import RefreshToken, User
+from app.modules.auth.models import RefreshToken, User, UserRole
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import SignInRequest, SignUpRequest, TokenPair
 
@@ -47,6 +47,17 @@ class InvalidRefreshTokenError(DomainError):
 class NotAuthenticatedError(DomainError):
     status_code = 401
     code = NOT_AUTHENTICATED_CODE
+
+
+class ForbiddenError(DomainError):
+    """The caller is signed in but their role does not allow the call."""
+
+    status_code = 403
+    code = "forbidden"
+
+
+class UnknownUserError(Exception):
+    """No account has the given email. Used by the command-line script, not by the API."""
 
 
 class InvalidAccessTokenError(DomainError):
@@ -158,6 +169,18 @@ class AuthService:
         user = await self._repository.get_user(user_id)
         if user is None:
             raise InvalidAccessTokenError("The account no longer exists.", headers=_BEARER)
+        return user
+
+    async def set_role(self, email: str, role: UserRole) -> User:
+        """Give the account with `email` a role. The only way to make an admin.
+
+        No API route calls this: a role must never be reachable by a request.
+        """
+        user = await self._repository.get_user_by_email(email.strip().lower())
+        if user is None:
+            raise UnknownUserError(email)
+        user.role = role.value
+        await self._session.commit()
         return user
 
     async def _issue_tokens(self, user_id: uuid.UUID) -> TokenPair:

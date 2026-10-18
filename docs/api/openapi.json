@@ -208,12 +208,21 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "admin"
+            ],
+            "title": "Role",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "email",
           "display_name",
+          "role",
           "created_at"
         ],
         "title": "UserRead",
