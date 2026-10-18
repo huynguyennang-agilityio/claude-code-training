@@ -8,6 +8,7 @@ import '../../domain/failures/auth_failure.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_local_data_source.dart';
 import '../datasources/auth_remote_data_source.dart';
+import '../models/auth_session_model.dart';
 
 /// The auth session: signs in and out through [AuthRemoteDataSource] and
 /// keeps the tokens in [AuthLocalDataSource].
@@ -30,8 +31,12 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
 
   final AuthRemoteDataSource _remote;
   final AuthLocalDataSource _local;
+  final _sessionStarted = StreamController<AuthUser>.broadcast();
   final _sessionExpired = StreamController<void>.broadcast();
   Future<void> _lastChange = Future.value();
+
+  @override
+  Stream<AuthUser> get sessionStarted => _sessionStarted.stream;
 
   @override
   Stream<void> get sessionExpired => _sessionExpired.stream;
@@ -54,8 +59,7 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
         password: password,
         displayName: displayName,
       );
-      await _local.saveSession(session);
-      return session.user.toEntity();
+      return _startSession(session);
     });
   }
 
@@ -63,8 +67,7 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   Future<AuthUser> signIn({required String email, required String password}) {
     return _serialized(() async {
       final session = await _remote.signIn(email: email, password: password);
-      await _local.saveSession(session);
-      return session.user.toEntity();
+      return _startSession(session);
     });
   }
 
@@ -114,6 +117,14 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
     });
   }
 
+  /// Stores [session] and announces its user on [sessionStarted].
+  Future<AuthUser> _startSession(AuthSessionModel session) async {
+    await _local.saveSession(session);
+    final user = session.user.toEntity();
+    _sessionStarted.add(user);
+    return user;
+  }
+
   /// Runs [change] after every earlier session change has finished.
   Future<T> _serialized<T>(Future<T> Function() change) {
     final result = _lastChange.then((_) => change());
@@ -122,5 +133,8 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   }
 
   @disposeMethod
-  Future<void> dispose() => _sessionExpired.close();
+  Future<void> dispose() async {
+    await _sessionStarted.close();
+    await _sessionExpired.close();
+  }
 }

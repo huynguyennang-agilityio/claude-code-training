@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:stridequest/features/auth/presentation/bloc/sign_in_bloc.dart';
 import 'package:stridequest/features/auth/presentation/pages/sign_in_page.dart';
 import 'package:stridequest/features/auth/presentation/widgets/auth_text_field.dart';
 
@@ -13,22 +14,40 @@ import '../../../../helpers/mock_auth_bloc.dart';
 import '../../../../helpers/pump_screen.dart';
 
 void main() {
-  late MockAuthBloc bloc;
+  late MockSignInBloc bloc;
+  late MockAuthBloc authBloc;
 
-  setUpAll(() => registerFallbackValue(const AuthStarted()));
-  setUp(() => bloc = MockAuthBloc());
+  setUpAll(
+    () => registerFallbackValue(const SignInSubmitted(email: '', password: '')),
+  );
+  setUp(() {
+    bloc = MockSignInBloc();
+    authBloc = MockAuthBloc();
+  });
 
   Future<void> pumpPage(
     WidgetTester tester, {
-    AuthState state = const AuthUnauthenticated(),
+    SignInState state = const SignInInitial(),
+    AuthState session = const AuthUnauthenticated(),
     Size size = smallPhone,
     double textScale = 1,
     bool settle = true,
   }) async {
-    whenListen(bloc, const Stream<AuthState>.empty(), initialState: state);
+    whenListen(bloc, const Stream<SignInState>.empty(), initialState: state);
+    whenListen(
+      authBloc,
+      const Stream<AuthState>.empty(),
+      initialState: session,
+    );
     await pumpScreen(
       tester,
-      BlocProvider<AuthBloc>.value(value: bloc, child: const SignInPage()),
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<AuthBloc>.value(value: authBloc),
+          BlocProvider<SignInBloc>.value(value: bloc),
+        ],
+        child: const SignInPage(),
+      ),
       size: size,
       textScale: textScale,
       settle: settle,
@@ -39,16 +58,12 @@ void main() {
   final password = find.widgetWithText(AuthTextField, 'Password');
   final signInButton = find.widgetWithText(FilledButton, 'Sign in');
 
-  AuthUnauthenticated failed(
+  SignInFailed failed(
     AuthFailureCode code, {
     Map<String, String> fieldErrors = const {},
     Duration? retryAfter,
-  }) => AuthUnauthenticated(
-    failure: AuthFailure(
-      code,
-      fieldErrors: fieldErrors,
-      retryAfter: retryAfter,
-    ),
+  }) => SignInFailed(
+    AuthFailure(code, fieldErrors: fieldErrors, retryAfter: retryAfter),
   );
 
   group('initial state', () {
@@ -71,7 +86,7 @@ void main() {
     testWidgets('disables the form and shows a progress indicator', (
       tester,
     ) async {
-      await pumpPage(tester, state: const AuthInProgress(), settle: false);
+      await pumpPage(tester, state: const SignInInProgress(), settle: false);
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(
@@ -186,7 +201,7 @@ void main() {
     testWidgets('explains why the user is here', (tester) async {
       await pumpPage(
         tester,
-        state: const AuthUnauthenticated(sessionExpired: true),
+        session: const AuthUnauthenticated(sessionExpired: true),
       );
 
       expect(
@@ -209,7 +224,7 @@ void main() {
 
       verify(
         () => bloc.add(
-          const AuthSignInRequested(
+          const SignInSubmitted(
             email: 'runner@example.com',
             password: ' run4medals ',
           ),
@@ -225,7 +240,7 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pump();
 
-      verify(() => bloc.add(any(that: isA<AuthSignInRequested>()))).called(1);
+      verify(() => bloc.add(any(that: isA<SignInSubmitted>()))).called(1);
     });
 
     testWidgets('asks for both fields and sends nothing when they are empty', (
@@ -263,7 +278,7 @@ void main() {
       await tester.tap(signInButton);
       await tester.pump();
 
-      verify(() => bloc.add(any(that: isA<AuthSignInRequested>()))).called(1);
+      verify(() => bloc.add(any(that: isA<SignInSubmitted>()))).called(1);
     });
   });
 
@@ -286,22 +301,16 @@ void main() {
   });
 
   group('layout and accessibility', () {
-    final states = <String, AuthState>{
-      'initial': const AuthUnauthenticated(),
-      'invalid credentials': AuthUnauthenticated(
-        failure: AuthFailure(AuthFailureCode.invalidCredentials),
+    final states = <String, SignInState>{
+      'initial': const SignInInitial(),
+      'invalid credentials': failed(AuthFailureCode.invalidCredentials),
+      'rate limited': failed(
+        AuthFailureCode.rateLimited,
+        retryAfter: const Duration(minutes: 15),
       ),
-      'rate limited': AuthUnauthenticated(
-        failure: AuthFailure(
-          AuthFailureCode.rateLimited,
-          retryAfter: const Duration(minutes: 15),
-        ),
-      ),
-      'field errors': AuthUnauthenticated(
-        failure: AuthFailure(
-          AuthFailureCode.validation,
-          fieldErrors: const {'email': 'Enter a valid email address.'},
-        ),
+      'field errors': failed(
+        AuthFailureCode.validation,
+        fieldErrors: const {'email': 'Enter a valid email address.'},
       ),
     };
 

@@ -92,7 +92,11 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph AUTH["auth"]
-        A1["SignInPage, SignUpPage"] --> A2["AuthBloc"]
+        A1["SignInPage"] --> A3["SignInBloc"]
+        A4["SignUpPage"] --> A5["SignUpBloc"]
+        A3 --> A6["AuthRepository"]
+        A5 --> A6
+        A6 -->|"sessionStarted, sessionExpired"| A2["AuthBloc (session)"]
     end
     subgraph CHAL["challenges"]
         C1["ChallengeListPage, ChallengeDetailPage"] --> C2["ChallengeListBloc, ChallengeDetailBloc"]
@@ -109,7 +113,7 @@ flowchart LR
 
 ### Auth redirect
 
-Screens never navigate on sign-in or sign-out themselves. The router listens to `AuthBloc` and redirects. `GoRouterRefreshStream` is a small `ChangeNotifier` adapter we write in `core/router`; go_router does not ship it.
+Screens never navigate on sign-in or sign-out themselves. The router listens to `AuthBloc`, which owns only the session, and redirects. The sign-in and sign-up forms each have their own bloc; after a success, the repository announces the session on `sessionStarted` and `AuthBloc` picks it up. `GoRouterRefreshStream` is a small `ChangeNotifier` adapter we write in `core/router`; go_router does not ship it.
 
 ```mermaid
 sequenceDiagram
@@ -128,7 +132,8 @@ sequenceDiagram
 
 - Routes carry IDs only, for example `/challenges/:id`. The page's bloc fetches the data. Don't pass objects through `state.extra`.
 - Blocs are registered with `registerFactory` and created in the route's `BlocProvider(create: ...)`, so they close when the route is popped.
-- Exception: `AuthBloc` is an app-wide `@lazySingleton`, provided once above `MaterialApp.router`, because the router's `redirect` and every screen read the same auth state. It lives as long as the app.
+- One bloc per flow (`SignInBloc`, `SignUpBloc`, and one for each later auth flow).
+- Exception: `AuthBloc` is an app-wide `@lazySingleton`, provided once above `MaterialApp.router`, because the router's `redirect` and every screen read the same auth state. It owns only the session and lives as long as the app.
 
 ## 3. Backend
 

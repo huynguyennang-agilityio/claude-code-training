@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
+import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 
@@ -15,16 +15,24 @@ void main() {
   final user = testUser.toEntity();
   late _MockRepository repository;
   late StreamController<void> sessionExpired;
+  late StreamController<AuthUser> sessionStarted;
 
   setUp(() {
     repository = _MockRepository();
     sessionExpired = StreamController<void>.broadcast();
+    sessionStarted = StreamController<AuthUser>.broadcast();
+    when(
+      () => repository.sessionStarted,
+    ).thenAnswer((_) => sessionStarted.stream);
     when(
       () => repository.sessionExpired,
     ).thenAnswer((_) => sessionExpired.stream);
   });
 
-  tearDown(() => sessionExpired.close());
+  tearDown(() async {
+    await sessionExpired.close();
+    await sessionStarted.close();
+  });
 
   test('starts unknown', () async {
     final bloc = AuthBloc(repository);
@@ -52,78 +60,18 @@ void main() {
   );
 
   blocTest<AuthBloc, AuthState>(
-    'signs in',
-    setUp: () => when(
-      () => repository.signIn(email: 'a@b.co', password: 'abc12345'),
-    ).thenAnswer((_) async => user),
+    'becomes authenticated when the repository starts a session',
     build: () => AuthBloc(repository),
-    act: (bloc) => bloc.add(
-      const AuthSignInRequested(email: 'a@b.co', password: 'abc12345'),
-    ),
-    expect: () => [const AuthInProgress(), AuthAuthenticated(user)],
+    act: (_) => sessionStarted.add(user),
+    expect: () => [AuthAuthenticated(user)],
   );
 
   blocTest<AuthBloc, AuthState>(
-    'reports a failed sign in',
-    setUp: () => when(
-      () => repository.signIn(
-        email: any(named: 'email'),
-        password: any(named: 'password'),
-      ),
-    ).thenThrow(AuthFailure(AuthFailureCode.invalidCredentials)),
+    'does not need the sign-in or sign-up form: a started session is enough',
     build: () => AuthBloc(repository),
-    act: (bloc) => bloc.add(
-      const AuthSignInRequested(email: 'a@b.co', password: 'wrong123'),
-    ),
-    expect: () => [
-      const AuthInProgress(),
-      AuthUnauthenticated(
-        failure: AuthFailure(AuthFailureCode.invalidCredentials),
-      ),
-    ],
-  );
-
-  blocTest<AuthBloc, AuthState>(
-    'signs up',
-    setUp: () => when(
-      () => repository.signUp(
-        email: 'a@b.co',
-        password: 'abc12345',
-        displayName: 'A',
-      ),
-    ).thenAnswer((_) async => user),
-    build: () => AuthBloc(repository),
-    act: (bloc) => bloc.add(
-      const AuthSignUpRequested(
-        email: 'a@b.co',
-        password: 'abc12345',
-        displayName: 'A',
-      ),
-    ),
-    expect: () => [const AuthInProgress(), AuthAuthenticated(user)],
-  );
-
-  blocTest<AuthBloc, AuthState>(
-    'reports a failed sign up with its field errors',
-    setUp: () => when(
-      () => repository.signUp(
-        email: any(named: 'email'),
-        password: any(named: 'password'),
-        displayName: any(named: 'displayName'),
-      ),
-    ).thenThrow(AuthFailure(AuthFailureCode.emailTaken)),
-    build: () => AuthBloc(repository),
-    act: (bloc) => bloc.add(
-      const AuthSignUpRequested(
-        email: 'a@b.co',
-        password: 'abc12345',
-        displayName: 'A',
-      ),
-    ),
-    expect: () => [
-      const AuthInProgress(),
-      AuthUnauthenticated(failure: AuthFailure(AuthFailureCode.emailTaken)),
-    ],
+    seed: () => const AuthUnauthenticated(sessionExpired: true),
+    act: (_) => sessionStarted.add(user),
+    expect: () => [AuthAuthenticated(user)],
   );
 
   blocTest<AuthBloc, AuthState>(

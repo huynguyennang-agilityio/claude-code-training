@@ -6,6 +6,8 @@ import 'package:stridequest/core/network/auth_token_handler.dart';
 import 'package:stridequest/core/network/network_simulation.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:stridequest/features/auth/presentation/bloc/sign_in_bloc.dart';
+import 'package:stridequest/features/auth/presentation/bloc/sign_up_bloc.dart';
 
 void main() {
   setUpAll(configureDependencies);
@@ -13,6 +15,11 @@ void main() {
 
   test('resolves the auth bloc', () {
     expect(getIt<AuthBloc>(), same(getIt<AuthBloc>()));
+  });
+
+  test('each sign-in and sign-up route gets its own new bloc', () {
+    expect(getIt<SignInBloc>(), isNot(same(getIt<SignInBloc>())));
+    expect(getIt<SignUpBloc>(), isNot(same(getIt<SignUpBloc>())));
   });
 
   test('one session object backs the repository and the token handler', () {

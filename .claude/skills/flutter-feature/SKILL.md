@@ -152,7 +152,7 @@ class ChallengeDetailBloc
 - Never `catch (e)` and never show `e.toString()`. Show `failure.message`, which is safe for users.
 - Cancel stream subscriptions in `close()`. `AuthBloc` does this for `sessionExpired`.
 
-**Route-scoped blocs (from CLAUDE.md; `features/auth` has no example).** `AuthBloc` is the only app-wide bloc (`@lazySingleton`). Every other bloc is a factory (`@injectable`, which `injectable` registers with `registerFactory`). It is created in the route's `BlocProvider`, so it closes with the route. Don't add another app-wide bloc without the user's approval.
+**Route-scoped blocs (from CLAUDE.md; `features/auth` has the sign-in and sign-up examples).** `AuthBloc` is the only app-wide bloc (`@lazySingleton`). Every other bloc is a factory (`@injectable`, which `injectable` registers with `registerFactory`). It is created in the route's `BlocProvider`, so it closes with the route. One bloc per flow: a second form in a feature (for example forgot password next to sign in) is a new bloc, not new events on an existing one; `features/auth` shows it (`SignInBloc`, `SignUpBloc`, with `AuthBloc` keeping only the session). Don't add another app-wide bloc without the user's approval.
 
 **Pages and widgets:**
 

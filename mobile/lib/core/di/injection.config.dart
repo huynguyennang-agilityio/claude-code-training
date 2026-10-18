@@ -27,6 +27,10 @@ import 'package:stridequest/features/auth/domain/repositories/auth_repository.da
     as _i231;
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart'
     as _i649;
+import 'package:stridequest/features/auth/presentation/bloc/sign_in_bloc.dart'
+    as _i696;
+import 'package:stridequest/features/auth/presentation/bloc/sign_up_bloc.dart'
+    as _i43;
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
@@ -64,6 +68,12 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i713.AuthTokenHandler>(
       () => authModule.authTokenHandler(gh<_i663.AuthRepositoryImpl>()),
+    );
+    gh.factory<_i696.SignInBloc>(
+      () => _i696.SignInBloc(gh<_i231.AuthRepository>()),
+    );
+    gh.factory<_i43.SignUpBloc>(
+      () => _i43.SignUpBloc(gh<_i231.AuthRepository>()),
     );
     gh.lazySingleton<_i649.AuthBloc>(
       () => _i649.AuthBloc(gh<_i231.AuthRepository>()),

@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../features/auth/presentation/bloc/sign_in_bloc.dart';
+import '../../features/auth/presentation/bloc/sign_up_bloc.dart';
 import '../../features/auth/presentation/pages/sign_in_page.dart';
 import '../../features/auth/presentation/pages/sign_up_page.dart';
 import '../../features/challenges/presentation/pages/active_challenges_page.dart';
@@ -9,6 +12,7 @@ import '../../features/challenges/presentation/pages/challenges_page.dart';
 import '../../features/home/presentation/pages/home_shell.dart';
 import '../../features/medals/presentation/pages/medals_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
+import '../di/injection.dart';
 
 /// Route patterns that need a signed-in user, written as the full pattern
 /// from the root (`GoRouterState.fullPath`, for example `/challenges/:id` or
@@ -71,11 +75,17 @@ final appRoutes = <RouteBase>[
   ),
   GoRoute(
     path: SignInPage.path,
-    builder: (context, state) => const SignInPage(),
+    builder: (context, state) => BlocProvider(
+      create: (_) => getIt<SignInBloc>(),
+      child: const SignInPage(),
+    ),
   ),
   GoRoute(
     path: SignUpPage.path,
-    builder: (context, state) => const SignUpPage(),
+    builder: (context, state) => BlocProvider(
+      create: (_) => getIt<SignUpBloc>(),
+      child: const SignUpPage(),
+    ),
   ),
 ];
 

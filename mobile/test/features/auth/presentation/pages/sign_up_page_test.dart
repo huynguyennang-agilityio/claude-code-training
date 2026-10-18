@@ -4,7 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
-import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:stridequest/features/auth/presentation/bloc/sign_up_bloc.dart';
 import 'package:stridequest/features/auth/presentation/pages/sign_up_page.dart';
 import 'package:stridequest/features/auth/presentation/widgets/auth_text_field.dart';
 
@@ -13,22 +13,26 @@ import '../../../../helpers/mock_auth_bloc.dart';
 import '../../../../helpers/pump_screen.dart';
 
 void main() {
-  late MockAuthBloc bloc;
+  late MockSignUpBloc bloc;
 
-  setUpAll(() => registerFallbackValue(const AuthStarted()));
-  setUp(() => bloc = MockAuthBloc());
+  setUpAll(
+    () => registerFallbackValue(
+      const SignUpSubmitted(email: '', password: '', displayName: ''),
+    ),
+  );
+  setUp(() => bloc = MockSignUpBloc());
 
   Future<void> pumpPage(
     WidgetTester tester, {
-    AuthState state = const AuthUnauthenticated(),
+    SignUpState state = const SignUpInitial(),
     Size size = smallPhone,
     double textScale = 1,
     bool settle = true,
   }) async {
-    whenListen(bloc, const Stream<AuthState>.empty(), initialState: state);
+    whenListen(bloc, const Stream<SignUpState>.empty(), initialState: state);
     await pumpScreen(
       tester,
-      BlocProvider<AuthBloc>.value(value: bloc, child: const SignUpPage()),
+      BlocProvider<SignUpBloc>.value(value: bloc, child: const SignUpPage()),
       size: size,
       textScale: textScale,
       settle: settle,
@@ -40,16 +44,12 @@ void main() {
   final password = find.widgetWithText(AuthTextField, 'Password');
   final createButton = find.widgetWithText(FilledButton, 'Create account');
 
-  AuthUnauthenticated failed(
+  SignUpFailed failed(
     AuthFailureCode code, {
     Map<String, String> fieldErrors = const {},
     Duration? retryAfter,
-  }) => AuthUnauthenticated(
-    failure: AuthFailure(
-      code,
-      fieldErrors: fieldErrors,
-      retryAfter: retryAfter,
-    ),
+  }) => SignUpFailed(
+    AuthFailure(code, fieldErrors: fieldErrors, retryAfter: retryAfter),
   );
 
   Future<void> fillValid(WidgetTester tester) async {
@@ -89,7 +89,7 @@ void main() {
     testWidgets('disables the fields and the button and shows progress', (
       tester,
     ) async {
-      await pumpPage(tester, state: const AuthInProgress(), settle: false);
+      await pumpPage(tester, state: const SignUpInProgress(), settle: false);
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       for (final field in find.byType(TextField).evaluate()) {
@@ -203,7 +203,7 @@ void main() {
 
       verify(
         () => bloc.add(
-          const AuthSignUpRequested(
+          const SignUpSubmitted(
             email: 'lan@example.com',
             password: 'run4medals',
             displayName: 'Lan Runner',
@@ -219,7 +219,7 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pump();
 
-      verify(() => bloc.add(any(that: isA<AuthSignUpRequested>()))).called(1);
+      verify(() => bloc.add(any(that: isA<SignUpSubmitted>()))).called(1);
     });
 
     testWidgets('asks for every field and sends nothing when they are empty', (
@@ -274,7 +274,7 @@ void main() {
       await tester.tap(createButton);
       await tester.pump();
 
-      verify(() => bloc.add(any(that: isA<AuthSignUpRequested>()))).called(1);
+      verify(() => bloc.add(any(that: isA<SignUpSubmitted>()))).called(1);
     });
 
     testWidgets('rejects an email that is not shaped like an address', (
@@ -326,7 +326,7 @@ void main() {
         await tester.pump();
       }
 
-      verify(() => bloc.add(any(that: isA<AuthSignUpRequested>()))).called(2);
+      verify(() => bloc.add(any(that: isA<SignUpSubmitted>()))).called(2);
     });
   });
 
@@ -349,8 +349,8 @@ void main() {
   });
 
   group('layout and accessibility', () {
-    final states = <String, AuthState>{
-      'initial': const AuthUnauthenticated(),
+    final states = <String, SignUpState>{
+      'initial': const SignUpInitial(),
       'email taken': failed(AuthFailureCode.emailTaken),
       'field errors': failed(
         AuthFailureCode.validation,

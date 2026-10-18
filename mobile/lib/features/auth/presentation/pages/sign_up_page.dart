@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_tokens.dart';
 import '../../domain/failures/auth_failure.dart';
-import '../bloc/auth_bloc.dart';
+import '../bloc/sign_up_bloc.dart';
 import '../widgets/auth_banner.dart';
 import '../widgets/auth_form_layout.dart';
 import '../widgets/auth_switch_link.dart';
@@ -44,8 +44,8 @@ class _SignUpPageState extends State<SignUpPage> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    context.read<AuthBloc>().add(
-      AuthSignUpRequested(
+    context.read<SignUpBloc>().add(
+      SignUpSubmitted(
         email: _email.text.trim(),
         password: _password.text,
         displayName: _displayName.text.trim(),
@@ -75,10 +75,10 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AuthBloc, AuthState>(
+    return BlocBuilder<SignUpBloc, SignUpState>(
       builder: (context, state) {
-        final busy = state is AuthInProgress;
-        final failure = state is AuthUnauthenticated ? state.failure : null;
+        final busy = state is SignUpInProgress;
+        final failure = state is SignUpFailed ? state.failure : null;
         _adoptFailure(failure);
 
         return Form(

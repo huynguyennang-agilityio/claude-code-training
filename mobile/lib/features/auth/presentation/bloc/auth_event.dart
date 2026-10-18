@@ -12,33 +12,18 @@ final class AuthStarted extends AuthEvent {
   const AuthStarted();
 }
 
-final class AuthSignInRequested extends AuthEvent {
-  const AuthSignInRequested({required this.email, required this.password});
-
-  final String email;
-  final String password;
-
-  @override
-  List<Object?> get props => [email, password];
-}
-
-final class AuthSignUpRequested extends AuthEvent {
-  const AuthSignUpRequested({
-    required this.email,
-    required this.password,
-    required this.displayName,
-  });
-
-  final String email;
-  final String password;
-  final String displayName;
-
-  @override
-  List<Object?> get props => [email, password, displayName];
-}
-
 final class AuthSignOutRequested extends AuthEvent {
   const AuthSignOutRequested();
+}
+
+/// The repository started a session: the user signed in or signed up.
+final class _AuthSessionStarted extends AuthEvent {
+  const _AuthSessionStarted(this.user);
+
+  final AuthUser user;
+
+  @override
+  List<Object?> get props => [user];
 }
 
 /// The repository ended the session, for example after a failed refresh.

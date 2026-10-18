@@ -5,12 +5,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:stridequest/core/di/injection.dart';
 import 'package:stridequest/core/router/app_router.dart';
 import 'package:stridequest/core/router/go_router_refresh_stream.dart';
+import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/challenges/presentation/pages/challenges_page.dart';
 
+import '../../helpers/auth_di.dart';
 import '../../helpers/auth_fixtures.dart';
 
 class _MockRepository extends Mock implements AuthRepository {}
@@ -86,6 +89,11 @@ void main() {
     when(
       () => repository.sessionExpired,
     ).thenAnswer((_) => sessionExpired.stream);
+    when(
+      () => repository.sessionStarted,
+    ).thenAnswer((_) => const Stream<AuthUser>.empty());
+    registerAuthFormBlocs(repository);
+    addTearDown(getIt.reset);
     when(() => repository.signOut()).thenAnswer((_) async {});
   });
 
