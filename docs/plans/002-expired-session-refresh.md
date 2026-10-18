@@ -1,7 +1,7 @@
 # Plan 002: Challenge requests never refresh or end an expired session
 
 Status: approved
-Approved: <the user fills in the date>
+Approved: 2026-10-18
 Issues: <filled in after approval>
 
 ## Context
