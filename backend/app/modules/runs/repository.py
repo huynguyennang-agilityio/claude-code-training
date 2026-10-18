@@ -2,11 +2,11 @@ import uuid
 from collections.abc import Sequence
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.modules.runs.models import Run, RunStatus
+from app.modules.runs.models import Run, RunStatus, StepSample
 
 # A user "is in" a challenge while the enrollment is active or paused.
 _JOINED = (RunStatus.ACTIVE.value, RunStatus.PAUSED.value)
@@ -89,3 +89,53 @@ class RunRepository:
         self._session.add(run)
         await self._session.flush()
         return run
+
+    async def active_with_challenge(self, user_id: uuid.UUID) -> list[Run]:
+        """The user's active enrollments, locked until the transaction ends so two syncs of one
+        user count one after the other. Each has its challenge loaded (its target)."""
+        result = await self._session.scalars(
+            select(Run)
+            .where(Run.user_id == user_id, Run.status == RunStatus.ACTIVE.value)
+            .options(joinedload(Run.challenge))
+            .order_by(Run.id)
+            .with_for_update(of=Run)
+            .execution_options(populate_existing=True)
+        )
+        return list(result)
+
+    async def known_record_ids(self, run_id: int, record_ids: Sequence[str]) -> set[str]:
+        """Which of these health records are already stored for the run."""
+        if not record_ids:
+            return set()
+        rows = await self._session.scalars(
+            select(StepSample.health_record_id).where(
+                StepSample.run_id == run_id, StepSample.health_record_id.in_(record_ids)
+            )
+        )
+        return set(rows)
+
+    async def add_samples(self, samples: Sequence[StepSample]) -> None:
+        self._session.add_all(samples)
+        await self._session.flush()
+
+    async def joined_page(
+        self,
+        user_id: uuid.UUID,
+        *,
+        limit: int,
+        after: tuple[datetime, int] | None,
+    ) -> list[Run]:
+        """The user's active and paused enrollments, the soonest start first, with their
+        challenge loaded. `after` is the `(starts_at, id)` of the last row of the previous page."""
+        query = (
+            select(Run)
+            .where(Run.user_id == user_id, Run.status.in_(_JOINED))
+            .options(joinedload(Run.challenge))
+        )
+        if after is not None:
+            starts_at, run_id = after
+            query = query.where(
+                or_(Run.starts_at > starts_at, and_(Run.starts_at == starts_at, Run.id > run_id))
+            )
+        result = await self._session.scalars(query.order_by(Run.starts_at, Run.id).limit(limit))
+        return list(result)

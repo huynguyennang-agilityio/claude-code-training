@@ -89,6 +89,7 @@ class EnrollmentService:
         # The copy of the type and window is what the database checks overlap against.
         run.status = RunStatus.ACTIVE.value
         run.joined_at = now
+        run.counting_from = now
         run.type = challenge.type
         run.starts_at = challenge.starts_at
         run.ends_at = challenge.ends_at
@@ -110,6 +111,7 @@ class EnrollmentService:
             raise ChallengeEndedError("This challenge has ended.")
         await self._refuse_overlap(user_id, run.challenge_id, run.type, run.starts_at, run.ends_at)
         run.status = RunStatus.ACTIVE.value
+        run.counting_from = self._now()
         await self._save(run)
 
     async def leave(self, user_id: uuid.UUID, challenge_id: int) -> None:
