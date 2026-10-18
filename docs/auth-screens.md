@@ -8,8 +8,8 @@ The Figma file had no sign-in or sign-up design, so both frames reuse the style 
 
 | Screen | Route | Purpose |
 | --- | --- | --- |
-| Sign in | `/sign-in` | Where a signed-out user starts. Email and password. On success the router redirect goes to Home; the screen never navigates itself. No Back button. |
-| Sign up | `/sign-up` | Display name, email and password. The backend signs the user in, so success also goes to Home through the redirect. Back goes to Sign in. |
+| Sign in | `/sign-in` | Where a signed-out user starts. Email and password. On success the router redirect goes to the first tab (Challenges); the screen never navigates itself. No Back button. |
+| Sign up | `/sign-up` | Display name, email and password. The backend signs the user in, so success also goes to the first tab through the redirect. Back goes to Sign in. |
 | Tabs | `/challenges`, `/active`, `/medals`, `/profile` | Protected: signed-in users only, in a shell with a bottom bar of four tabs (Figma component `Tab Bar`). A signed-in user opens on Challenges; `/` redirects there. While the stored session is being read the shell shows progress, so a signed-out user never sees it. Sign out (on Profile) returns to Sign in. |
 
 Layout, top to bottom: back button and centered title; heading and one line of subtext; the form; a flexible gap; the primary button; the link to the other screen. The form scrolls, so the keyboard and large text never overflow.
