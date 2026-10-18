@@ -15,10 +15,17 @@ START = datetime(2026, 10, 1, tzinfo=UTC)
 def make_quest() -> Quest:
     challenge = Challenge(
         title="10k steps",
-        target_steps=10_000,
+        target_value=10_000,
         starts_at=START,
         ends_at=START + timedelta(days=1),
-        medal=Medal(name="First 10k", image_url="https://storage.example.com/medals/10k.png"),
+        medals=[
+            Medal(
+                tier="gold",
+                threshold_value=10_000,
+                name="First 10k",
+                image_url="https://res.cloudinary.com/demo/image/upload/medals/10k.png",
+            )
+        ],
     )
     return Quest(title="October quest", description="Walk every day", challenges=[challenge])
 
@@ -38,14 +45,17 @@ async def test_quest_challenge_medal_relationships(session: AsyncSession) -> Non
     await session.commit()
 
     quest = await session.scalar(
-        select(Quest).options(selectinload(Quest.challenges).selectinload(Challenge.medal))
+        select(Quest).options(selectinload(Quest.challenges).selectinload(Challenge.medals))
     )
 
     assert quest is not None
     challenge = quest.challenges[0]
-    assert challenge.medal is not None
-    assert challenge.medal.image_url == "https://storage.example.com/medals/10k.png"
-    assert QuestRead.model_validate(quest).challenges[0].medal is not None
+    assert [medal.tier for medal in challenge.medals] == ["gold"]
+    assert (
+        challenge.medals[0].image_url
+        == "https://res.cloudinary.com/demo/image/upload/medals/10k.png"
+    )
+    assert len(QuestRead.model_validate(quest).challenges[0].medals) == 1
 
 
 @pytest.mark.anyio

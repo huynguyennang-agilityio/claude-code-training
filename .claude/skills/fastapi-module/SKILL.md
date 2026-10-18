@@ -79,7 +79,7 @@ References: `app/modules/challenges/schemas.py`, `app/modules/runs/schemas.py`.
 class ChallengeCreate(BaseModel):
     quest_id: int
     title: str = Field(min_length=1, max_length=120)
-    target_steps: int = Field(gt=0)
+    target_value: int = Field(gt=0)
     starts_at: AwareDatetime
     ends_at: AwareDatetime
 
@@ -105,7 +105,7 @@ class ChallengeRepository:
         return await self._session.scalar(
             select(Challenge)
             .where(Challenge.id == challenge_id)
-            .options(selectinload(Challenge.medal))
+            .options(selectinload(Challenge.medals))
         )
 
     async def quest_exists(self, quest_id: int) -> bool:
@@ -119,7 +119,7 @@ class ChallengeRepository:
 
 - Queries only this module's models. Data owned by another module comes from that module's service, except the read-only nesting below.
 - Eager-load every relationship the response schema reads (`selectinload`). An async session can't lazy-load: touching an unloaded relationship raises `MissingGreenlet` during serialization.
-- **Another module's rows in a response.** A repository may eager-load them through an existing relationship only to nest them, read-only, in a response schema: the example loads `Challenge.medal` because `ChallengeRead` nests `MedalRead`. Filtering or sorting by another module's columns, writing its rows, business rules on its data, and data it transforms or restricts on read go through that module's service. Don't add a new cross-module relationship without the user's approval. The `all, delete-orphan` cascade on `Challenge.medal` is not a write path: create and change medals only through `medals.service`, never by assigning or clearing `challenge.medal`. Deleting a challenge may remove its medal, as the foreign key's `ON DELETE CASCADE` already does. Rule and reasons: `docs/architecture.md` ("Modules and layers") and [ADR 0002](../../../docs/adr/0002-cross-module-reads.md).
+- **Another module's rows in a response.** A repository may eager-load them through an existing relationship only to nest them, read-only, in a response schema: the example loads `Challenge.medals` because `ChallengeRead` nests `MedalRead`. Filtering or sorting by another module's columns, writing its rows, business rules on its data, and data it transforms or restricts on read go through that module's service. Don't add a new cross-module relationship without the user's approval. The `all, delete-orphan` cascade on `Challenge.medals` is not a write path: create and change medals only through `medals.service`, never by assigning or clearing `challenge.medals`. Deleting a challenge may remove its medal, as the foreign key's `ON DELETE CASCADE` already does. Rule and reasons: `docs/architecture.md` ("Modules and layers") and [ADR 0002](../../../docs/adr/0002-cross-module-reads.md).
 - Return ORM objects or `None`. Raising "not found" is the service's decision.
 - No abstract base class or `I`-prefixed interface: unit tests replace the class with `AsyncMock(spec=ChallengeRepository)`.
 
@@ -277,7 +277,7 @@ def challenge_create() -> ChallengeCreate:
     return ChallengeCreate(
         quest_id=1,
         title="5k",
-        target_steps=5000,
+        target_value=5000,
         starts_at=datetime(2026, 1, 1, tzinfo=UTC),
         ends_at=datetime(2026, 1, 2, tzinfo=UTC),
     )
