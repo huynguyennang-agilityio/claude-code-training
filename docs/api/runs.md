@@ -1,6 +1,6 @@
 # Runs API contract
 
-The contract of the routes that count progress in the challenges a user is in. It grows with the plan in [`docs/plans/003-active-tab.md`](../plans/003-active-tab.md): this version holds step sync and the list of the caller's challenges with their progress. The daily activity summary joins it with its own issue.
+The contract of the routes that count progress in the challenges a user is in. It grows with the plan in [`docs/plans/003-active-tab.md`](../plans/003-active-tab.md): this version holds step sync, the list of the caller's challenges with their progress, and the daily activity summary.
 
 Every JSON example is also a file in `docs/api/examples/runs/`; the `<!-- example: ... -->` comment above each block names it.
 
@@ -12,6 +12,7 @@ Errors use the `ErrorResponse` of [`auth.md`](auth.md), and the codes of that fi
 | --- | --- | --- | --- |
 | `POST` | `/api/v1/runs/steps` | access token | Sync step samples and count them toward the challenges |
 | `GET` | `/api/v1/runs` | access token | The challenges the caller is in, with progress |
+| `PUT` | `/api/v1/runs/daily-activity` | access token | Sync the daily health figures (steps, calories, distance, sleep) |
 
 A caller without a token gets `401 not_authenticated`. Both routes read and change only the caller's own enrollments; another user's are never visible.
 
@@ -172,9 +173,68 @@ Each item has `challenge`, the same card as in [`challenges.md`](challenges.md) 
 }
 ```
 
+## Sync the daily activity
+
+`PUT /api/v1/runs/daily-activity` stores what the health data said for each calendar day, so StrideQuest has the figures the Active tab shows. It is separate from step sync: the figures do not count toward challenges.
+
+A request has 1 to 7 days. For each day the server **replaces** the caller's row, so the call can be repeated and a figure that is left out goes back to empty. The app sends only the metrics the user allowed.
+
+| Field | Rule |
+| --- | --- |
+| `date` | The calendar day on the device, as `YYYY-MM-DD` text, from 2020-01-01. The server accepts up to its own today plus one day (time zones); a later day answers `422 validation_error`. Each day appears once in a request. |
+| `steps` | Optional, a whole number from 0 to 200,000. |
+| `calories_kcal` | Optional, a whole number from 0 to 50,000. |
+| `distance_m` | Optional, a whole number of metres from 0 to 500,000. |
+| `sleep_minutes` | Optional, minutes asleep in the night that ends on this day, from 0 to 1,440. |
+
+The answer is `200` with the stored days, oldest first, each with `updated_at`. The figures belong to the caller alone: the route reads and writes only their rows, and there is no route to read another user's. They are deleted with the account, and the server never logs them.
+
+<!-- example: runs/daily_activity_request.json -->
+```json
+{
+  "days": [
+    {
+      "date": "2026-11-02",
+      "steps": 8412,
+      "calories_kcal": 312,
+      "distance_m": 6120,
+      "sleep_minutes": 410
+    },
+    {
+      "date": "2026-11-03",
+      "steps": 5490
+    }
+  ]
+}
+```
+
+<!-- example: runs/daily_activity_result.json -->
+```json
+{
+  "days": [
+    {
+      "date": "2026-11-02",
+      "steps": 8412,
+      "calories_kcal": 312,
+      "distance_m": 6120,
+      "sleep_minutes": 410,
+      "updated_at": "2026-11-03T21:55:04Z"
+    },
+    {
+      "date": "2026-11-03",
+      "steps": 5490,
+      "calories_kcal": null,
+      "distance_m": null,
+      "sleep_minutes": null,
+      "updated_at": "2026-11-03T21:55:04Z"
+    }
+  ]
+}
+```
+
 ## Error codes
 
 | HTTP | `code` | When |
 | --- | --- | --- |
 | 422 | `invalid_cursor` | The `cursor` of the list is not one the server gave. |
-| 422 | `validation_error` | The body or the query breaks a field rule. `fields` names each problem. |
+| 422 | `validation_error` | The body or the query breaks a field rule, or a day is in the future. `fields` names each problem. |

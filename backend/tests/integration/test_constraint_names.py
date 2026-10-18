@@ -22,6 +22,7 @@ CONVENTION_NAMES = {
     "pk_medals",
     "pk_runs",
     "pk_step_samples",
+    "pk_daily_activity",
     "pk_users",
     "pk_refresh_tokens",
     "pk_login_attempts",
@@ -30,6 +31,7 @@ CONVENTION_NAMES = {
     "fk_runs_challenge_id_challenges",
     "fk_runs_user_id_users",
     "fk_step_samples_run_id_runs",
+    "fk_daily_activity_user_id_users",
     "fk_refresh_tokens_user_id_users",
     "uq_users_email",
     "uq_refresh_tokens_token_hash",
@@ -51,6 +53,10 @@ CONVENTION_NAMES = {
     "ck_runs_status_valid",
     "ck_runs_type_valid",
     "ck_runs_window_valid",
+    "ck_daily_activity_steps_non_negative",
+    "ck_daily_activity_calories_non_negative",
+    "ck_daily_activity_distance_non_negative",
+    "ck_daily_activity_sleep_non_negative",
 }
 
 POSTGRES_NAMES = {

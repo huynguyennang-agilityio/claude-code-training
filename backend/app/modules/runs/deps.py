@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.modules.challenges.deps import ChallengeServiceDep
+from app.modules.runs.activity import ActivityService
 from app.modules.runs.enrollments import EnrollmentService
 from app.modules.runs.progress import ProgressService
 from app.modules.runs.repository import RunRepository
@@ -26,3 +27,10 @@ def get_progress_service(session: Annotated[AsyncSession, Depends(get_session)])
 
 
 ProgressServiceDep = Annotated[ProgressService, Depends(get_progress_service)]
+
+
+def get_activity_service(session: Annotated[AsyncSession, Depends(get_session)]) -> ActivityService:
+    return ActivityService(session, RunRepository(session))
+
+
+ActivityServiceDep = Annotated[ActivityService, Depends(get_activity_service)]

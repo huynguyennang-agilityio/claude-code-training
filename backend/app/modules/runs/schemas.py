@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+import re
+from datetime import date, datetime, timedelta
 from typing import Annotated, Self
 
 from pydantic import (
@@ -102,3 +103,56 @@ class MyChallengeQuery(BaseModel):
 
 
 TRACKED_TYPES = (ChallengeType.RUN.value,)
+
+
+MAX_DAYS_PER_SYNC = 7
+Day = date  # a field named `date` would hide the type inside its own class
+EARLIEST_DAY = Day(2020, 1, 1)
+_DAY_TEXT = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+class DailyActivityIn(BaseModel):
+    """What the health data said for one calendar day on the device. A figure the user did not
+    allow, or the device has none of, is left out."""
+
+    date: Day = Field(ge=EARLIEST_DAY, description="The calendar day on the device.")
+    steps: int | None = Field(default=None, ge=0, le=200_000)
+    calories_kcal: int | None = Field(default=None, ge=0, le=50_000)
+    distance_m: int | None = Field(default=None, ge=0, le=500_000)
+    sleep_minutes: int | None = Field(
+        default=None, ge=0, le=1_440, description="Time asleep in the night that ends on this day."
+    )
+
+    @field_validator("date", mode="before")
+    @classmethod
+    def _date_is_text(cls, value: object) -> object:
+        """A day is sent as `YYYY-MM-DD` text; Pydantic would also take a number or a time."""
+        if not isinstance(value, str) or not _DAY_TEXT.match(value):
+            raise ValueError("Send the day as YYYY-MM-DD.")
+        return value
+
+
+class DailyActivityRequest(BaseModel):
+    days: list[DailyActivityIn] = Field(min_length=1, max_length=MAX_DAYS_PER_SYNC)
+
+    @model_validator(mode="after")
+    def days_are_different(self) -> Self:
+        days = [item.date for item in self.days]
+        if len(set(days)) != len(days):
+            raise ValueError("Send each day once.")
+        return self
+
+
+class DailyActivityRead(BaseModel):
+    """A day as it is stored."""
+
+    date: Day
+    steps: int | None
+    calories_kcal: int | None
+    distance_m: int | None
+    sleep_minutes: int | None
+    updated_at: AwareDatetime
+
+
+class DailyActivityResult(BaseModel):
+    days: list[DailyActivityRead]

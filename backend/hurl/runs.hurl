@@ -4,7 +4,8 @@
 #   backend/hurl/run.sh [base_url]
 #
 # run.sh passes: base, admin_token, user_token, other_token (a second normal user), title
-# (unique per run), and sample_start and sample_end, the window of one step sample. The sample
+# (unique per run), day_yesterday, day_today and day_after_tomorrow (dates for the daily activity
+# sync), and sample_start and sample_end, the window of one step sample. The sample
 # starts shortly after now (the user joins first, and steps count only from joining) and ends
 # less than 5 minutes ahead (a sample from further in the future is ignored).
 
@@ -172,6 +173,73 @@ jsonpath "$.error.fields" count >= 2
 
 GET {{base}}/runs?limit=0
 Authorization: Bearer {{user_token}}
+HTTP 422
+[Asserts]
+jsonpath "$.error.code" == "validation_error"
+
+# Daily activity: not signed in
+PUT {{base}}/runs/daily-activity
+{ "days": [{ "date": "{{day_today}}", "steps": 1 }] }
+HTTP 401
+[Asserts]
+jsonpath "$.error.code" == "not_authenticated"
+
+# Two days are stored
+PUT {{base}}/runs/daily-activity
+Authorization: Bearer {{user_token}}
+{
+  "days": [
+    {
+      "date": "{{day_yesterday}}",
+      "steps": 8412,
+      "calories_kcal": 312,
+      "distance_m": 6120,
+      "sleep_minutes": 410
+    },
+    { "date": "{{day_today}}", "steps": 5490 }
+  ]
+}
+HTTP 200
+[Asserts]
+jsonpath "$.days" count == 2
+jsonpath "$.days[0].date" == "{{day_yesterday}}"
+jsonpath "$.days[0].sleep_minutes" == 410
+jsonpath "$.days[1].calories_kcal" == null
+
+# A day is replaced, and a figure left out goes empty
+PUT {{base}}/runs/daily-activity
+Authorization: Bearer {{user_token}}
+{ "days": [{ "date": "{{day_yesterday}}", "steps": 9000 }] }
+HTTP 200
+[Asserts]
+jsonpath "$.days[0].steps" == 9000
+jsonpath "$.days[0].sleep_minutes" == null
+
+# A day later than tomorrow is refused
+PUT {{base}}/runs/daily-activity
+Authorization: Bearer {{user_token}}
+{ "days": [{ "date": "{{day_after_tomorrow}}", "steps": 1 }] }
+HTTP 422
+[Asserts]
+jsonpath "$.error.code" == "validation_error"
+jsonpath "$.error.fields[0].field" == "body.days.0.date"
+
+# validation_error: a figure out of range, a day twice, a day that is not text
+PUT {{base}}/runs/daily-activity
+Authorization: Bearer {{user_token}}
+{
+  "days": [
+    { "date": "{{day_today}}", "steps": -5 },
+    { "date": "{{day_today}}" }
+  ]
+}
+HTTP 422
+[Asserts]
+jsonpath "$.error.code" == "validation_error"
+
+PUT {{base}}/runs/daily-activity
+Authorization: Bearer {{user_token}}
+{ "days": [{ "date": 20261102 }] }
 HTTP 422
 [Asserts]
 jsonpath "$.error.code" == "validation_error"
