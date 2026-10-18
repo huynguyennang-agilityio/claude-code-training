@@ -22,7 +22,7 @@ class ChallengeRepository:
             .execution_options(populate_existing=True)
         )
 
-    async def list(
+    async def list_challenges(
         self,
         *,
         include_drafts: bool,
@@ -62,6 +62,9 @@ class ChallengeRepository:
 
     async def get_quest_by_title(self, title: str) -> Quest | None:
         return await self._session.scalar(select(Quest).where(Quest.title == title))
+
+    async def list_quests(self) -> list[Quest]:
+        return list(await self._session.scalars(select(Quest).order_by(Quest.id)))
 
     async def add_quest(self, quest: Quest) -> Quest:
         self._session.add(quest)

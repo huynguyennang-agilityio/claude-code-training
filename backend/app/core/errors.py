@@ -6,14 +6,16 @@ can branch on `error.code` instead of parsing messages.
 """
 
 import logging
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.constants import REF_PREFIX
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from fastapi.routing import iter_route_contexts
+from pydantic import BaseModel, ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.routing import compile_path
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +66,19 @@ class DomainError(Exception):
         if not isinstance(getattr(cls, "code", None), str):
             raise TypeError(f"{cls.__name__} must set a string `code`")
 
-    def __init__(self, message: str, *, headers: dict[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        headers: dict[str, str] | None = None,
+        fields: list[FieldError] | None = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
         # Extra response headers, e.g. `Retry-After` or `WWW-Authenticate`.
         self.headers = headers
+        # Per-field messages, for a `validation_error` found after the request body was read.
+        self.fields = fields or []
 
 
 def _error_response(
@@ -80,7 +90,9 @@ def _error_response(
 
 async def domain_error_handler(_: Request, exc: DomainError) -> JSONResponse:
     return _error_response(
-        exc.status_code, ErrorBody(code=exc.code, message=exc.message), exc.headers
+        exc.status_code,
+        ErrorBody(code=exc.code, message=exc.message, fields=exc.fields),
+        exc.headers,
     )
 
 
@@ -93,11 +105,28 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
     return _error_response(422, body)
 
 
-async def http_exception_handler(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     code, message = _http_error_body(exc)
-    return _error_response(
-        exc.status_code, ErrorBody(code=code, message=message), dict(exc.headers or {})
-    )
+    headers = dict(exc.headers or {})
+    if exc.status_code == 405:
+        headers["Allow"] = _allowed_methods(request) or headers.get("Allow", "")
+    return _error_response(exc.status_code, ErrorBody(code=code, message=message), headers)
+
+
+def _allowed_methods(request: Request) -> str:
+    """Every method the path answers to.
+
+    Starlette's `Allow` header lists only the first route that matches the path, so a path
+    served by several routes (`PATCH` and `DELETE` of one challenge) would hide the others.
+    """
+    path = request.url.path
+    methods: set[str] = set()
+    for context in iter_route_contexts(request.app.routes):
+        if context.path is not None and compile_path(context.path)[0].match(path):
+            methods.update(context.methods or ())
+    if "GET" in methods:
+        methods.add("HEAD")
+    return ", ".join(sorted(methods))
 
 
 async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
@@ -137,6 +166,18 @@ def _field_message(error: dict[str, Any]) -> str:
     if error["type"] == "value_error" and "error" in error.get("ctx", {}):
         return str(error["ctx"]["error"])
     return str(error["msg"])
+
+
+def fields_from_validation_error(error: ValidationError) -> list[FieldError]:
+    """The `fields` of a `validation_error` for a Pydantic error raised outside request parsing
+    (for example when a service validates a stored value merged with an edit)."""
+    return [
+        FieldError(
+            field=_field_name(cast("dict[str, Any]", item)),
+            message=_field_message(cast("dict[str, Any]", item)),
+        )
+        for item in error.errors()
+    ]
 
 
 def register_exception_handlers(app: FastAPI) -> None:

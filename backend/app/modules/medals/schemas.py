@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
+from app.core.text import SINGLE_LINE_PATTERN
 from app.modules.medals.models import MedalTier
 
 # The most a challenge can ask for: 10 million steps, or 10,000 km in metres.
@@ -21,6 +22,6 @@ class MedalInput(BaseModel):
     thresholds against its target) are checked by `ChallengeCreate`."""
 
     tier: MedalTier
-    name: str = Field(min_length=1, max_length=120)
+    name: str = Field(min_length=1, max_length=120, pattern=SINGLE_LINE_PATTERN)
     threshold_value: int = Field(gt=0, le=MAX_THRESHOLD)
     image_url: HttpUrl

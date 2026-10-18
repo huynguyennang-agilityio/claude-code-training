@@ -1,9 +1,11 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from typing import Any
 
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import DomainError
+from app.core.errors import DomainError, fields_from_validation_error
 from app.modules.challenges.models import (
     METRIC_FOR_TYPE,
     Challenge,
@@ -12,7 +14,7 @@ from app.modules.challenges.models import (
     Quest,
 )
 from app.modules.challenges.repository import ChallengeRepository
-from app.modules.challenges.schemas import ChallengeCreate
+from app.modules.challenges.schemas import ChallengeCreate, ChallengeUpdate, QuestCreate
 from app.modules.medals.service import MedalService
 
 DEFAULT_QUEST_TITLE = "General"
@@ -40,6 +42,22 @@ class ChallengeNotDraftError(DomainError):
     code = "challenge_not_draft"
 
 
+class ChallengeInUseError(DomainError):
+    status_code = 409
+    code = "challenge_in_use"
+
+
+class ChallengeInvalidError(DomainError):
+    """An edit that breaks a rule once merged with the stored challenge."""
+
+    status_code = 422
+    code = "validation_error"
+
+
+# What the participants are counting toward. Once anyone has joined, an edit can't change these.
+FROZEN_WITH_PARTICIPANTS = ("type", "target_value", "starts_at", "ends_at", "medals")
+
+
 def _utcnow() -> datetime:
     return datetime.now(UTC)
 
@@ -50,11 +68,15 @@ class ChallengeService:
         session: AsyncSession,
         repository: ChallengeRepository,
         medals: MedalService,
+        participants: Callable[[int], Awaitable[int]],
         now: Callable[[], datetime] = _utcnow,
     ) -> None:
         self._session = session
         self._repository = repository
         self._medals = medals
+        # How many users joined a challenge. The runs module owns it; the caller passes
+        # `RunService.count_participants`, so this module never imports the runs one.
+        self._participants = participants
         self._now = now
 
     async def create(self, data: ChallengeCreate) -> Challenge:
@@ -81,6 +103,113 @@ class ChallengeService:
         await self._session.commit()
         return await self._get_or_raise(challenge.id)
 
+    async def update(self, challenge_id: int, data: ChallengeUpdate) -> Challenge:
+        """Change a challenge.
+
+        The result is validated as a whole, with the rules of `ChallengeCreate`. Once anyone
+        has joined, `type`, `target_value`, the window and the medals are frozen: they are what
+        the participants are counting toward. A published challenge must stay publishable.
+        """
+        challenge = await self._get_or_raise(challenge_id)
+        changes = {name: getattr(data, name) for name in data.model_fields_set}
+        if not changes:
+            return challenge
+        merged = self._merge(challenge, changes)
+        if await self._participants(challenge.id):
+            frozen = [
+                name
+                for name in FROZEN_WITH_PARTICIPANTS
+                if name in changes and self._differs(challenge, name, merged)
+            ]
+            if frozen:
+                raise ChallengeInUseError(
+                    f"People have joined this challenge, so {', '.join(frozen)} cannot change."
+                )
+        if "quest_id" in changes and changes["quest_id"] != challenge.quest_id:
+            await self._quest_for(merged.quest_id)
+        if challenge.status == ChallengeStatus.PUBLISHED.value:
+            missing = self._missing(
+                merged.cover_image_url,
+                merged.description_md,
+                len(merged.medals),
+                merged.ends_at,
+            )
+            if missing:
+                raise ChallengeNotPublishableError(
+                    f"A published challenge must keep {', '.join(missing)}."
+                )
+        self._apply(challenge, merged)
+        if "medals" in changes:
+            await self._medals.replace_medals(challenge.id, merged.medals)
+        await self._session.commit()
+        return await self._get_or_raise(challenge.id)
+
+    def _merge(self, challenge: Challenge, changes: dict[str, Any]) -> ChallengeCreate:
+        current: dict[str, Any] = {
+            "quest_id": challenge.quest_id,
+            "title": challenge.title,
+            "type": challenge.type,
+            "target_value": challenge.target_value,
+            "starts_at": challenge.starts_at,
+            "ends_at": challenge.ends_at,
+            "description_md": challenge.description_md,
+            "terms_md": challenge.terms_md,
+            "cover_image_url": challenge.cover_image_url,
+            "city": challenge.city,
+            "landmark": challenge.landmark,
+            "medals": [
+                {
+                    "tier": medal.tier,
+                    "name": medal.name,
+                    "threshold_value": medal.threshold_value,
+                    "image_url": medal.image_url,
+                }
+                for medal in challenge.medals
+            ],
+        }
+        try:
+            return ChallengeCreate.model_validate({**current, **changes})
+        except ValidationError as error:
+            raise ChallengeInvalidError(
+                "The challenge would break a rule.", fields=fields_from_validation_error(error)
+            ) from error
+
+    @staticmethod
+    def _differs(challenge: Challenge, name: str, merged: ChallengeCreate) -> bool:
+        if name == "medals":
+            stored = [(m.tier, m.threshold_value, m.name, m.image_url) for m in challenge.medals]
+            wanted = [
+                (m.tier.value, m.threshold_value, m.name, str(m.image_url)) for m in merged.medals
+            ]
+            return sorted(stored) != sorted(wanted)
+        new = getattr(merged, name)
+        return bool(getattr(challenge, name) != (new.value if hasattr(new, "value") else new))
+
+    @staticmethod
+    def _apply(challenge: Challenge, merged: ChallengeCreate) -> None:
+        challenge.quest_id = merged.quest_id if merged.quest_id is not None else challenge.quest_id
+        challenge.title = merged.title
+        challenge.type = merged.type.value
+        challenge.metric = METRIC_FOR_TYPE[merged.type].value
+        challenge.target_value = merged.target_value
+        challenge.starts_at = merged.starts_at
+        challenge.ends_at = merged.ends_at
+        challenge.description_md = merged.description_md
+        challenge.terms_md = merged.terms_md
+        challenge.cover_image_url = str(merged.cover_image_url) if merged.cover_image_url else None
+        challenge.city = merged.city
+        challenge.landmark = merged.landmark
+
+    async def create_quest(self, data: QuestCreate) -> Quest:
+        quest = await self._repository.add_quest(
+            Quest(title=data.title, description=data.description)
+        )
+        await self._session.commit()
+        return quest
+
+    async def list_quests(self) -> list[Quest]:
+        return await self._repository.list_quests()
+
     async def get(self, challenge_id: int, *, include_drafts: bool = False) -> Challenge:
         """A draft is hidden unless `include_drafts`: it answers as if it did not exist."""
         challenge = await self._get_or_raise(challenge_id)
@@ -97,7 +226,7 @@ class ChallengeService:
         limit: int = 20,
         after_id: int | None = None,
     ) -> list[Challenge]:
-        return await self._repository.list(
+        return await self._repository.list_challenges(
             include_drafts=include_drafts,
             challenge_type=challenge_type.value if challenge_type else None,
             search=search.strip() if search and search.strip() else None,
@@ -136,14 +265,28 @@ class ChallengeService:
         await self._session.commit()
 
     def _missing_for_publishing(self, challenge: Challenge) -> list[str]:
+        return self._missing(
+            challenge.cover_image_url,
+            challenge.description_md,
+            len(challenge.medals),
+            challenge.ends_at,
+        )
+
+    def _missing(
+        self,
+        cover_image_url: object,
+        description_md: str,
+        medal_count: int,
+        ends_at: datetime,
+    ) -> list[str]:
         missing = []
-        if not challenge.cover_image_url:
+        if not cover_image_url:
             missing.append("a cover image")
-        if not challenge.description_md.strip():
+        if not description_md.strip():
             missing.append("a description")
-        if not challenge.medals:
+        if not medal_count:
             missing.append("at least one medal")
-        if challenge.ends_at <= self._now():
+        if ends_at <= self._now():
             missing.append("an end date in the future")
         return missing
 

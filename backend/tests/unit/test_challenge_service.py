@@ -6,10 +6,12 @@ import pytest
 
 from app.modules.challenges.models import Challenge, ChallengeStatus, ChallengeType, Quest
 from app.modules.challenges.repository import ChallengeRepository
-from app.modules.challenges.schemas import ChallengeCreate
+from app.modules.challenges.schemas import ChallengeCreate, ChallengeUpdate, QuestCreate
 from app.modules.challenges.service import (
     DEFAULT_QUEST_TITLE,
     MAX_PAGE_SIZE,
+    ChallengeInUseError,
+    ChallengeInvalidError,
     ChallengeNotDraftError,
     ChallengeNotFoundError,
     ChallengeNotPublishableError,
@@ -32,6 +34,9 @@ def make_challenge(**changes: Any) -> Challenge:
         "metric": "steps",
         "target_value": 50_000,
         "description_md": "Walk or run.",
+        "terms_md": "",
+        "city": None,
+        "landmark": None,
         "cover_image_url": IMAGE,
         "status": "draft",
         "starts_at": NOW - timedelta(days=1),
@@ -67,8 +72,15 @@ def medals() -> AsyncMock:
 
 
 @pytest.fixture
-def service(session: AsyncMock, repository: AsyncMock, medals: AsyncMock) -> ChallengeService:
-    return ChallengeService(session, repository, medals, now=lambda: NOW)
+def participants() -> AsyncMock:
+    return AsyncMock(return_value=0)
+
+
+@pytest.fixture
+def service(
+    session: AsyncMock, repository: AsyncMock, medals: AsyncMock, participants: AsyncMock
+) -> ChallengeService:
+    return ChallengeService(session, repository, medals, participants=participants, now=lambda: NOW)
 
 
 def create_request(**changes: Any) -> ChallengeCreate:
@@ -194,13 +206,13 @@ class TestList:
     async def test_passes_the_filters_and_clamps_the_page_size(
         self, service: ChallengeService, repository: AsyncMock
     ) -> None:
-        repository.list.return_value = []
+        repository.list_challenges.return_value = []
 
         await service.list_challenges(
             challenge_type=ChallengeType.SWIM, search="  Hà Nội ", limit=10_000, after_id=5
         )
 
-        repository.list.assert_awaited_once_with(
+        repository.list_challenges.assert_awaited_once_with(
             include_drafts=False,
             challenge_type="swim",
             search="Hà Nội",
@@ -213,11 +225,11 @@ class TestList:
     async def test_a_page_has_at_least_one_row(
         self, service: ChallengeService, repository: AsyncMock, asked: int, used: int
     ) -> None:
-        repository.list.return_value = []
+        repository.list_challenges.return_value = []
 
         await service.list_challenges(limit=asked, search="   ")
 
-        kwargs = repository.list.await_args.kwargs
+        kwargs = repository.list_challenges.await_args.kwargs
         assert kwargs["limit"] == used
         assert kwargs["search"] is None
 
@@ -322,6 +334,153 @@ class TestUnpublishAndDelete:
 
         assert (raised.value.status_code, raised.value.code) == (409, "challenge_not_draft")
         repository.delete.assert_not_awaited()
+
+
+def update_request(**changes: Any) -> ChallengeUpdate:
+    return ChallengeUpdate.model_validate(changes)
+
+
+class TestUpdate:
+    @pytest.mark.anyio
+    async def test_changes_only_what_is_sent(
+        self, service: ChallengeService, repository: AsyncMock, session: AsyncMock
+    ) -> None:
+        challenge = repository.get.return_value
+
+        await service.update(1, update_request(title="New title", city="Hà Nội"))
+
+        assert (challenge.title, challenge.city) == ("New title", "Hà Nội")
+        assert challenge.target_value == 50_000
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_null_clears_an_optional_field(
+        self, service: ChallengeService, repository: AsyncMock
+    ) -> None:
+        repository.get.return_value = make_challenge(city="Hà Nội")
+
+        await service.update(1, update_request(city=None))
+
+        assert repository.get.return_value.city is None
+
+    @pytest.mark.anyio
+    async def test_an_empty_patch_writes_nothing(
+        self, service: ChallengeService, session: AsyncMock
+    ) -> None:
+        await service.update(1, update_request())
+
+        session.commit.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_the_merged_challenge_must_still_follow_the_rules(
+        self, service: ChallengeService, session: AsyncMock
+    ) -> None:
+        with pytest.raises(ChallengeInvalidError) as raised:
+            await service.update(1, update_request(target_value=60_000))
+
+        assert raised.value.fields
+        session.commit.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_the_type_changes_the_metric(
+        self, service: ChallengeService, repository: AsyncMock
+    ) -> None:
+        await service.update(1, update_request(type="swim"))
+
+        assert repository.get.return_value.metric == "distance_m"
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"type": "swim"},
+            {"target_value": 40_000, "medals": []},
+            {"ends_at": NOW + timedelta(days=60)},
+            {"starts_at": NOW - timedelta(days=2)},
+        ],
+    )
+    async def test_the_counted_fields_are_frozen_once_someone_joined(
+        self, service: ChallengeService, participants: AsyncMock, changes: dict[str, Any]
+    ) -> None:
+        participants.return_value = 3
+
+        with pytest.raises(ChallengeInUseError):
+            await service.update(1, update_request(**changes))
+
+    @pytest.mark.anyio
+    async def test_the_same_value_is_not_a_change(
+        self, service: ChallengeService, participants: AsyncMock
+    ) -> None:
+        participants.return_value = 3
+
+        await service.update(1, update_request(type="run", target_value=50_000, title="Renamed"))
+
+    @pytest.mark.anyio
+    async def test_other_fields_stay_editable_once_someone_joined(
+        self, service: ChallengeService, participants: AsyncMock, repository: AsyncMock
+    ) -> None:
+        participants.return_value = 3
+
+        await service.update(1, update_request(description_md="New text."))
+
+        assert repository.get.return_value.description_md == "New text."
+
+    @pytest.mark.anyio
+    async def test_replaces_the_medals_in_the_same_transaction(
+        self, service: ChallengeService, medals: AsyncMock, session: AsyncMock
+    ) -> None:
+        gold = {"tier": "gold", "name": "G", "threshold_value": 50_000, "image_url": IMAGE}
+
+        await service.update(1, update_request(medals=[gold]))
+
+        medals.replace_medals.assert_awaited_once()
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_published_challenge_cannot_lose_what_publishing_needs(
+        self, service: ChallengeService, repository: AsyncMock
+    ) -> None:
+        repository.get.return_value = make_challenge(status="published")
+
+        with pytest.raises(ChallengeNotPublishableError, match="a cover image"):
+            await service.update(1, update_request(cover_image_url=None))
+
+    @pytest.mark.anyio
+    async def test_an_unknown_quest_is_refused(
+        self, service: ChallengeService, repository: AsyncMock
+    ) -> None:
+        repository.get_quest.return_value = None
+
+        with pytest.raises(QuestNotFoundError):
+            await service.update(1, update_request(quest_id=99))
+
+    @pytest.mark.anyio
+    async def test_an_unknown_challenge_is_not_found(
+        self, service: ChallengeService, repository: AsyncMock
+    ) -> None:
+        repository.get.return_value = None
+
+        with pytest.raises(ChallengeNotFoundError):
+            await service.update(1, update_request(title="x"))
+
+
+class TestQuests:
+    @pytest.mark.anyio
+    async def test_creates_a_quest_and_commits_it(
+        self, service: ChallengeService, repository: AsyncMock, session: AsyncMock
+    ) -> None:
+        repository.add_quest.side_effect = lambda quest: quest
+
+        quest = await service.create_quest(QuestCreate(title="Hanoi", description="Walks"))
+
+        assert (quest.title, quest.description) == ("Hanoi", "Walks")
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_lists_the_quests(self, service: ChallengeService, repository: AsyncMock) -> None:
+        repository.list_quests.return_value = [Quest(id=1, title="A", description="")]
+
+        assert [q.id for q in await service.list_quests()] == [1]
 
 
 class TestMedalService:

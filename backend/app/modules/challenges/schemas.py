@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated
 
 from pydantic import (
@@ -11,6 +12,7 @@ from pydantic import (
     field_validator,
 )
 
+from app.core.text import NO_NUL_PATTERN, SINGLE_LINE_PATTERN
 from app.modules.challenges.models import (
     ChallengeMetric,
     ChallengeMode,
@@ -20,7 +22,20 @@ from app.modules.challenges.models import (
 from app.modules.medals.models import TIER_ORDER, MedalTier
 from app.modules.medals.schemas import MAX_THRESHOLD, MedalInput, MedalRead
 
-Place = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+
+def _date_text(value: object) -> object:
+    """A date and time is sent as ISO 8601 text; Pydantic would also take a bare number."""
+    if not isinstance(value, str | datetime):
+        raise ValueError("Send an ISO 8601 date and time with a timezone.")
+    return value
+
+
+Place = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=120, pattern=SINGLE_LINE_PATTERN
+    ),
+]
 
 
 class ChallengeRead(BaseModel):
@@ -49,17 +64,24 @@ class ChallengeCreate(BaseModel):
     steps for a run, metres for a swim or a ride."""
 
     quest_id: int | None = Field(default=None, description="Defaults to the default quest.")
-    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    title: Annotated[
+        str,
+        StringConstraints(
+            strip_whitespace=True, min_length=1, max_length=120, pattern=SINGLE_LINE_PATTERN
+        ),
+    ]
     type: ChallengeType
     target_value: int = Field(gt=0, le=MAX_THRESHOLD)
     starts_at: AwareDatetime
     ends_at: AwareDatetime
-    description_md: str = Field(default="", max_length=20_000)
-    terms_md: str = Field(default="", max_length=20_000)
+    description_md: str = Field(default="", max_length=20_000, pattern=NO_NUL_PATTERN)
+    terms_md: str = Field(default="", max_length=20_000, pattern=NO_NUL_PATTERN)
     cover_image_url: HttpUrl | None = None
     city: Place | None = None
     landmark: Place | None = None
     medals: list[MedalInput] = Field(default_factory=list, max_length=len(TIER_ORDER))
+
+    _dates_are_text = field_validator("starts_at", "ends_at", mode="before")(_date_text)
 
     @field_validator("ends_at")
     @classmethod
@@ -100,3 +122,62 @@ class QuestRead(BaseModel):
     title: str
     description: str
     challenges: list[ChallengeRead]
+
+
+class ChallengeUpdate(BaseModel):
+    """The fields to change, all optional. A field that is sent replaces the stored value
+    (`null` clears the cover, city and landmark); one that is left out stays. The service
+    checks the result against the same rules as `ChallengeCreate`, since a rule such as the
+    gold medal at the target depends on stored fields the request may not repeat."""
+
+    # The fields that can't be cleared are typed without `None`, so the OpenAPI document does
+    # not offer `null` for them. Their default is `None` only to tell "left out" apart; the
+    # service reads what was sent from `model_fields_set`, never the default.
+    quest_id: int = Field(default=None)  # type: ignore[assignment]
+    title: Annotated[
+        str,
+        StringConstraints(
+            strip_whitespace=True, min_length=1, max_length=120, pattern=SINGLE_LINE_PATTERN
+        ),
+    ] = Field(default=None)  # type: ignore[assignment]
+    type: ChallengeType = Field(default=None)  # type: ignore[assignment]
+    target_value: int = Field(default=None, gt=0, le=MAX_THRESHOLD)  # type: ignore[assignment]
+    starts_at: AwareDatetime = Field(default=None)  # type: ignore[assignment]
+    ends_at: AwareDatetime = Field(default=None)  # type: ignore[assignment]
+    description_md: str = Field(default=None, max_length=20_000, pattern=NO_NUL_PATTERN)  # type: ignore[assignment]
+    terms_md: str = Field(default=None, max_length=20_000, pattern=NO_NUL_PATTERN)  # type: ignore[assignment]
+    cover_image_url: HttpUrl | None = None
+    city: Place | None = None
+    landmark: Place | None = None
+    medals: list[MedalInput] = Field(
+        default=None,  # type: ignore[arg-type]
+        max_length=len(TIER_ORDER),
+    )
+
+    _dates_are_text = field_validator("starts_at", "ends_at", mode="before")(_date_text)
+
+
+class QuestCreate(BaseModel):
+    title: Annotated[
+        str,
+        StringConstraints(
+            strip_whitespace=True, min_length=1, max_length=120, pattern=SINGLE_LINE_PATTERN
+        ),
+    ]
+    description: str = Field(default="", max_length=2_000, pattern=NO_NUL_PATTERN)
+
+
+class QuestSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: str
+
+
+class UploadedImageRead(BaseModel):
+    url: HttpUrl
+    public_id: str
+    width: int
+    height: int
+    size_bytes: int

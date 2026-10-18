@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "challenge_in_use",
+    "message": "People have joined this challenge, so target_value cannot change."
+  }
+}
