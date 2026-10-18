@@ -135,6 +135,15 @@ abstract final class AppTheme {
           ),
         ),
       ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: _lime,
+        unselectedLabelColor: _textSecondary,
+        indicatorColor: _lime,
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: _default,
+        labelStyle: _textTheme.labelLarge,
+        unselectedLabelStyle: _textTheme.labelLarge,
+      ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: _lime,

@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stridequest/features/runs/data/repositories/health_repository_impl.dart';
+import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
+import 'package:stridequest/features/runs/domain/failures/runs_failure.dart';
 
 import '../../../helpers/health_fixtures.dart';
 
@@ -145,6 +147,88 @@ void main() {
 
       expect(await repository.requestAccess(), const HealthAccess.denied());
       expect(prompts.count, 0);
+    });
+  });
+
+  group('reading', () {
+    final now = DateTime(2026, 10, 19, 21, 55);
+    late HealthRepositoryImpl reader;
+
+    setUp(() {
+      reader = HealthRepositoryImpl(source, prompts, clock: () => now);
+      source.totals.addAll({
+        HealthMetric.steps: 5490,
+        HealthMetric.calories: 312,
+        HealthMetric.distance: 3080,
+        HealthMetric.sleep: 390,
+      });
+    });
+
+    test('today is read from midnight, for the allowed metrics only', () async {
+      final reading = await reader.readToday({
+        HealthMetric.steps,
+        HealthMetric.distance,
+      });
+
+      expect(reading.readAt, now);
+      expect((reading.steps, reading.distanceM), (5490, 3080));
+      expect((reading.calories, reading.sleepMinutes), (null, null));
+      expect(source.totalCalls.map((c) => c.$1), [
+        HealthMetric.steps,
+        HealthMetric.distance,
+      ]);
+      expect(source.totalCalls.first.$2, DateTime(2026, 10, 19));
+      expect(source.totalCalls.first.$3, now);
+    });
+
+    test('sleep is the night that ends today, from 18:00 yesterday', () async {
+      await reader.readToday({HealthMetric.sleep});
+
+      expect(source.totalCalls.single.$2, DateTime(2026, 10, 18, 18));
+    });
+
+    test('a read that throws is a HealthFailure', () async {
+      source.readError = Exception('no access');
+
+      await expectLater(reader.readToday(_all), throwsA(isA<HealthFailure>()));
+    });
+
+    test('days are calendar dates, today last and up to now', () async {
+      final days = await reader.readDays({HealthMetric.steps}, days: 2);
+
+      expect(days.map((d) => d.date), [
+        DateTime(2026, 10, 18),
+        DateTime(2026, 10, 19),
+      ]);
+      expect(days.first.steps, 5490);
+      expect(days.first.calories, isNull);
+      final yesterday = source.totalCalls[0];
+      expect(
+        (yesterday.$2, yesterday.$3),
+        (DateTime(2026, 10, 18), DateTime(2026, 10, 19)),
+      );
+      expect(source.totalCalls[1].$3, now);
+    });
+
+    test('step records come from the source up to now', () async {
+      source.records = [
+        StepRecord(
+          id: 'a',
+          startTime: DateTime.utc(2026, 10, 18, 6),
+          endTime: DateTime.utc(2026, 10, 18, 7),
+          steps: 100,
+        ),
+      ];
+
+      final records = await reader.readStepRecords(
+        from: DateTime(2026, 10, 15),
+      );
+
+      expect(records.single.id, 'a');
+      expect(
+        (source.recordsFrom, source.recordsTo),
+        (DateTime(2026, 10, 15), now),
+      );
     });
   });
 

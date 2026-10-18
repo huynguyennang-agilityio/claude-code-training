@@ -1,6 +1,8 @@
 import 'package:injectable/injectable.dart';
 
+import '../../domain/entities/activity.dart';
 import '../../domain/entities/health_access.dart';
+import '../../domain/failures/runs_failure.dart';
 import '../../domain/repositories/health_repository.dart';
 import '../datasources/health_data_source.dart';
 import '../datasources/health_prompt_store.dart';
@@ -16,13 +18,18 @@ import '../datasources/health_prompt_store.dart';
 ///   read shows as 0 steps. Before it was shown the status is denied.
 @LazySingleton(as: HealthRepository)
 class HealthRepositoryImpl implements HealthRepository {
-  HealthRepositoryImpl(this._source, this._prompts);
+  HealthRepositoryImpl(
+    this._source,
+    this._prompts, {
+    @ignoreParam DateTime Function() clock = DateTime.now,
+  }) : _clock = clock;
 
   /// How many times Health Connect shows its dialog before it stops asking.
   static const androidDialogLimit = 2;
 
   final HealthDataSource _source;
   final HealthPromptStore _prompts;
+  final DateTime Function() _clock;
 
   @override
   Future<HealthAccess> checkAccess() async {
@@ -62,4 +69,83 @@ class HealthRepositoryImpl implements HealthRepository {
 
   @override
   Future<void> installHealthConnect() => _source.installHealthConnect();
+
+  @override
+  Future<ActivityReading> readToday(Set<HealthMetric> allowed) async {
+    final now = _clock();
+    final midnight = _midnight(now);
+    try {
+      Future<int?> figure(HealthMetric metric) async {
+        if (!allowed.contains(metric)) return null;
+        // The night that ends today began yesterday evening.
+        final from = metric == HealthMetric.sleep
+            ? midnight.subtract(_sleepLead)
+            : midnight;
+        return _source.total(metric, from, now);
+      }
+
+      return ActivityReading(
+        readAt: now,
+        steps: await figure(HealthMetric.steps),
+        calories: await figure(HealthMetric.calories),
+        distanceM: await figure(HealthMetric.distance),
+        sleepMinutes: await figure(HealthMetric.sleep),
+      );
+    } on Exception {
+      throw const HealthFailure();
+    }
+  }
+
+  @override
+  Future<List<DailyFigures>> readDays(
+    Set<HealthMetric> allowed, {
+    required int days,
+  }) async {
+    final now = _clock();
+    try {
+      final figures = <DailyFigures>[];
+      for (var back = days - 1; back >= 0; back--) {
+        // A day is a calendar date: move on the date, not by 24-hour spans, so a
+        // daylight-saving change cannot slip a day.
+        final day = DateTime(now.year, now.month, now.day - back);
+        final next = DateTime(day.year, day.month, day.day + 1);
+        final end = next.isAfter(now) ? now : next;
+        Future<int?> figure(HealthMetric metric) async {
+          if (!allowed.contains(metric)) return null;
+          final from = metric == HealthMetric.sleep
+              ? day.subtract(_sleepLead)
+              : day;
+          return _source.total(metric, from, end);
+        }
+
+        figures.add(
+          DailyFigures(
+            date: day,
+            steps: await figure(HealthMetric.steps),
+            calories: await figure(HealthMetric.calories),
+            distanceM: await figure(HealthMetric.distance),
+            sleepMinutes: await figure(HealthMetric.sleep),
+          ),
+        );
+      }
+      return figures;
+    } on Exception {
+      throw const HealthFailure();
+    }
+  }
+
+  @override
+  Future<List<StepRecord>> readStepRecords({required DateTime from}) async {
+    try {
+      return await _source.stepRecords(from, _clock());
+    } on Exception {
+      throw const HealthFailure();
+    }
+  }
+
+  /// A night is counted from 18:00 the evening before.
+  static const _sleepLead = Duration(hours: 6);
+
+  static DateTime _midnight(DateTime moment) =>
+      DateTime(moment.year, moment.month, moment.day);
 }

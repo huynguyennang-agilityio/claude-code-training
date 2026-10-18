@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:stridequest/core/di/injection.dart';
+import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
+import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/health_gate_bloc.dart';
 import 'package:stridequest/features/runs/presentation/pages/active_challenges_page.dart';
 import 'package:stridequest/features/runs/presentation/widgets/health_gate_view.dart';
@@ -11,6 +14,7 @@ import 'package:stridequest/features/runs/presentation/widgets/health_gate_view.
 import '../../../../helpers/expect_accessible.dart';
 import '../../../../helpers/health_fixtures.dart';
 import '../../../../helpers/pump_screen.dart';
+import '../../../../helpers/runs_fixtures.dart';
 
 const _granted = HealthAccess(
   HealthAccessStatus.granted,
@@ -35,6 +39,21 @@ Widget _page(MockHealthGateBloc bloc) => BlocProvider<HealthGateBloc>.value(
 
 void main() {
   late MockHealthGateBloc bloc;
+
+  // Access granted builds the tabs, whose bloc comes from `getIt` as in the app.
+  setUp(() {
+    final activity = MockActivityBloc();
+    whenListen(
+      activity,
+      const Stream<ActivityState>.empty(),
+      initialState: ActivityState(
+        allowed: const {HealthMetric.steps},
+        reading: ActivityReading(readAt: DateTime(2026, 10, 19, 21, 55)),
+      ),
+    );
+    getIt.registerFactory<ActivityBloc>(() => activity);
+    addTearDown(getIt.reset);
+  });
 
   MockHealthGateBloc blocIn(HealthGateState state) {
     final mock = MockHealthGateBloc();
@@ -124,7 +143,7 @@ void main() {
     bloc = blocIn(const HealthGateResolved(_granted));
     await pumpScreen(tester, _page(bloc));
 
-    expect(find.text('Active'), findsOneWidget);
+    expect(find.text('My Challenges'), findsOneWidget);
     expect(find.text('Allow access'), findsNothing);
     expect(find.byType(HealthGateView), findsNothing);
   });

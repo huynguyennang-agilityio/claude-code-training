@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:health/health.dart';
 import 'package:injectable/injectable.dart';
 
+import '../../domain/entities/activity.dart';
 import '../../domain/entities/health_access.dart';
 
 /// The platform side of health data: the `health` plugin, Health Connect's
@@ -24,6 +25,13 @@ abstract interface class HealthDataSource {
   Future<void> installHealthConnect();
 
   Future<void> openSettings();
+
+  /// The total of [metric] between [from] and [to]: steps, kilocalories, metres,
+  /// or minutes asleep. 0 when there is no data. Throws on a read error.
+  Future<int> total(HealthMetric metric, DateTime from, DateTime to);
+
+  /// The step records between [from] and [to], without the ones typed by hand.
+  Future<List<StepRecord>> stepRecords(DateTime from, DateTime to);
 }
 
 /// [HealthDataSource] over the `health` plugin.
@@ -93,5 +101,56 @@ class PluginHealthDataSource implements HealthDataSource {
     } on MissingPluginException {
       // Same, for a platform without the native side.
     }
+  }
+
+  @override
+  Future<int> total(HealthMetric metric, DateTime from, DateTime to) async {
+    if (metric == HealthMetric.steps) {
+      return await _health.getTotalStepsInInterval(from, to) ?? 0;
+    }
+    final points = await _points(metric, from, to);
+    if (metric == HealthMetric.sleep) {
+      return points.fold<int>(
+        0,
+        (sum, point) => sum + point.dateTo.difference(point.dateFrom).inMinutes,
+      );
+    }
+    final sum = points.fold<num>(0, (total, point) {
+      final value = point.value;
+      return total + (value is NumericHealthValue ? value.numericValue : 0);
+    });
+    return sum.round();
+  }
+
+  @override
+  Future<List<StepRecord>> stepRecords(DateTime from, DateTime to) async {
+    final points = await _points(HealthMetric.steps, from, to, manual: false);
+    return [
+      for (final point in points)
+        if (point.value case NumericHealthValue(:final numericValue))
+          if (numericValue.round() > 0)
+            StepRecord(
+              id: point.uuid,
+              startTime: point.dateFrom,
+              endTime: point.dateTo,
+              steps: numericValue.round(),
+            ),
+    ];
+  }
+
+  Future<List<HealthDataPoint>> _points(
+    HealthMetric metric,
+    DateTime from,
+    DateTime to, {
+    bool manual = true,
+  }) async {
+    final type = _type(metric);
+    final points = await _health.getHealthDataFromTypes(
+      types: [type],
+      startTime: from,
+      endTime: to,
+      recordingMethodsToFilter: manual ? const [] : [RecordingMethod.manual],
+    );
+    return _health.removeDuplicates(points);
   }
 }

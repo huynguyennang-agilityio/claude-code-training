@@ -45,10 +45,20 @@ import 'package:stridequest/features/runs/data/datasources/health_data_source.da
     as _i645;
 import 'package:stridequest/features/runs/data/datasources/health_prompt_store.dart'
     as _i306;
+import 'package:stridequest/features/runs/data/datasources/runs_remote_data_source.dart'
+    as _i860;
 import 'package:stridequest/features/runs/data/repositories/health_repository_impl.dart'
     as _i21;
+import 'package:stridequest/features/runs/data/repositories/runs_repository_impl.dart'
+    as _i1002;
 import 'package:stridequest/features/runs/domain/repositories/health_repository.dart'
     as _i203;
+import 'package:stridequest/features/runs/domain/repositories/runs_repository.dart'
+    as _i137;
+import 'package:stridequest/features/runs/domain/usecases/sync_activity.dart'
+    as _i1029;
+import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart'
+    as _i951;
 import 'package:stridequest/features/runs/presentation/bloc/health_gate_bloc.dart'
     as _i1045;
 
@@ -117,6 +127,14 @@ extension GetItInjectableX on _i174.GetIt {
       () => networkModule.authenticatedDio(gh<_i713.AuthTokenHandler>()),
       instanceName: 'authenticatedDio',
     );
+    gh.lazySingleton<_i860.RunsRemoteDataSource>(
+      () => _i860.DioRunsRemoteDataSource(
+        gh<_i361.Dio>(instanceName: 'authenticatedDio'),
+      ),
+    );
+    gh.lazySingleton<_i137.RunsRepository>(
+      () => _i1002.RunsRepositoryImpl(gh<_i860.RunsRemoteDataSource>()),
+    );
     gh.lazySingleton<_i216.ChallengeRemoteDataSource>(
       () => _i216.DioChallengeRemoteDataSource(
         gh<_i361.Dio>(instanceName: 'authenticatedDio'),
@@ -131,6 +149,15 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.factory<_i909.ChallengesBloc>(
       () => _i909.ChallengesBloc(gh<_i756.ChallengeRepository>()),
+    );
+    gh.factory<_i1029.SyncActivity>(
+      () => _i1029.SyncActivity(
+        gh<_i203.HealthRepository>(),
+        gh<_i137.RunsRepository>(),
+      ),
+    );
+    gh.factory<_i951.ActivityBloc>(
+      () => _i951.ActivityBloc(gh<_i1029.SyncActivity>()),
     );
     return this;
   }
