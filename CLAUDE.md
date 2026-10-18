@@ -10,7 +10,7 @@ The architecture is described, with diagrams, in [`docs/architecture.md`](docs/a
 
 - **Mobile:** Flutter (Dart), feature-first Clean Architecture, `go_router` for navigation, `flutter_bloc` for state, `get_it` + `injectable` for DI (`lib/core/di/`), `dio` for HTTP, `freezed` + `json_serializable` for models (regenerate with `dart run build_runner build --force-jit` and commit the generated files), `flutter_secure_storage` for tokens. Tests use `flutter_test`, `bloc_test` and `mocktail`.
 - **Backend:** FastAPI on Python 3.12 as a modular monolith (modules `auth`, `challenges`, `runs`, `medals`). Async throughout: use `httpx.AsyncClient`, never block the event loop. Pydantic schemas for requests and responses, SQLAlchemy 2 async, Alembic migrations in `backend/alembic/` (every schema change ships with a migration). Errors use the typed `ErrorResponse` from `docs/api/`, not free-form strings. Tests use `pytest` with the anyio plugin: `backend/tests/unit/` mock repositories and need no database; `backend/tests/integration/` run against a PostgreSQL test database from `docker compose` (`TEST_DATABASE_URL`), built from the migrations and rolled back after each test.
-- **Data:** PostgreSQL. Medal images are static files in S3-compatible object storage (AWS S3 in production, SeaweedFS locally); the database stores only their URLs.
+- **Data:** PostgreSQL. Challenge cover and medal images are stored in Cloudinary, uploaded by the backend only; the database stores only their delivery URLs ([ADR 0003](docs/adr/0003-cloudinary-for-images.md)).
 - **Health data:** the app reads steps from Apple Health or Health Connect on the device and syncs them to the backend.
 
 ## Planned structure

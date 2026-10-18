@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 class Medal(Base):
     """The digital medal awarded for completing a challenge.
 
-    The image itself lives in object storage; only its URL is stored here.
+    The image itself lives in Cloudinary; only its delivery URL is stored here.
     """
 
     __tablename__ = "medals"

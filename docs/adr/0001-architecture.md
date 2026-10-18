@@ -1,6 +1,6 @@
 # ADR 0001: Feature-first Flutter and modular FastAPI architecture
 
-- **Status:** Accepted
+- **Status:** Accepted. The image storage part (S3 and SeaweedFS) is superseded by [ADR 0003](0003-cloudinary-for-images.md).
 - **Date:** 2026-10-15
 - **Issue:** #25
 
