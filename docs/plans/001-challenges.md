@@ -1,4 +1,4 @@
-# Plan 001: Challenge list, detail, join, and an admin API to create challenges
+# Plan 001: Challenge list, detail, join, and create-challenge endpoints for admins
 
 Status: draft
 Approved: <the user fills in the date>
@@ -33,11 +33,11 @@ Each has a recommendation. Approving the plan approves the recommendation unless
 3. **What does the "blocked" message say?** *Recommendation:* "You are already in *X*, which runs at the same time as this challenge. Finish, pause or leave it to join this one." It names the other challenge. On the card the Join tap shows this message; on the detail the button is disabled with it.
 4. **Overlap precisely.** *Recommendation:* windows are half-open, `[starts_at, ends_at)`, so a challenge that starts at the instant another ends is allowed. Only `active` enrollments count, and `finished` and `expired` (later plan) never do.
 5. **Join window.** *Recommendation:* the user can join while `now < ends_at`, including before `starts_at`.
-6. **Admin identity (a new security boundary).** *Recommendation:* a `role` column on `users` (`user` or `admin`, default `user`) and a `require_admin` dependency. The first admin is made by a command-line script (`python -m app.scripts.create_admin <email>`), not by any public endpoint. A non-admin gets `403 forbidden`.
+6. **Admin identity (a new security boundary).** *Recommendation:* a `role` column on `users` (`user` or `admin`, default `user`) and a `require_admin` dependency (an admin is also a normal user in the app). The first admin is made by a command-line script (`python -m app.scripts.create_admin <email>`), not by any public endpoint. A non-admin gets `403 forbidden`. There is **no separate `/admin` path prefix**: the create, edit, publish and delete routes live on the same resources as the public ones (`/challenges`, `/quests`, `/images`) and each is guarded by the role, so one resource has one set of paths. A `/admin/...` prefix is added later only for things that exist for the web admin alone (statistics, participant lists).
 7. **What an admin can change.** *Recommendation:* a challenge starts as `draft`; **publish** needs a cover image, a description, a valid window and at least one medal tier (up to three). A draft is editable freely and deletable. A published challenge cannot change `type`, `metric` or its window once anyone has joined; other fields can change.
-8. **Images from the API.** *Recommendation:* the admin sends an image to `POST /api/v1/admin/images` (multipart, JPEG, PNG or WebP, at most 5 MB); the backend uploads it to Cloudinary with its secret key and returns the delivery URL, which the admin then puts in the challenge or medal. Direct signed uploads from the web admin can replace this later.
+8. **Images from the API.** *Recommendation:* an admin sends an image to `POST /api/v1/images` (multipart, JPEG, PNG or WebP, at most 5 MB); the backend uploads it to Cloudinary with its secret key and returns the delivery URL, which the admin then puts in the challenge or medal. Direct signed uploads from the web admin can replace this later.
 9. **Search.** *Recommendation:* `q` matches the title, city and landmark, case-insensitively; the type filter is `type=run|swim|cycle`; both on the server, with cursor paging.
-10. **Quests.** *Recommendation:* kept and hidden from the mobile UI. A challenge's `quest_id` is optional in the admin API and falls back to a default quest; a small admin endpoint creates and lists quests.
+10. **Quests.** *Recommendation:* kept and hidden from the mobile UI. A challenge's `quest_id` is optional when an admin creates a challenge and falls back to a default quest; `POST /api/v1/quests` (admin) and `GET /api/v1/quests` create and list them.
 11. **Naming.** The `runs` module owns "a user's attempt at a challenge" for all three types. *Recommendation:* keep the module and the `runs` table, and document that "run" means an attempt here. A rename is a later chore.
 12. **Participants row.** The reference shows participant avatars and "View all". *Recommendation:* for now the row shows only the **count** ("+813 participants") with placeholder avatars: showing other users' names or photos needs avatars, a privacy decision and a participants endpoint, so "View all" is left for a later plan.
 13. **Units.** *Recommendation:* run is a step goal; swim and cycle are a distance goal, stored in metres and shown in km (miles when the Units setting of the Account screens says so; wired later).
@@ -59,28 +59,24 @@ Migrations are data-preserving (existing rows get `type = run`, `metric = steps`
 
 The copy of `type` and the window lives on the enrollment so the constraint can see it; that is why a published challenge's window and type are frozen once someone has joined (question 7).
 
-### API (contracts in `docs/api/challenges.md` and `docs/api/admin.md`, written with the first backend issue of each)
+### API (contract in `docs/api/challenges.md`, written with the first backend issue that adds a route)
 
-Public, for a signed-in user:
+One set of paths per resource. The role decides who may call a route: **user** means any signed-in user (admins included), **admin** means `role = admin`, otherwise `403 forbidden`.
 
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/v1/challenges?type=&q=&cursor=&limit=` | The list of published challenges: card fields, participant count, and the caller's enrollment status (joined, paused) |
-| `GET /api/v1/challenges/{id}` | Detail: description, terms, the three checkpoints and their medals, participant count, the caller's enrollment, and `blocked_by` (the overlapping challenge that stops a join, if any) |
-| `POST /api/v1/challenges/{id}/join` | Join. `409 overlapping_challenge` (carries the other challenge's id and title), `409 challenge_ended`, `409 already_joined`, `404 not_found` |
-| `POST /api/v1/challenges/{id}/pause`, `/resume`, `/leave` | Act on the caller's own enrollment. `resume`: `409 overlapping_challenge`, `409 challenge_ended`, `409 not_paused`. `pause`: `409 not_active`. All: `404 not_found` when the caller is not enrolled |
+| Endpoint | Who | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/challenges?type=&q=&cursor=&limit=` | user | The list of published challenges: card fields, participant count, and the caller's enrollment status (joined, paused). An admin can add `status=draft` to see drafts |
+| `GET /api/v1/challenges/{id}` | user | Detail: description, terms, the three checkpoints and their medals, participant count, the caller's enrollment, and `blocked_by` (the overlapping challenge that stops a join, if any). A draft is `404 not_found` for a non-admin |
+| `POST /api/v1/challenges` | admin | Create a challenge (a draft) with its location and medal tiers |
+| `PATCH /api/v1/challenges/{id}` | admin | Edit it; `type`, `metric` and the window are frozen once anyone has joined |
+| `DELETE /api/v1/challenges/{id}` | admin | Delete a draft |
+| `POST /api/v1/challenges/{id}/publish`, `/unpublish` | admin | Publish (the checks in question 7) or take it down |
+| `POST /api/v1/challenges/{id}/join` | user | Join. `409 overlapping_challenge` (carries the other challenge's id and title), `409 challenge_ended`, `409 already_joined`, `404 not_found` |
+| `POST /api/v1/challenges/{id}/pause`, `/resume`, `/leave` | user | Act on the caller's own enrollment. `resume`: `409 overlapping_challenge`, `409 challenge_ended`, `409 not_paused`. `pause`: `409 not_active`. All: `404 not_found` when the caller is not enrolled |
+| `POST /api/v1/quests`, `GET /api/v1/quests` | admin, user | Create (admin) and list quests |
+| `POST /api/v1/images` | admin | Upload an image to Cloudinary; returns its URL |
 
-Admin (`role = admin`, otherwise `403 forbidden`):
-
-| Endpoint | Purpose |
-| --- | --- |
-| `POST /api/v1/admin/challenges`, `PATCH /api/v1/admin/challenges/{id}`, `DELETE ...` (drafts only) | Create, edit and delete a challenge with its location and medal tiers |
-| `POST /api/v1/admin/challenges/{id}/publish`, `/unpublish` | Publish (the checks in question 7) or take it down |
-| `GET /api/v1/admin/challenges` | All challenges, drafts included |
-| `POST /api/v1/admin/quests`, `GET /api/v1/admin/quests` | Create and list quests |
-| `POST /api/v1/admin/images` | Upload an image to Cloudinary; returns its URL |
-
-Errors use the typed `ErrorResponse`. A response that nests rows (a challenge with its medals) has a fixed query count. The auth sweep, the fuzz test, the `hurl` files and the OpenAPI snapshot cover the new routes. The join runs in one transaction; when two joins race, the exclusion constraint makes the loser fail with `409 overlapping_challenge`.
+Errors use the typed `ErrorResponse`. A response that nests rows (a challenge with its medals) has a fixed query count. The auth sweep, the fuzz test, the `hurl` files and the OpenAPI snapshot cover the new routes. Because the guard is on each route and not on a whole `/admin` router, the auth sweep is extended: every route must declare its requirement (public, signed-in user, or admin), a route without a declaration fails the test, and a non-admin gets `403 forbidden` on every admin route. The join runs in one transaction; when two joins race, the exclusion constraint makes the loser fail with `409 overlapping_challenge`.
 
 ### Mobile (`features/challenges`)
 
@@ -111,14 +107,14 @@ The user's setup, which needs no code change:
 
 ### Flags for the approval
 
-This plan **changes the public API and the database schema** (new columns and tables, an exclusion constraint, a Postgres extension, a real foreign key), adds **authorization** (an admin role, admin routes, a first-admin script), changes a **core technology** (images move from S3-compatible storage to Cloudinary, and S3 and SeaweedFS are removed) and has an **external cost** (Cloudinary plan limits). The approval covers all of these.
+This plan **changes the public API and the database schema** (new columns and tables, an exclusion constraint, a Postgres extension, a real foreign key), adds **authorization** (an admin role, role-guarded routes on the shared resources, a first-admin script), changes a **core technology** (images move from S3-compatible storage to Cloudinary, and S3 and SeaweedFS are removed) and has an **external cost** (Cloudinary plan limits). The approval covers all of these.
 
 ## Risks
 
 - **Overlap races:** two joins at once could both pass a service check. Mitigation: the exclusion constraint is the guard; a concurrency test proves one wins.
 - **`btree_gist` in production:** managed PostgreSQL services usually allow it, but it must be checked. Fallback if not: a per-user-and-type advisory lock in the join transaction plus the service check.
 - **Frozen windows:** the enrollment holds a copy of the challenge's window, so changing a published challenge's window after someone joined would break the guarantee. The admin API refuses it.
-- **Admin surface:** a privilege escalation or an unprotected admin route would be serious. Mitigation: no endpoint creates an admin, every admin route has the dependency, the auth sweep lists them, tests cover 401, 403 and success.
+- **Role guards on shared paths:** a privilege escalation or an unguarded write route would be serious, and a guard on each route is easier to forget than one on a whole `/admin` router. Mitigation: no endpoint creates an admin, every route declares its requirement and the auth sweep fails on one that does not, and tests cover 401, 403 and success for each admin route.
 - **Uploads:** size, type and content checks on the server, a Cloudinary upload off the event loop, and no secrets in logs.
 - **Clock and time zones:** windows are stored in UTC; screens show local time. "Ended" means `now >= ends_at` on the server clock.
 - **Cloudinary lock-in and quota:** URLs in the database point to one vendor. Mitigation: only URLs are stored, keep originals elsewhere, build URLs in one function.
@@ -128,14 +124,14 @@ This plan **changes the public API and the database schema** (new columns and ta
 
 ## Verification
 
-- **Backend:** `pytest` (unit, integration against the docker-compose database), `ruff`, `mypy`; `alembic upgrade head`, `downgrade`, `upgrade` for each migration with the table definition; per route, the calls with request, status and body for the success and each documented error, as a `.hurl` file replayed by `backend/hurl/run.sh`; `pytest -m fuzz`; the auth sweep (admin routes need the admin role); query-count tests for the nested responses. Overlap tests: a challenge starting after another ends can be joined (the 10/9 example), an overlapping one cannot, a boundary that only touches is allowed, a paused enrollment does not block, resume fails while another overlaps, an ended challenge cannot be joined. A concurrency test: two overlapping joins in parallel, one wins. Cloudinary is mocked in the tests; the real upload is checked by hand once the user has set the credentials, otherwise `Not verified`.
-- **Mobile:** widget tests per state at both phone sizes and text scales 1.0 and 2.0 (`pumpScreen`, `expectAccessible`), goldens, bloc tests, router tests, and an `integration_test` against the local backend with challenges created through the admin API (browse, search, filter, open, join, Joined in the list, Pause, Resume, Leave, the blocked message).
+- **Backend:** `pytest` (unit, integration against the docker-compose database), `ruff`, `mypy`; `alembic upgrade head`, `downgrade`, `upgrade` for each migration with the table definition; per route, the calls with request, status and body for the success and each documented error, as a `.hurl` file replayed by `backend/hurl/run.sh`; `pytest -m fuzz`; the auth sweep (every route declares public, user or admin; non-admins get `403` on the admin routes); query-count tests for the nested responses. Overlap tests: a challenge starting after another ends can be joined (the 10/9 example), an overlapping one cannot, a boundary that only touches is allowed, a paused enrollment does not block, resume fails while another overlaps, an ended challenge cannot be joined. A concurrency test: two overlapping joins in parallel, one wins. Cloudinary is mocked in the tests; the real upload is checked by hand once the user has set the credentials, otherwise `Not verified`.
+- **Mobile:** widget tests per state at both phone sizes and text scales 1.0 and 2.0 (`pumpScreen`, `expectAccessible`), goldens, bloc tests, router tests, and an `integration_test` against the local backend with challenges created through `POST /challenges` as an admin (browse, search, filter, open, join, Joined in the list, Pause, Resume, Leave, the blocked message).
 - **Design:** each screen is compared with its Figma frame on the simulator.
 
 ## Ticket evidence
 
 - Screens: the Figma frames drawn in issue 1 and approved by the user. Until then no screen issue starts. The visual reference for the detail screen is the Figma frame `Challenge - Join Challenge - Countdown` (node `20:51`); issue 1 builds the StrideQuest frames from it.
-- Backend: the sample requests and responses are in `docs/api/challenges.md`, `docs/api/admin.md` and `docs/api/examples/`, written with issues 5, 6 and 7.
+- Backend: the sample requests and responses are in `docs/api/challenges.md` and `docs/api/examples/`, written with issues 5, 6 and 7.
 - Reference: the five screenshots the user sent in chat (not committed).
 
 ## Issues to create
@@ -146,10 +142,10 @@ Order and dependencies matter.
 | --- | --- | --- | --- | --- |
 | 1 | `docs: draw the challenge list and detail screens in Figma` | design | - [ ] Frames: list (loading, empty, error, search and filter), detail (open, joined, paused, ended, blocked by an overlapping challenge), the Leave confirmation. - [ ] Text and color styles reused. - [ ] The user approves the frames | none |
 | 2 | `chore: replace S3 and SeaweedFS with Cloudinary` | backend | - [ ] ADR 0003; settings, `.env.example` and `docker-compose.yml` no longer have S3 or SeaweedFS. - [ ] `core/storage.py` and the URL builder, with tests (Cloudinary mocked). - [ ] `CLAUDE.md`, `README.md`, `architecture.md` updated; the setup checklist is in the README | none |
-| 3 | `feat: add an admin role and guard the admin routes (backend)` | backend | - [ ] Migration for `users.role`; `require_admin` returns `403 forbidden` for others. - [ ] `python -m app.scripts.create_admin`. - [ ] `docs/api/auth.md` updated; auth sweep and tests for 401, 403 and success | none |
+| 3 | `feat: add an admin role and a role guard for routes (backend)` | backend | - [ ] Migration for `users.role`; `require_admin` returns `403 forbidden` for others. - [ ] `python -m app.scripts.create_admin`. - [ ] `docs/api/auth.md` updated. - [ ] The auth sweep makes every route declare public, user or admin, and tests cover 401, 403 and success | none |
 | 4 | `feat: challenge catalog data model (backend)` | backend | - [ ] Migration for `challenges` and `medals` (type, metric, target, location, status, three tiers), up and down tested. - [ ] Models, repositories and services with unit and integration tests | none |
-| 5 | `feat: admin API to create and publish challenges and upload images (backend)` | backend | - [ ] `docs/api/admin.md`, examples and `openapi.json`. - [ ] Challenge create, edit, delete (drafts), publish and unpublish with the checks of question 7; quests create and list; image upload with size and type limits. - [ ] Auth sweep, fuzz and `hurl` evidence | 2, 3, 4 |
-| 6 | `feat: challenge list and detail endpoints (backend)` | backend | - [ ] `docs/api/challenges.md`, examples and `openapi.json`. - [ ] `GET /challenges` (type, search, cursor) and `GET /challenges/{id}` with checkpoints, participant count, the caller's enrollment and `blocked_by`. - [ ] Auth sweep, query-count, fuzz and `hurl` evidence | 4 |
+| 5 | `feat: create, edit, publish and delete challenges, quests and image upload (backend)` | backend | - [ ] The admin routes of the API table in `docs/api/challenges.md`, examples and `openapi.json`. - [ ] Create, edit (with the frozen fields), delete (drafts), publish and unpublish with the checks of question 7; quests create and list; image upload with size and type limits. - [ ] Non-admins get `403`; auth sweep, fuzz and `hurl` evidence | 2, 3, 4 |
+| 6 | `feat: challenge list and detail endpoints (backend)` | backend | - [ ] `docs/api/challenges.md` (the user routes), examples and `openapi.json`. - [ ] `GET /challenges` (type, search, cursor) and `GET /challenges/{id}` with checkpoints, participant count, the caller's enrollment and `blocked_by`; drafts only for admins. - [ ] Auth sweep, query-count, fuzz and `hurl` evidence | 3, 4 |
 | 7 | `feat: join, pause, resume and leave with the overlap rule (backend)` | backend | - [ ] Migration for `runs` (status, joined_at, type and window copy, real user FK, unique per user and challenge, exclusion constraint). - [ ] The four endpoints with the documented errors. - [ ] The overlap and concurrency tests of the Verification section; contract, `hurl` and fuzz evidence | 6 |
 | 8 | `feat: Challenges tab list and challenge detail (mobile)` | frontend | - [ ] List with search and type chips, cards, Joined or Paused, all states, paging. - [ ] Detail with the three medal checkpoints, Terms and About. - [ ] Page, golden, bloc and flow tests; both phone sizes and text scales | 1, 6 |
 | 9 | `feat: Join, Pause, Resume and Leave (mobile)` | frontend | - [ ] The action bar states and the blocked reason; Leave confirmation; the message when a join is refused. - [ ] Tests, and an `integration_test` against the local backend with challenges created through the admin API | 7, 8 |
