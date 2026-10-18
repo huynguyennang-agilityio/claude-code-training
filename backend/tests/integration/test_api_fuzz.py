@@ -18,23 +18,34 @@ import time
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
+import httpx
 import pytest
 import schemathesis
 import uvicorn
 from hypothesis import HealthCheck, settings
 from schemathesis import Case
 from schemathesis.schemas import BaseSchema
+from schemathesis.specs.openapi.checks import positive_data_acceptance
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
 from app.core.database import Base, get_session
+from app.core.storage import StorageNotConfiguredError, UploadedImage
 from app.main import create_app
+from app.modules.challenges.deps import get_storage
 
 MAX_EXAMPLES = 30
 
 pytestmark = pytest.mark.fuzz
+
+
+class _NoStorage:
+    """Stands in for Cloudinary: the fuzzer must never upload to the real account."""
+
+    async def upload_image(self, *args: Any, **kwargs: Any) -> UploadedImage:
+        raise StorageNotConfiguredError("Image storage is off in the fuzz run.")
 
 
 def _free_port() -> int:
@@ -74,6 +85,7 @@ def live_server(database_url: str) -> Iterator[str]:
 
         app = create_app()
         app.dependency_overrides[get_session] = session_for_request
+        app.dependency_overrides[get_storage] = _NoStorage
         port = _free_port()
         server = uvicorn.Server(
             uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
@@ -110,3 +122,37 @@ schema = schemathesis.pytest.from_fixture("api_schema")
 )
 def test_responses_match_the_openapi_document(case: Case[Any]) -> None:
     case.call_and_validate()
+
+
+@pytest.fixture(scope="module")
+def admin_headers(live_server: str, database_url: str) -> dict[str, str]:
+    """A signed-in admin, so the fuzzer gets past the guard of the admin routes."""
+    body = {"email": "fuzz-admin@example.com", "password": "run4medals", "display_name": "Fuzz"}
+    response = httpx.post(f"{live_server}/api/v1/auth/signup", json=body)
+    assert response.status_code == 201, response.text
+
+    async def make_admin() -> None:
+        engine = create_async_engine(database_url, poolclass=NullPool)
+        try:
+            async with engine.begin() as connection:
+                await connection.execute(text("UPDATE users SET role = 'admin'"))
+        finally:
+            await engine.dispose()
+
+    asyncio.run(make_admin())
+    return {"Authorization": f"Bearer {response.json()['tokens']['access_token']}"}
+
+
+@schema.parametrize()
+@settings(
+    max_examples=MAX_EXAMPLES,
+    derandomize=True,
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
+)
+def test_responses_match_the_openapi_document_for_an_admin(
+    case: Case[Any], admin_headers: dict[str, str]
+) -> None:
+    # Some rules compare two fields (`ends_at` after `starts_at`, the gold medal at the target)
+    # or look inside a file; the schema can't say so, and the API rightly refuses such input.
+    case.call_and_validate(headers=admin_headers, excluded_checks=[positive_data_acceptance])

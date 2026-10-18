@@ -1,8 +1,8 @@
-"""The "Error codes" table of `docs/api/challenges.md` matches the errors the service raises."""
+"""The "Error codes" table of `docs/api/challenges.md` matches the errors raised in the module."""
 
 import re
 
-from app.modules.challenges import service
+from app.modules.challenges import images, service
 from tests.api_docs import API_DOCS_DIR, error_codes
 
 DOC = API_DOCS_DIR / "challenges.md"
@@ -10,13 +10,15 @@ _ROW = re.compile(r"^\| (?P<status>\d{3}) \| `(?P<code>\w+)` \|", re.MULTILINE)
 
 
 def raised_errors() -> dict[str, int]:
-    """code -> HTTP status of each `DomainError` defined in the challenges service."""
+    """code -> HTTP status of each `DomainError` defined in the challenges service and images."""
     return {
         error.code: error.status_code
-        for error in vars(service).values()
+        for module in (service, images)
+        for error in vars(module).values()
         if isinstance(error, type)
         and issubclass(error, service.DomainError)
         and error is not service.DomainError
+        and error.__module__ == module.__name__
     }
 
 

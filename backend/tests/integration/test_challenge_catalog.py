@@ -22,6 +22,8 @@ from app.modules.challenges.service import (
 from app.modules.medals.models import Medal
 from app.modules.medals.repository import MedalRepository
 from app.modules.medals.service import MedalService
+from app.modules.runs.repository import RunRepository
+from app.modules.runs.service import RunService
 
 NOW = datetime(2026, 10, 18, tzinfo=UTC)
 IMAGE = "https://res.cloudinary.com/demo/image/upload/stridequest/a.png"
@@ -33,6 +35,7 @@ async def service(session: AsyncSession) -> AsyncIterator[ChallengeService]:
         session,
         ChallengeRepository(session),
         MedalService(MedalRepository(session)),
+        participants=RunService(RunRepository(session)).count_participants,
         now=lambda: NOW,
     )
 

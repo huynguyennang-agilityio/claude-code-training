@@ -25,4 +25,19 @@ run() {
 }
 
 run auth.hurl
+
+# challenges.hurl needs an admin and a normal user. The admin role can only be given on the
+# server, so this makes the account with the same script an operator would use. It must run
+# from backend/ with the virtualenv active.
+signup() {
+  curl -fsS -X POST "$base/auth/signup" -H 'Content-Type: application/json' \
+    -d "{\"email\": \"$1\", \"password\": \"run4medals\", \"display_name\": \"Hurl\"}" \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["tokens"]["access_token"])'
+}
+stamp="$(date +%s)-$RANDOM"
+admin_token=$(signup "hurl-admin-$stamp@example.com")
+user_token=$(signup "hurl-user-$stamp@example.com")
+(cd "$dir/.." && python -m app.scripts.create_admin "hurl-admin-$stamp@example.com")
+hurl --test --variable "base=$base" --variable "admin_token=$admin_token" \
+  --variable "user_token=$user_token" --variable "title=Hurl $stamp" "$dir/challenges.hurl"
 if $rate_limit; then run auth_rate_limit.hurl; fi
