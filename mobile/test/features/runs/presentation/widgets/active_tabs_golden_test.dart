@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
+import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart';
 import 'package:stridequest/features/runs/presentation/widgets/active_tabs.dart';
 
 import '../../../../helpers/golden_screen.dart';
@@ -21,8 +22,17 @@ final _readAt = DateTime(2026, 10, 19, 21, 55);
 Widget _tabs(ActivityState state) {
   final bloc = MockActivityBloc();
   whenListen(bloc, const Stream<ActivityState>.empty(), initialState: state);
-  return BlocProvider<ActivityBloc>.value(
-    value: bloc,
+  final mine = MockMyChallengesBloc();
+  whenListen(
+    mine,
+    const Stream<MyChallengesState>.empty(),
+    initialState: const MyChallengesState(status: MyChallengesStatus.ready),
+  );
+  return MultiBlocProvider(
+    providers: [
+      BlocProvider<ActivityBloc>.value(value: bloc),
+      BlocProvider<MyChallengesBloc>.value(value: mine),
+    ],
     child: const ActiveTabs(),
   );
 }

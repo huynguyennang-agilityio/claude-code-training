@@ -8,6 +8,7 @@ import 'package:stridequest/features/runs/domain/repositories/health_repository.
 import 'package:stridequest/features/runs/domain/usecases/sync_activity.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/health_gate_bloc.dart';
+import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart';
 
 import 'runs_fixtures.dart';
 
@@ -150,9 +151,11 @@ class InMemoryHealthPromptStore implements HealthPromptStore {
 /// (and an in-memory backend for the sync).
 void registerHealthBlocs([HealthRepository? repository]) {
   final repo = repository ?? FakeHealthRepository();
+  final runs = FakeRunsRepository();
   getIt
     ..registerFactory<HealthGateBloc>(() => HealthGateBloc(repo))
     ..registerFactory<ActivityBloc>(
-      () => ActivityBloc(SyncActivity(repo, FakeRunsRepository())),
-    );
+      () => ActivityBloc(SyncActivity(repo, runs)),
+    )
+    ..registerFactory<MyChallengesBloc>(() => MyChallengesBloc(runs));
 }

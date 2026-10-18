@@ -8,6 +8,7 @@ import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/health_gate_bloc.dart';
+import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart';
 import 'package:stridequest/features/runs/presentation/pages/active_challenges_page.dart';
 import 'package:stridequest/features/runs/presentation/widgets/health_gate_view.dart';
 
@@ -52,6 +53,13 @@ void main() {
       ),
     );
     getIt.registerFactory<ActivityBloc>(() => activity);
+    final mine = MockMyChallengesBloc();
+    whenListen(
+      mine,
+      const Stream<MyChallengesState>.empty(),
+      initialState: const MyChallengesState(status: MyChallengesStatus.ready),
+    );
+    getIt.registerFactory<MyChallengesBloc>(() => mine);
     addTearDown(getIt.reset);
   });
 

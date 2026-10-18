@@ -61,6 +61,8 @@ import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart'
     as _i951;
 import 'package:stridequest/features/runs/presentation/bloc/health_gate_bloc.dart'
     as _i1045;
+import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart'
+    as _i48;
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
@@ -143,6 +145,9 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i756.ChallengeRepository>(
       () =>
           _i743.ChallengeRepositoryImpl(gh<_i216.ChallengeRemoteDataSource>()),
+    );
+    gh.factory<_i48.MyChallengesBloc>(
+      () => _i48.MyChallengesBloc(gh<_i137.RunsRepository>()),
     );
     gh.factory<_i530.ChallengeDetailBloc>(
       () => _i530.ChallengeDetailBloc(gh<_i756.ChallengeRepository>()),
