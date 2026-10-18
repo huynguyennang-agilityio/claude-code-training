@@ -36,6 +36,17 @@ Future<void> pumpUntilFound(
   await tester.pumpAndSettle();
 }
 
+/// Opens the Profile tab of the bottom bar.
+Future<void> openProfile(WidgetTester tester) async {
+  await tester.tap(
+    find.descendant(
+      of: find.byType(NavigationBar),
+      matching: find.text('Profile'),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 /// Types [text] into the field [finder] matches, replacing what is there.
 ///
 /// Taps the field first: on a device, `enterText` alone can leave the old text
@@ -71,7 +82,7 @@ void main() {
 
     // Signed out: the app starts on Sign in.
     expect(find.text('Welcome back'), findsOneWidget);
-    expect(find.text('Every run is a quest.'), findsNothing);
+    expect(find.byType(NavigationBar), findsNothing);
 
     // A wrong password is refused with the documented message.
     final emailField = find.widgetWithText(AuthTextField, 'Email');
@@ -87,14 +98,13 @@ void main() {
     // The right one reaches Home, which greets the user by name.
     await typeInto(tester, passwordField, password);
     await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
-    await pumpUntilFound(
-      tester,
-      find.text('Welcome back, Integration Runner.'),
-    );
+    await pumpUntilFound(tester, find.byType(NavigationBar));
+    await openProfile(tester);
+    expect(find.text('Integration Runner'), findsOneWidget);
     expect(find.text('Welcome back'), findsNothing);
 
     // Sign out returns to Sign in.
-    await tester.tap(find.byTooltip('Sign out'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Sign out'));
     await pumpUntilFound(tester, find.text('Welcome back'));
     expect(find.textContaining('Welcome back,'), findsNothing);
   });
@@ -124,10 +134,12 @@ void main() {
       await typeInto(tester, emailField, email);
       await typeInto(tester, passwordField, password);
       await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
-      await pumpUntilFound(tester, find.text('Welcome back, Signup Runner.'));
+      await pumpUntilFound(tester, find.byType(NavigationBar));
+      await openProfile(tester);
+      expect(find.text('Signup Runner'), findsOneWidget);
 
       // Sign out, then the same email is refused on the email field.
-      await tester.tap(find.byTooltip('Sign out'));
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Sign out'));
       await pumpUntilFound(tester, find.text('Welcome back'));
       await tester.tap(find.text('Sign up'));
       await tester.pumpAndSettle();

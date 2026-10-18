@@ -41,6 +41,9 @@ abstract final class AppSizes {
   /// accessibility guidelines).
   static const double minTapTarget = 48;
 
+  /// Height of the bottom tab bar, without the bottom safe area.
+  static const double tabBarHeight = 56;
+
   /// Height of a primary button.
   static const double buttonHeight = 50;
 }

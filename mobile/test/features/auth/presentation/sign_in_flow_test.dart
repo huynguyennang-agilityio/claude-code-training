@@ -6,8 +6,10 @@ import 'package:stridequest/features/auth/data/repositories/auth_repository_impl
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/auth/presentation/pages/sign_in_page.dart';
 import 'package:stridequest/features/auth/presentation/widgets/auth_text_field.dart';
+import 'package:stridequest/features/challenges/presentation/pages/challenges_page.dart';
 
 import '../../../helpers/in_memory_auth_local_data_source.dart';
+import '../../../helpers/open_profile.dart';
 
 /// The sign-in flow through the real app, router and bloc, with an in-memory
 /// backend. It exists because a widget test with a mocked bloc can't see that
@@ -58,8 +60,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(SignInPage, skipOffstage: false), findsNothing);
-    expect(find.text('Welcome back, Lan Runner.'), findsOneWidget);
-    expect(find.byTooltip('Sign out'), findsOneWidget);
+    expect(find.byType(ChallengesPage), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
+    await openProfile(tester);
+    expect(find.text('Lan Runner'), findsOneWidget);
   });
 
   testWidgets('a wrong password stays on the page with the message', (
@@ -86,7 +90,7 @@ void main() {
     await tester.tap(submit);
     await tester.pumpAndSettle();
 
-    expect(find.text('Welcome back, Lan Runner.'), findsOneWidget);
+    expect(find.byType(ChallengesPage), findsOneWidget);
   });
 
   testWidgets('sign out returns to the signed-out Home', (tester) async {
@@ -96,7 +100,8 @@ void main() {
     await tester.tap(submit);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Sign out'));
+    await openProfile(tester);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Sign out'));
     await tester.pumpAndSettle();
 
     expect(find.byType(SignInPage), findsOneWidget);
@@ -108,13 +113,13 @@ void main() {
 
     expect(find.byType(SignInPage), findsOneWidget);
     expect(find.byTooltip('Back'), findsNothing);
-    expect(find.text('Every run is a quest.'), findsNothing);
+    expect(find.byType(ChallengesPage), findsNothing);
   });
 
   testWidgets('a stored session starts on Home', (tester) async {
     await pumpApp(tester, storedSession: true);
 
     expect(find.byType(SignInPage, skipOffstage: false), findsNothing);
-    expect(find.text('Welcome back, Lan Runner.'), findsOneWidget);
+    expect(find.byType(ChallengesPage), findsOneWidget);
   });
 }

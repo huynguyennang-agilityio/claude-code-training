@@ -8,8 +8,10 @@ import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/auth/presentation/pages/sign_in_page.dart';
 import 'package:stridequest/features/auth/presentation/pages/sign_up_page.dart';
 import 'package:stridequest/features/auth/presentation/widgets/auth_text_field.dart';
+import 'package:stridequest/features/challenges/presentation/pages/challenges_page.dart';
 
 import '../../../helpers/in_memory_auth_local_data_source.dart';
+import '../../../helpers/open_profile.dart';
 
 /// The sign-up flow through the real app, router and bloc, with an in-memory
 /// backend: sign up signs the user in and the router leaves the page, and the
@@ -76,8 +78,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(SignUpPage, skipOffstage: false), findsNothing);
-    expect(find.text('Welcome back, Lan Runner.'), findsOneWidget);
-    expect(find.byTooltip('Sign out'), findsOneWidget);
+    expect(find.byType(ChallengesPage), findsOneWidget);
+    await openProfile(tester);
+    expect(find.text('Lan Runner'), findsOneWidget);
   });
 
   testWidgets('a taken email stays on the page with the message', (
