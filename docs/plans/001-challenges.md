@@ -1,6 +1,6 @@
 # Plan 001: Challenge list, detail, join, and create-challenge endpoints for admins
 
-Status: draft
+Status: approved
 Approved: <the user fills in the date>
 Issues: <filled in after approval>
 
