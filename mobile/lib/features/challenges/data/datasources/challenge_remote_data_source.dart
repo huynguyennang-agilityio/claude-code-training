@@ -92,22 +92,22 @@ class DioChallengeRemoteDataSource implements ChallengeRemoteDataSource {
           .request<String>(
             path,
             queryParameters: query,
-            options: Options(
-              method: method,
-              responseType: ResponseType.plain,
-              validateStatus: (_) => true,
-            ),
+            // The default `validateStatus` is kept: a non-2xx answer must go
+            // through the auth interceptor, which refreshes an expired token
+            // or ends the session. It reaches here as a [DioException].
+            options: Options(method: method, responseType: ResponseType.plain),
           )
           .timeout(timeout);
-    } on DioException {
-      throw const ChallengeFailure(ChallengeFailureCode.network);
+    } on DioException catch (error) {
+      final failed = error.response;
+      if (failed == null) {
+        throw const ChallengeFailure(ChallengeFailureCode.network);
+      }
+      throw _failure(_decode(failed.data as String? ?? ''));
     } on TimeoutException {
       throw const ChallengeFailure(ChallengeFailureCode.network);
     }
-    final status = response.statusCode ?? 0;
-    final decoded = _decode(response.data ?? '');
-    if (status >= 200 && status < 300) return decoded;
-    throw _failure(decoded);
+    return _decode(response.data ?? '');
   }
 
   T _parse<T>(
