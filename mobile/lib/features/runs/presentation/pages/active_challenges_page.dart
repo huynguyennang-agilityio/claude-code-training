@@ -5,6 +5,7 @@ import '../../../../core/di/injection.dart';
 import '../../domain/entities/health_access.dart';
 import '../bloc/activity_bloc.dart';
 import '../bloc/health_gate_bloc.dart';
+import '../bloc/my_challenges_bloc.dart';
 import '../widgets/active_tabs.dart';
 import '../widgets/health_gate_view.dart';
 
@@ -66,11 +67,19 @@ class _ActiveChallengesPageState extends State<ActiveChallengesPage>
           body: const Center(child: CircularProgressIndicator()),
         ),
         HealthGateResolved(access: final access) when access.isGranted =>
-          BlocProvider(
-            // A new bloc when the allowed metrics change (turned on in Settings).
+          MultiBlocProvider(
+            // New blocs when the allowed metrics change (turned on in Settings).
             key: ValueKey(access.allowed),
-            create: (_) =>
-                getIt<ActivityBloc>()..add(ActivityStarted(access.allowed)),
+            providers: [
+              BlocProvider(
+                create: (_) =>
+                    getIt<ActivityBloc>()..add(ActivityStarted(access.allowed)),
+              ),
+              BlocProvider(
+                create: (_) =>
+                    getIt<MyChallengesBloc>()..add(const MyChallengesStarted()),
+              ),
+            ],
             child: const ActiveTabs(),
           ),
         HealthGateResolved(:final access, :final busy) => HealthGateView(

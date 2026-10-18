@@ -81,6 +81,9 @@ abstract final class AppChallengeSizes {
 
   /// The smallest height of the fixed action bar button.
   static const double actionButtonHeight = 50;
+
+  /// The progress bar of a card in My Challenges.
+  static const double progressBar = 8;
 }
 
 /// Sizes of the Active tab (`docs/designs/003-active-tab.html`).

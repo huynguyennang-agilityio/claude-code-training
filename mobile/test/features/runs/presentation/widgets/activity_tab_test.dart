@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,6 +8,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
+import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart';
 import 'package:stridequest/features/runs/presentation/widgets/active_tabs.dart';
 
 import '../../../../helpers/expect_accessible.dart';
@@ -55,8 +58,27 @@ final _states = <String, ActivityState>{
   ),
 };
 
-Widget _tabs(MockActivityBloc bloc) =>
-    BlocProvider<ActivityBloc>.value(value: bloc, child: const ActiveTabs());
+Widget _tabs(MockActivityBloc bloc) => MultiBlocProvider(
+  providers: [
+    BlocProvider<ActivityBloc>.value(value: bloc),
+    BlocProvider<MyChallengesBloc>.value(
+      value: _myChallengesIn(
+        const MyChallengesState(status: MyChallengesStatus.ready),
+      ),
+    ),
+  ],
+  child: const ActiveTabs(),
+);
+
+MockMyChallengesBloc _myChallengesIn(MyChallengesState state) {
+  final bloc = MockMyChallengesBloc();
+  whenListen(
+    bloc,
+    const Stream<MyChallengesState>.empty(),
+    initialState: state,
+  );
+  return bloc;
+}
 
 MockActivityBloc _blocIn(ActivityState state) {
   final bloc = MockActivityBloc();
@@ -175,6 +197,84 @@ void main() {
       find.text('Reading your health data and syncing it to StrideQuest.'),
       findsOneWidget,
     );
+  });
+
+  group('the list follows the figures', () {
+    testWidgets('it reloads when a sync finishes', (tester) async {
+      final activity = MockActivityBloc();
+      final mine = _myChallengesIn(
+        const MyChallengesState(status: MyChallengesStatus.ready),
+      );
+      final states = StreamController<ActivityState>();
+      addTearDown(states.close);
+      whenListen(
+        activity,
+        states.stream,
+        initialState: ActivityState(
+          allowed: _all,
+          reading: _reading(),
+          busy: true,
+        ),
+      );
+      await pumpScreen(
+        tester,
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<ActivityBloc>.value(value: activity),
+            BlocProvider<MyChallengesBloc>.value(value: mine),
+          ],
+          child: const ActiveTabs(),
+        ),
+      );
+      verifyNever(() => mine.add(const MyChallengesRefreshed()));
+
+      states.add(ActivityState(allowed: _all, reading: _reading()));
+      await tester.pump();
+
+      verify(() => mine.add(const MyChallengesRefreshed())).called(1);
+    });
+
+    testWidgets('it reloads when the page is shown again', (tester) async {
+      final mine = _myChallengesIn(
+        const MyChallengesState(status: MyChallengesStatus.ready),
+      );
+      final visible = ValueNotifier(true);
+      addTearDown(visible.dispose);
+      await pumpScreen(
+        tester,
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<ActivityBloc>.value(
+              value: _blocIn(_states['figures']!),
+            ),
+            BlocProvider<MyChallengesBloc>.value(value: mine),
+          ],
+          child: ValueListenableBuilder<bool>(
+            valueListenable: visible,
+            builder: (context, on, child) =>
+                TickerMode(enabled: on, child: child!),
+            child: const ActiveTabs(),
+          ),
+        ),
+      );
+      verifyNever(() => mine.add(const MyChallengesRefreshed()));
+
+      visible.value = false;
+      await tester.pump();
+      visible.value = true;
+      await tester.pump();
+
+      verify(() => mine.add(const MyChallengesRefreshed())).called(1);
+    });
+
+    testWidgets('the second tab shows My Challenges', (tester) async {
+      await pumpScreen(tester, _tabs(_blocIn(_states['figures']!)));
+
+      await tester.tap(find.widgetWithText(Tab, 'My Challenges'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No challenge in progress'), findsOneWidget);
+    });
   });
 
   group('screen quality', () {
