@@ -6,33 +6,34 @@ The Mermaid blocks are the source. Exported SVG copies of the key diagrams are i
 
 ## 1. Phases and gates
 
-Each change goes through phases 1 to 6 in order. Diamonds are gates. A gate that needs the user stops the work until they answer. Presentation copy: [`diagrams/phase-flow.svg`](diagrams/phase-flow.svg).
+Each change goes through phases 1 to 6 in order, starting from an approved plan file (`docs/plans/`). Only the user can approve a plan; approving it is not authorizing a merge. Diamonds are gates. A gate that needs the user stops the work until they answer. Presentation copy: [`diagrams/phase-flow.svg`](diagrams/phase-flow.svg).
 
 Phase 0 (project foundation: architecture, stack, layout, Claude rules, tooling) is not a step of each change. It is done once and revisited only when the foundation itself changes, through its own issue.
 
 ```mermaid
 flowchart TD
-    START(["New change"]) --> P1["Phase 1: Classify the ticket"]
+    START(["New change"]) --> TRIV{"Trivial?<br/>(typo, one-line fix)"}
+    TRIV -- yes --> P3
+    TRIV -- no --> P1["Phase 1: Classify the ticket"]
     P1 --> G1{"Required evidence<br/>present?"}
     G1 -- no --> ASK1["Ask the user for it"] --> G1
-    G1 -- yes --> P1B["List open questions,<br/>write acceptance criteria<br/>(UI: states, sizes, text scales)"]
-    P1B --> ISSUE{"Existing issue picked,<br/>or new issue text<br/>confirmed by the user?"}
-    ISSUE -- no --> P1B
-    ISSUE -- yes --> BR["Create the issue if new,<br/>branch type/id-name from develop"]
-    BR --> P2["Phase 2: Impact analysis,<br/>contract in docs/api, plan"]
-    P2 --> G2{"Public API or breaking contract,<br/>schema or data-loss migration,<br/>security boundary, architecture or core tech,<br/>real data, production or cost?"}
-    G2 -- yes --> APPR{"User approves?"}
-    APPR -- no --> P2
-    APPR -- yes --> P3
+    G1 -- yes --> PLAN["Write docs/plans/NNN-name.md<br/>Status: draft<br/>(open questions, approach, risks,<br/>verification, issues to create)"]
+    PLAN --> PMR["Push docs/plan-NNN-name,<br/>open the plan MR"]
+    PMR --> APPR{"User sets<br/>Status: approved<br/>and merges the plan MR?"}
+    APPR -- "no / edits needed" --> PLAN
+    APPR -- yes --> ISSUE["Create the issues exactly as the plan lists them<br/>(Plan: link in each),<br/>branch type/id-name from develop"]
+    ISSUE --> P2["Phase 2: Impact analysis,<br/>contract in docs/api"]
+    P2 --> G2{"Needs something the<br/>approved plan does not cover<br/>(endpoint, schema, dependency, scope)?"}
+    G2 -- yes --> PLAN
     G2 -- no --> P3
     P3["Phase 3: Small steps<br/>code → tests → lint → type check<br/>+ verify by ticket type<br/>Stop hook reruns the checks"] --> G4
     G4{"Phase 4 gate:<br/>criteria met, full suite passes,<br/>security ok, diff in scope,<br/>evidence drafted<br/>(contract, a11y, auth rows)?"}
     G4 -- no --> P3
-    G4 -- yes --> P5["Phase 5, when the user asks:<br/>first time: push, open MR into develop, Closes #id<br/>after review: push fixes to the same MR"]
+    G4 -- yes --> P5["Phase 5, when the user asks:<br/>first time: push, open MR into develop,<br/>Closes #id, Plan: link, deviations<br/>after review: push fixes to the same MR"]
     P5 --> REV["code-reviewer runs automatically<br/>when the MR is opened"]
     REV --> UREV{"User review:<br/>changes needed?"}
     UREV -- yes --> P3
-    UREV -- no --> MERGE{"User authorizes<br/>the merge?"}
+    UREV -- no --> MERGE{"User authorizes<br/>the merge of this MR?"}
     MERGE -- not yet --> UREV
     MERGE -- yes --> P6["Phase 6: Merge, verify develop,<br/>close the issue"]
 ```
@@ -92,4 +93,4 @@ sequenceDiagram
 
 ## 4. Permissions
 
-The permission rules (what Claude may commit, push, create or merge) stay as the table in [`CLAUDE.md`](../CLAUDE.md#git-and-gitlab-permissions). They are not drawn as a diagram, so there is only one place to change them.
+The permission rules (what Claude may write, commit, push, create or merge, and that only the user approves a plan) stay as the table in [`CLAUDE.md`](../CLAUDE.md#git-and-gitlab-permissions). They are not drawn as a diagram, so there is only one place to change them.

@@ -6,6 +6,12 @@
 
 Closes #
 
+## Plan
+
+Plan: docs/plans/NNN-name.md
+
+<!-- Where this MR deviates from the approved plan, or "No deviations". A deviation that adds an endpoint, a schema change, a dependency or scope needs the plan updated and approved again first. -->
+
 ## Evidence
 
 <!-- For each acceptance criterion: the command run, request/response or screenshot, and the result.
