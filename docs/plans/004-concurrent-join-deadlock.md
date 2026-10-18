@@ -71,7 +71,7 @@ Contract (`docs/api/`): **unchanged**. The behaviour already documented (`409 ov
 - A deterministic test in `tests/integration/`: hold the user's lock from a second connection, start `join`, assert it does not insert until the lock is released, then assert it answers `overlapping_challenge` or joins as the first committed state dictates. This fails on `develop` without relying on timing.
 - The existing concurrent test, run in a loop of 100: 0 failures (it fails about 1 in 8 now). Output pasted into the MR.
 - A second concurrent test for `resume` against `join` (two paused or fresh enrollments of one user, run at once): exactly one wins, the other gets `overlapping_challenge`.
-- API check: two simultaneous `POST /api/v1/challenges/{id}/join` calls for overlapping challenges, as a `.hurl` replay in `backend/hurl/` is not possible for concurrent calls, so use two background `curl`s against the running server: one `204`, one `409` with a body matching `ErrorResponse`. Repeated 20 times.
+- API check: two simultaneous `POST /api/v1/challenges/{id}/join` calls for overlapping challenges against the running server (two background `curl`s; a `.hurl` file runs requests one after another, so it cannot replay a race): one `204`, one `409` with a body matching `ErrorResponse`. Repeated 20 times.
 - `pytest tests/unit`, `pytest tests/integration`, `pytest -m fuzz`, `ruff check .`, `ruff format --check .`, `mypy`.
 - Not verifiable here: behaviour on a production-sized PostgreSQL with other load.
 
