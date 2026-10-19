@@ -267,6 +267,16 @@ flutter test integration_test/sign_in_flow_test.dart -d <device id>
 
 The test creates its own user through the API, so it can be repeated. It uses the Keychain, so if an earlier run was interrupted while signed in, reset it with `xcrun simctl keychain <device id> reset`.
 
+A flow that leaves the app (a system permission dialog, the Settings app) is tested with [Patrol](https://patrol.leancode.co) instead, on an iOS simulator only (Android is not set up). Install the CLI once, then run it with the API running and a simulator booted:
+
+```bash
+dart pub global activate patrol_cli
+cd mobile
+patrol test --target patrol_test/sign_in_flow_test.dart -d <device id>
+```
+
+The Patrol tests clear the app's Keychain before and after each test, so they do not leave a signed-in session for the `integration_test` ones. If `patrol test` or `pod install` stops on a Unicode error, set `LANG=en_US.UTF-8`.
+
 Ruff and pytest are configured in `backend/pyproject.toml`; Dart lints are configured in `mobile/analysis_options.yaml`.
 
 Regenerate code after changing a Freezed model, a `@JsonKey` or an `@injectable` registration, and commit the generated `*.g.dart`, `*.freezed.dart` and `injection.config.dart` files with the change:

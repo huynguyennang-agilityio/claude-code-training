@@ -33,6 +33,7 @@ dev_dependencies:
   freezed: ^3.2.3
   json_serializable: ^6.11.2
   alchemist: ^0.14.1
+  patrol: ^4.10.0
 
 flutter:
   uses-material-design: true
@@ -48,3 +49,8 @@ dependency_overrides:
   # flutter_secure_storage needs win32 6. device_info_plus 13 works with win32 6 and the
   # two calls `health` makes (`androidInfo`, `iosInfo`) are unchanged.
   device_info_plus: ^13.3.0
+
+patrol:
+  app_name: StrideQuest
+  ios:
+    bundle_id: com.stridequest.stridequest
