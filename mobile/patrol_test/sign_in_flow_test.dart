@@ -33,18 +33,19 @@ Future<void> _startApp(PatrolIntegrationTester $) async {
   await $.pumpWidgetAndSettle(StrideQuestApp(authBloc: authBloc));
 }
 
+/// Creates the user through the API, so the test does not depend on earlier data.
+Future<void> _signUp(String email, String password, String displayName) async {
+  await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl)).post<void>(
+    'auth/signup',
+    data: {'email': email, 'password': password, 'display_name': displayName},
+  );
+}
+
 void main() {
   patrolTest('a user signs in, is greeted, and signs out', ($) async {
     final email = 'pt-${DateTime.now().millisecondsSinceEpoch}@example.com';
     const password = 'run4medals';
-    await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl)).post<void>(
-      'auth/signup',
-      data: {
-        'email': email,
-        'password': password,
-        'display_name': 'Patrol Runner',
-      },
-    );
+    await _signUp(email, password, 'Patrol Runner');
     await _startApp($);
 
     // Signed out: the app starts on Sign in.
@@ -76,14 +77,7 @@ void main() {
   ) async {
     final email = 'pt-nat-${DateTime.now().millisecondsSinceEpoch}@example.com';
     const password = 'run4medals';
-    await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl)).post<void>(
-      'auth/signup',
-      data: {
-        'email': email,
-        'password': password,
-        'display_name': 'Native Runner',
-      },
-    );
+    await _signUp(email, password, 'Native Runner');
     await _startApp($);
     await $(AuthTextField).containing('Email').enterText(email);
     await $(AuthTextField).containing('Password').enterText(password);
