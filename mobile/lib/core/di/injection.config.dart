@@ -14,6 +14,7 @@ import 'package:dio/dio.dart' as _i361;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart' as _i558;
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:injectable/injectable.dart' as _i526;
+import 'package:stridequest/core/di/mock_api_module.dart' as _i292;
 import 'package:stridequest/core/di/network_module.dart' as _i245;
 import 'package:stridequest/core/network/auth_token_handler.dart' as _i713;
 import 'package:stridequest/features/auth/auth_module.dart' as _i670;
@@ -64,6 +65,9 @@ import 'package:stridequest/features/runs/presentation/bloc/health_gate_bloc.dar
 import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart'
     as _i48;
 
+const String _mock = 'mock';
+const String _real = 'real';
+
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
   _i174.GetIt init({
@@ -72,6 +76,7 @@ extension GetItInjectableX on _i174.GetIt {
   }) {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
     final networkModule = _$NetworkModule();
+    final mockApiModule = _$MockApiModule();
     final authModule = _$AuthModule();
     gh.lazySingleton<_i558.FlutterSecureStorage>(
       () => networkModule.secureStorage,
@@ -83,8 +88,18 @@ extension GetItInjectableX on _i174.GetIt {
       () => networkModule.publicDio(),
       instanceName: 'publicDio',
     );
+    gh.lazySingleton<_i397.AuthRemoteDataSource>(
+      () => mockApiModule.fakeAuthRemoteDataSource,
+      registerFor: {_mock},
+    );
     gh.lazySingleton<_i851.AuthLocalDataSource>(
       () => _i851.SecureAuthLocalDataSource(gh<_i558.FlutterSecureStorage>()),
+    );
+    gh.lazySingleton<_i397.AuthRemoteDataSource>(
+      () => _i397.DioAuthRemoteDataSource(
+        gh<_i361.Dio>(instanceName: 'publicDio'),
+      ),
+      registerFor: {_real},
     );
     gh.lazySingleton<_i306.HealthPromptStore>(
       () => _i306.SecureHealthPromptStore(gh<_i558.FlutterSecureStorage>()),
@@ -93,11 +108,6 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i21.HealthRepositoryImpl(
         gh<_i645.HealthDataSource>(),
         gh<_i306.HealthPromptStore>(),
-      ),
-    );
-    gh.lazySingleton<_i397.AuthRemoteDataSource>(
-      () => _i397.DioAuthRemoteDataSource(
-        gh<_i361.Dio>(instanceName: 'publicDio'),
       ),
     );
     gh.factory<_i1045.HealthGateBloc>(
@@ -169,5 +179,7 @@ extension GetItInjectableX on _i174.GetIt {
 }
 
 class _$NetworkModule extends _i245.NetworkModule {}
+
+class _$MockApiModule extends _i292.MockApiModule {}
 
 class _$AuthModule extends _i670.AuthModule {}

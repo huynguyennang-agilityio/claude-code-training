@@ -6,7 +6,8 @@ import 'auth_remote_data_source.dart';
 
 /// In-memory [AuthRemoteDataSource] that behaves like the backend.
 ///
-/// Used by tests, and by local builds until the backend auth endpoints exist.
+/// Used by tests, and by debug builds run with `--dart-define=API_MODE=mock`
+/// (registered in `MockApiModule`).
 /// Like the backend, sign in returns
 /// `validation_error` for a malformed body and `rate_limited` after
 /// [maxFailedSignIns] failed attempts for one email within
