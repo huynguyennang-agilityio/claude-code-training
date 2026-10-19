@@ -1,7 +1,7 @@
 # Plan 006: Move the workflow to GitHub and mirror it to GitLab
 
-Status: draft
-Approved: <the user fills in the date>
+Status: approved
+Approved: 2026-10-19
 Issues: <filled in after approval, for example #1, #2>
 
 ## Context
