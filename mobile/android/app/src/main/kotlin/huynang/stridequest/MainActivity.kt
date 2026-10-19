@@ -1,4 +1,4 @@
-package com.stridequest.stridequest
+package huynang.stridequest
 
 import android.content.Intent
 import android.net.Uri

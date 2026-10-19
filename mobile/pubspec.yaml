@@ -53,4 +53,4 @@ dependency_overrides:
 patrol:
   app_name: StrideQuest
   ios:
-    bundle_id: com.stridequest.stridequest
+    bundle_id: huynang.stridequest
