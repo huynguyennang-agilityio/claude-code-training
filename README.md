@@ -213,6 +213,16 @@ flutter run --dart-define=SIMULATE_FAULT=timeout                          # ever
 flutter run --dart-define=SIMULATE_FAULT=flaky --dart-define=SIMULATE_LATENCY_MS=500   # every 3rd request fails
 ```
 
+To build screens before the backend exists, use the fake remote data sources instead of the API (debug builds only; profile and release builds always use the real API):
+
+```bash
+flutter run --dart-define=API_MODE=real                                   # the API at API_BASE_URL (the default)
+flutter run --dart-define=API_MODE=mock                                   # the in-memory fakes
+flutter run --dart-define=API_MODE=mock --dart-define=SIMULATE_LATENCY_MS=1000   # fakes that wait 1 s per call
+```
+
+Only features that have a fake work fully in mock mode; today that is sign up, sign in and sign out. The Challenges and Active tabs still call the API and show their error state. A session from mock mode is stored like a real one, so after switching back to `real` the API rejects it and you are signed out.
+
 Reading step data needs a real device or a simulator with Apple Health or Health Connect data available.
 
 ### Lint and test

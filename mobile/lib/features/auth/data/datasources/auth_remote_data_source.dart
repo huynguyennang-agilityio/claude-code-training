@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 
+import '../../../../core/di/api_environments.dart';
 import '../../domain/failures/auth_failure.dart';
 import '../models/auth_session_model.dart';
 import '../models/token_pair_model.dart';
@@ -34,6 +35,7 @@ abstract interface class AuthRemoteDataSource {
 ///
 /// Uses the public [Dio] (no auth interceptor): these endpoints take no
 /// access token.
+@realApi
 @LazySingleton(as: AuthRemoteDataSource)
 class DioAuthRemoteDataSource implements AuthRemoteDataSource {
   DioAuthRemoteDataSource(

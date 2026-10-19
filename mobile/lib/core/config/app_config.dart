@@ -1,7 +1,17 @@
+import 'package:flutter/foundation.dart';
+
 import '../network/network_simulation.dart';
+import 'api_mode.dart';
 
 /// Build-time settings, passed with `--dart-define`.
 abstract final class AppConfig {
+  /// Dev only: `mock` to use the fake remote data sources instead of the API.
+  /// Profile and release builds always use [ApiMode.real].
+  static final apiMode = resolveApiMode(
+    const String.fromEnvironment('API_MODE'),
+    isDebug: kDebugMode,
+  );
+
   /// The StrideQuest API base, including the `/api/v1/` prefix
   /// (see `docs/api/auth.md`).
   static const apiBaseUrl = String.fromEnvironment(
