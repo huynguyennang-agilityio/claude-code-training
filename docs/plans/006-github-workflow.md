@@ -1,7 +1,7 @@
 # Plan 006: Move the workflow to GitHub and keep GitLab as a manual mirror
 
-Status: draft
-Approved: <the user fills in the date>
+Status: approved
+Approved: 2026-10-19
 Issues: #2 (to be closed as not planned), #3
 
 ## Context
