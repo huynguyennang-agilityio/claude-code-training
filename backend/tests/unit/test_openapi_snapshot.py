@@ -1,6 +1,6 @@
 """`docs/api/openapi.json` matches the schema the app serves.
 
-A schema change then appears as a diff of that file in the merge request, which
+A schema change then appears as a diff of that file in the pull request, which
 is where a breaking change gets noticed. Regenerate it with
 `python -m app.scripts.export_openapi` from `backend/`.
 """

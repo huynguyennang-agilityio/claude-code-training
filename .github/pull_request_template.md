@@ -1,6 +1,6 @@
 ## Summary
 
-<!-- What does this MR change, and why? -->
+<!-- What does this PR change, and why? -->
 
 ## Linked issue
 
@@ -10,7 +10,7 @@ Closes #
 
 Plan: docs/plans/NNN-name.md
 
-<!-- Where this MR deviates from the approved plan, or "No deviations". A deviation that adds an endpoint, a schema change, a dependency or scope needs the plan updated and approved again first. -->
+<!-- Where this PR deviates from the approved plan, or "No deviations". A deviation that adds an endpoint, a schema change, a dependency or scope needs the plan updated and approved again first. -->
 
 ## Evidence
 
@@ -28,4 +28,4 @@ Review in this order. Tick an item only after checking it.
 - [ ] **Tests:** new logic has tests, and lint and tests pass locally.
 - [ ] **Readability:** clear names, short functions, no duplicated code.
 - [ ] **Security basics:** no leaked secrets, input is validated, authorization is checked.
-- [ ] **Scope:** this MR covers exactly one issue with no unrelated changes.
+- [ ] **Scope:** this PR covers exactly one issue with no unrelated changes.

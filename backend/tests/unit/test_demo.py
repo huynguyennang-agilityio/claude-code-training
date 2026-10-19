@@ -1,7 +1,7 @@
 """The demo images and the loader that creates the demo challenges through the API.
 
 The API is a small fake behind `httpx.MockTransport`; the real routes are tested in
-`tests/integration/`, and the real run against Cloudinary is in the MR's evidence.
+`tests/integration/`, and the real run against Cloudinary is in the PR's evidence.
 """
 
 import json

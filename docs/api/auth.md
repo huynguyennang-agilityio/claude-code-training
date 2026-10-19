@@ -1,6 +1,6 @@
 # Auth API contract
 
-This is the source of truth for sign up and sign in between the Flutter app and the FastAPI backend. Change this file first, in its own merge request, before changing either side.
+This is the source of truth for sign up and sign in between the Flutter app and the FastAPI backend. Change this file first, in its own pull request, before changing either side.
 
 - Server: `http://localhost:8000` locally.
 - API base: `http://localhost:8000/api/v1`. Every path below is written from the server root and already includes `/api/v1`, for example `http://localhost:8000/api/v1/auth/signin`.

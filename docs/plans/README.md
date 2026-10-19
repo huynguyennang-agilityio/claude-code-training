@@ -3,8 +3,8 @@
 Every non-trivial change starts with a plan file here, before any issue, branch or code. The flow is in [`CLAUDE.md`](../../CLAUDE.md#phase-1-plan-approval-and-issues) and drawn in [`../workflow.md`](../workflow.md).
 
 - **Name:** `docs/plans/NNN-<short-name>.md`, where `NNN` is the next number (`001`, `002`, ...).
-- **Branch:** `docs/plan-NNN-<short-name>` from `develop`, with its own MR into `develop`. A plan needs no issue.
-- **Status:** the first line after the title is `Status: draft` or `Status: approved`. **Only the user sets `approved`**, with the date, and merges the plan MR. Claude never writes `approved`. A plan edited after approval goes back to `draft`.
+- **Branch:** `docs/plan-NNN-<short-name>` from `develop`, with its own PR into `develop`. A plan needs no issue.
+- **Status:** the first line after the title is `Status: draft` or `Status: approved`. **Only the user sets `approved`**, with the date, and merges the plan PR. Claude never writes `approved`. A plan edited after approval goes back to `draft`.
 - **Issues:** Claude creates issues only from a plan that is `approved` on `develop`, exactly as the plan lists them, and writes the numbers into the `Issues:` line.
 - **Trivial changes** (a typo, a one-line fix) need no plan.
 

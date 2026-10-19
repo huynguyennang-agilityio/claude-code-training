@@ -5,7 +5,7 @@ Run from `backend/` after an endpoint or schema changes:
     python -m app.scripts.export_openapi
 
 `tests/unit/test_openapi_snapshot.py` fails while the file and the app differ, so
-every API change shows up as a diff of that file in the merge request.
+every API change shows up as a diff of that file in the pull request.
 """
 
 import json

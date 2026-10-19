@@ -48,7 +48,7 @@ References: `app/core/database.py`, `app/modules/challenges/models.py`, `app/mod
 - A relationship to another module's model imports that model only under `TYPE_CHECKING`, as `challenges/models.py` does for `Medal` and `Run`. That relationship maps the foreign key. The only read allowed through it is eager-loading for a nested response schema (section 3); anything else goes through the other module's service (see `docs/architecture.md`, "Modules and layers").
 - Medal images and other files: store the Cloudinary delivery URL, never the bytes. Upload through `app.core.storage.CloudinaryStorage`.
 
-**Migration.** Every schema change ships with an Alembic revision in the same MR (CLAUDE.md). Against the local docker-compose database (`docker compose up -d --wait db`, `DATABASE_URL` in `.env`):
+**Migration.** Every schema change ships with an Alembic revision in the same PR (CLAUDE.md). Against the local docker-compose database (`docker compose up -d --wait db`, `DATABASE_URL` in `.env`):
 
 ```bash
 alembic revision --autogenerate -m "add challenge progress"
@@ -238,7 +238,7 @@ router.include_router(challenges_router)
 
 Mounting a new path changes the public API. The contract in `docs/api/` must already list it.
 
-Every route declares who may call it in `ROUTE_ACCESS` in `tests/unit/test_auth_sweep.py`: `public`, `user` or `admin`; a route that is not declared fails the sweep. The sweep calls each route that is not public without a token and fails unless it gets `401 not_authenticated`, and calls each `admin` route as a signed-in `user` and fails unless it gets `403 forbidden` (use `AdminUserDep` from `app.modules.auth.deps`, not only `CurrentUserDep`). Mark a route `public` only when the endpoints table in `docs/api/<module>.md` lists it with `none` in the `Auth` column, and say so in the MR. `GET /api/v1/health` is the one exception: an infrastructure probe with no contract. Declare the auth dependency before any dependency that needs a session (FastAPI resolves them in order); the sweep reports a session-first route as `500`. A websocket or mounted app fails the sweep's `test_every_route_is_an_api_route` until it has its own auth test.
+Every route declares who may call it in `ROUTE_ACCESS` in `tests/unit/test_auth_sweep.py`: `public`, `user` or `admin`; a route that is not declared fails the sweep. The sweep calls each route that is not public without a token and fails unless it gets `401 not_authenticated`, and calls each `admin` route as a signed-in `user` and fails unless it gets `403 forbidden` (use `AdminUserDep` from `app.modules.auth.deps`, not only `CurrentUserDep`). Mark a route `public` only when the endpoints table in `docs/api/<module>.md` lists it with `none` in the `Auth` column, and say so in the PR. `GET /api/v1/health` is the one exception: an infrastructure probe with no contract. Declare the auth dependency before any dependency that needs a session (FastAPI resolves them in order); the sweep reports a session-first route as `500`. A websocket or mounted app fails the sweep's `test_every_route_is_an_api_route` until it has its own auth test.
 
 ### 7. Tests
 
@@ -385,7 +385,7 @@ If the database or server can't be run, write `Not verified: <reason>`.
 - [ ] `pytest -m fuzz` passes: the OpenAPI document says what the endpoint does, including every error status.
 - [ ] A `backend/hurl/<module>.hurl` file replays the endpoint's success and error cases, and its output is pasted into the evidence.
 - [ ] A response that nests another table's rows has a query-count test.
-- [ ] `docs/api/openapi.json` is regenerated (`python -m app.scripts.export_openapi` from `backend/`) and its diff is in the MR.
+- [ ] `docs/api/openapi.json` is regenerated (`python -m app.scripts.export_openapi` from `backend/`) and its diff is in the PR.
 - [ ] Unit tests cover the service with `AsyncMock` repositories; integration tests cover the success case and every documented error code.
 - [ ] `tests/unit/test_auth_sweep.py` passes; every new route is declared in `ROUTE_ACCESS` with the same requirement as the `Auth` column of the contract (`none`, `access token` or `admin`).
 - [ ] Each endpoint on a user-owned resource has an ownership test: another user gets `404 not_found`.

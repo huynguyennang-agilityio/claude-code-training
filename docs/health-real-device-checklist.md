@@ -1,6 +1,6 @@
 # Health data: real-device checklist
 
-The automated tests and the simulator cannot show everything about health data. The simulator's Health app can only be filled by hand (and hand entries are not counted toward challenges), there is no Apple Watch, and Health Connect needs an Android phone. Run this list once on a real phone before a release, and again when the health code changes. Write what you saw in the **Result** column of a copy of the table (in the merge request or the release notes), never in this file.
+The automated tests and the simulator cannot show everything about health data. The simulator's Health app can only be filled by hand (and hand entries are not counted toward challenges), there is no Apple Watch, and Health Connect needs an Android phone. Run this list once on a real phone before a release, and again when the health code changes. Write what you saw in the **Result** column of a copy of the table (in the pull request or the release notes), never in this file.
 
 What the tests already cover, so you do not repeat it: the rules of counting steps (`backend/tests/unit/test_progress_service.py`), the sync requests and their limits, every screen state at both phone sizes and text scales, and the whole flow with a fake health source (`mobile/integration_test/active_flow_test.dart`). Plan: [`docs/plans/003-active-tab.md`](plans/003-active-tab.md).
 
