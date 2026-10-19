@@ -93,6 +93,20 @@ sequenceDiagram
     U->>U: on the VPN: push develop and main to the gitlab remote
 ```
 
-## 4. Permissions
+## 4. Mobile tasks: mock and integration
+
+A mobile feature that calls an endpoint is split into a `(mobile, mock)` and a `(mobile, integration)` issue (see "Mobile tasks: mock and integration" in [`CLAUDE.md`](../CLAUDE.md#phase-1-plan-approval-and-issues)). The mock task starts as soon as the contract is on `develop`, in parallel with the backend. The integration gate opens only when the backend issues are closed and their endpoints are in `docs/api/openapi.json` on `develop`.
+
+```mermaid
+flowchart LR
+    C["Contract on develop<br/>docs/api/module.md<br/>+ examples"] --> BE["Backend issue<br/>endpoints + openapi.json"]
+    C --> MOCK["(mobile, mock)<br/>Fake…RemoteDataSource<br/>fixtures = examples<br/>API_MODE=mock"]
+    BE --> GATE{"Integration gate:<br/>backend issues closed,<br/>endpoints in openapi.json<br/>on develop?"}
+    MOCK --> GATE
+    GATE -- no --> WAIT["Stop, tell the user<br/>which backend issue is open"]
+    GATE -- yes --> INT["(mobile, integration)<br/>app against the local backend"]
+```
+
+## 5. Permissions
 
 The permission rules (what Claude may write, commit, push, create or merge, and that only the user approves a plan) stay as the table in [`CLAUDE.md`](../CLAUDE.md#git-and-github-permissions). They are not drawn as a diagram, so there is only one place to change them.

@@ -7,6 +7,7 @@ Every non-trivial change starts with a plan file here, before any issue, branch 
 - **Status:** the first line after the title is `Status: draft` or `Status: approved`. **Only the user sets `approved`**, with the date, and merges the plan PR. Claude never writes `approved`. A plan edited after approval goes back to `draft`.
 - **Issues:** Claude creates issues only from a plan that is `approved` on `develop`, exactly as the plan lists them, and writes the numbers into the `Issues:` line.
 - **Trivial changes** (a typo, a one-line fix) need no plan.
+- **Mobile features that call an endpoint** are listed as two issues, `(mobile, mock)` and `(mobile, integration)`, as in the template below. The scope, evidence and the integration gate are in [`CLAUDE.md`](../../CLAUDE.md#phase-1-plan-approval-and-issues) under "Mobile tasks: mock and integration".
 
 ## Template
 
@@ -50,4 +51,8 @@ What the ticket evidence gate in `CLAUDE.md` requires for each issue, and where 
 | # | Title | Labels | Acceptance criteria | Depends on |
 | --- | --- | --- | --- | --- |
 | 1 | `type: short title` | frontend | - [ ] ... | none |
+| 2 | `docs: <module> contract` | docs | - [ ] `docs/api/<module>.md` and `docs/api/examples/<module>/` | none |
+| 3 | `feat: <endpoints> (backend)` | backend | - [ ] ... `docs/api/openapi.json` updated | 2 |
+| 4 | `feat: <feature> (mobile, mock)` | frontend, mock | - [ ] `Fake<Feature>RemoteDataSource` with fixtures equal to the examples, checked in `test/contract`<br>- [ ] Screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged` | 2 |
+| 5 | `feat: <feature> (mobile, integration)` | frontend, integration | - [ ] The app against the local backend: one success case and each documented error. Integration gate: 3 is closed and its endpoints are in `openapi.json` on `develop` | 3, 4 |
 ````
