@@ -313,3 +313,14 @@ cd mobile && dart run build_runner build --force-jit
 `develop` is the default branch and collects finished work. `main` holds released code and is updated only by merging `develop` into it. Both branches are protected, so changes land only through merge requests.
 
 The full workflow, with its gates, is in [`CLAUDE.md`](CLAUDE.md#workflow) and drawn in [`docs/workflow.md`](docs/workflow.md).
+
+## GitLab mirror
+
+GitHub ([huynguyennang-agilityio/claude-code-training](https://github.com/huynguyennang-agilityio/claude-code-training)) is the primary repository. [GitLab](https://gitlab.asoft-python.com/huy.nguyennang/claude-code-training) is a read-only copy: never push to it or open merge requests there.
+
+The [`Mirror to GitLab`](.github/workflows/mirror-to-gitlab.yml) workflow copies every branch and tag pushed to GitHub to GitLab. It only adds and fast-forwards. It never force-pushes, and a branch deleted on GitHub stays on GitLab. It authenticates with the `GITLAB_MIRROR_TOKEN` repository secret: a GitLab project access token with the `Maintainer` role and only the `write_repository` scope.
+
+- **Resync:** run the workflow by hand from the Actions tab (`Run workflow`), or with `gh workflow run mirror-to-gitlab.yml`.
+- **A failed run** usually means one of two things:
+  - The token expired or was revoked (`HTTP 401` or `403` in the log). Create a new token and update the secret with `gh secret set GITLAB_MIRROR_TOKEN`. The command prompts for the value, so the token never reaches the shell history.
+  - GitLab has diverged (`! [rejected]` in the log): someone pushed to GitLab directly. Bring that commit to GitHub through a pull request, or discard it on GitLab, then resync.

@@ -1,0 +1,54 @@
+# Copies every branch and tag pushed to GitHub to the read-only GitLab mirror.
+# It only adds and fast-forwards: no force-push and no deletion. If GitLab has
+# diverged, the push is rejected and the run fails (see README, "GitLab mirror").
+# Plan: docs/plans/006-github-workflow.md
+name: Mirror to GitLab
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-to-gitlab
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Push branches and tags to GitLab
+        env:
+          GITLAB_MIRROR_TOKEN: ${{ secrets.GITLAB_MIRROR_TOKEN }}
+          GITLAB_URL: https://gitlab.asoft-python.com/huy.nguyennang/claude-code-training.git
+        run: |
+          set -euo pipefail
+          if [ -z "${GITLAB_MIRROR_TOKEN}" ]; then
+            echo "::error::The GITLAB_MIRROR_TOKEN secret is not set."
+            exit 1
+          fi
+
+          # The token goes in an HTTP header set through the environment, so it
+          # never appears in the command line, the remote URL or the log.
+          auth="$(printf 'oauth2:%s' "${GITLAB_MIRROR_TOKEN}" | base64 -w0)"
+          echo "::add-mask::${auth}"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.extraHeader
+          export GIT_CONFIG_VALUE_0="Authorization: Basic ${auth}"
+
+          # checkout may create origin/HEAD, which must not become a branch.
+          git symbolic-ref -d refs/remotes/origin/HEAD 2>/dev/null || true
+
+          git push "${GITLAB_URL}" \
+            'refs/remotes/origin/*:refs/heads/*' \
+            'refs/tags/*:refs/tags/*'
