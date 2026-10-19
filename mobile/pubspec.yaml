@@ -34,6 +34,7 @@ dev_dependencies:
   json_serializable: ^6.11.2
   alchemist: ^0.14.1
   patrol: ^4.10.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
@@ -54,3 +55,19 @@ patrol:
   app_name: StrideQuest
   ios:
     bundle_id: huynang.stridequest
+
+# App icon, generated with `dart run flutter_launcher_icons` from the masters
+# in assets/icon/ (made by tool/app_icon/make_masters.py). The masters are not
+# listed under `flutter: assets`, so they are not bundled. See plan 008.
+flutter_launcher_icons:
+  image_path: assets/icon/app_icon.png
+  ios: true
+  remove_alpha_ios: true
+  android: true
+  # Only tunes the plugin's output (value from plan 008); the app's real
+  # minSdk is 26, set in android/app/build.gradle.kts.
+  min_sdk_android: 21
+  adaptive_icon_background: "#16260C"
+  adaptive_icon_foreground: assets/icon/app_icon_foreground.png
+  adaptive_icon_foreground_inset: 0
+  adaptive_icon_monochrome: assets/icon/app_icon_monochrome.png
