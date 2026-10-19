@@ -1,7 +1,7 @@
 # Plan 009: Split mobile tasks into mock and integration
 
-Status: draft
-Approved: <the user fills in the date>
+Status: approved
+Approved: 2026-10-19
 Issues: <filled in after approval>
 
 ## Context
