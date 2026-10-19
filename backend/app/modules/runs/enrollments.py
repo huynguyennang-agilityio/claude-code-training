@@ -83,6 +83,7 @@ class EnrollmentService:
         now = self._now()
         if now >= challenge.ends_at:
             raise ChallengeEndedError("This challenge has ended.")
+        await self._repository.lock_user_enrollments(user_id)
         run = await self._repository.get_for_user(user_id, challenge_id, lock=True)
         if run is not None and run.status != RunStatus.LEFT.value:
             raise AlreadyJoinedError("You have already joined this challenge.")
@@ -112,6 +113,7 @@ class EnrollmentService:
         await self._session.commit()
 
     async def resume(self, user_id: uuid.UUID, challenge_id: int) -> None:
+        await self._repository.lock_user_enrollments(user_id)
         run = await self._own_run(user_id, challenge_id)
         if run.status != RunStatus.PAUSED.value:
             raise NotPausedError("Only a paused challenge can be resumed.")

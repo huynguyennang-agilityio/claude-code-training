@@ -460,36 +460,82 @@ def _challenge(quest: Quest, title: str, starts_at: datetime, ends_at: datetime)
 # two joins at once
 
 
+async def _act(engine: AsyncEngine, user_id: uuid.UUID, action: str, challenge_id: int) -> str:
+    """One `join` or `resume` on its own connection, committed, as a request would be."""
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        runs = RunService(RunRepository(session))
+        challenges = ChallengeService(
+            session,
+            ChallengeRepository(session),
+            MedalService(MedalRepository(session)),
+            runs=runs,
+        )
+        enrollments = EnrollmentService(session, RunRepository(session), challenges.get)
+        try:
+            await getattr(enrollments, action)(user_id, challenge_id)
+        except OverlappingChallengeError:
+            return "overlap"
+        return "joined"
+
+
+async def _active_count(engine: AsyncEngine, user_id: uuid.UUID) -> int:
+    async with AsyncSession(engine) as session:
+        active = await session.scalars(
+            select(Run).where(Run.user_id == user_id, Run.status == "active")
+        )
+        return len(active.all())
+
+
 @pytest.mark.anyio
 async def test_two_overlapping_joins_at_once_let_exactly_one_win(engine: AsyncEngine) -> None:
     """Each join runs on its own connection and commits, as two requests would."""
     user_id, first_id, second_id, quest_id = await _seed_two_overlapping_challenges(engine)
     try:
-
-        async def join(challenge_id: int) -> str:
-            async with AsyncSession(engine, expire_on_commit=False) as session:
-                runs = RunService(RunRepository(session))
-                challenges = ChallengeService(
-                    session,
-                    ChallengeRepository(session),
-                    MedalService(MedalRepository(session)),
-                    runs=runs,
-                )
-                enrollments = EnrollmentService(session, RunRepository(session), challenges.get)
-                try:
-                    await enrollments.join(user_id, challenge_id)
-                except OverlappingChallengeError:
-                    return "overlap"
-                return "joined"
-
-        results = await asyncio.gather(join(first_id), join(second_id))
+        results = await asyncio.gather(
+            _act(engine, user_id, "join", first_id), _act(engine, user_id, "join", second_id)
+        )
 
         assert sorted(results) == ["joined", "overlap"]
-        async with AsyncSession(engine) as session:
-            active = await session.scalars(
-                select(Run).where(Run.user_id == user_id, Run.status == "active")
-            )
-            assert len(active.all()) == 1
+        assert await _active_count(engine, user_id) == 1
+    finally:
+        await _clean_up(engine, user_id, quest_id)
+
+
+@pytest.mark.anyio
+async def test_a_join_and_a_resume_at_once_let_exactly_one_win(engine: AsyncEngine) -> None:
+    user_id, first_id, second_id, quest_id = await _seed_two_overlapping_challenges(engine)
+    try:
+        async with AsyncSession(engine, expire_on_commit=False) as session:
+            first = await session.get(Challenge, first_id)
+            assert first is not None
+            session.add(make_run(user_id, first, status="paused", counting_from=NOW))
+            await session.commit()
+
+        results = await asyncio.gather(
+            _act(engine, user_id, "resume", first_id), _act(engine, user_id, "join", second_id)
+        )
+
+        assert sorted(results) == ["joined", "overlap"]
+        assert await _active_count(engine, user_id) == 1
+    finally:
+        await _clean_up(engine, user_id, quest_id)
+
+
+@pytest.mark.anyio
+async def test_a_join_waits_while_another_request_of_the_user_holds_the_lock(
+    engine: AsyncEngine,
+) -> None:
+    """Deterministic: without the per-user lock the join would finish at once."""
+    user_id, first_id, _, quest_id = await _seed_two_overlapping_challenges(engine)
+    try:
+        async with AsyncSession(engine) as holder:
+            await RunRepository(holder).lock_user_enrollments(user_id)
+            join = asyncio.create_task(_act(engine, user_id, "join", first_id))
+            done, _ = await asyncio.wait({join}, timeout=0.5)
+            assert not done, "join did not wait for the user's lock"
+            await holder.rollback()
+
+        assert await asyncio.wait_for(join, timeout=5) == "joined"
     finally:
         await _clean_up(engine, user_id, quest_id)
 
