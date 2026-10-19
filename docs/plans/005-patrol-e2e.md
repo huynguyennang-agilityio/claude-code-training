@@ -1,7 +1,7 @@
 # Plan 005: Patrol end-to-end tests with native automation
 
-Status: draft
-Approved: <the user fills in the date>
+Status: approved
+Approved: 2026-10-19
 Issues: <filled in after approval; #49 is reused, see Issues to create>
 
 ## Context
