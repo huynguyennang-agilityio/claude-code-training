@@ -1,9 +1,10 @@
+import hashlib
 import uuid
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -12,6 +13,13 @@ from app.modules.runs.models import DailyActivity, Run, RunStatus, StepSample
 
 # A user "is in" a challenge while the enrollment is active or paused.
 _JOINED = (RunStatus.ACTIVE.value, RunStatus.PAUSED.value)
+
+
+def _enrollment_lock_key(user_id: uuid.UUID) -> int:
+    """A signed 64-bit advisory lock key from the user id, salted so it can't equal a key
+    another feature derives from the same id."""
+    digest = hashlib.blake2b(user_id.bytes, digest_size=8, person=b"enrollments")
+    return int.from_bytes(digest.digest(), "big", signed=True)
 
 
 class RunRepository:
@@ -37,6 +45,15 @@ class RunRepository:
             .group_by(Run.challenge_id)
         )
         return {challenge_id: count for challenge_id, count in rows}
+
+    async def lock_user_enrollments(self, user_id: uuid.UUID) -> None:
+        """Wait for any other transaction that is making one of this user's enrollments
+        active, then hold the lock until this transaction ends. Without it two such requests
+        both pass the overlap check and then wait on each other's insert, and the database
+        aborts one with a deadlock instead of the overlap error."""
+        await self._session.execute(
+            text("SELECT pg_advisory_xact_lock(:key)"), {"key": _enrollment_lock_key(user_id)}
+        )
 
     async def get_for_user(
         self, user_id: uuid.UUID, challenge_id: int, *, lock: bool = False
