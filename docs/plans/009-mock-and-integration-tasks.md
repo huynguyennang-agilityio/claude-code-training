@@ -22,6 +22,7 @@ This is a change to the Claude rules and local tooling (Phase 0), so it goes thr
 - **Labels:** `mock` and `integration`, next to the existing `frontend` label (decided by the user).
 - **Assumption:** features with no backend call (pure UI, Health-only reading) stay a single issue.
 - **Assumption:** mock mode only works in debug builds, guarded by `kDebugMode` like the network simulation in `NetworkModule` (`mobile/lib/core/di/network_module.dart`). Profile and release builds always use the real API.
+- **Assumption:** until a feature has its own fake, its screens show their error state in mock mode: they still call `AppConfig.apiBaseUrl`, and a real backend rejects the fake's access token. After issue 2 only the auth screens work fully in mock mode; each later mock task adds its feature.
 - **Assumption:** plans 001 to 008 are not rewritten. The rule applies to plans written after this one is approved.
 
 ## Approach
@@ -46,16 +47,16 @@ Goes into `CLAUDE.md` (Phase 1 and the verification evidence), `docs/plans/READM
 
 ### Selecting fake or real data sources (mobile)
 
-- `AppConfig.apiMode` reads `--dart-define=API_MODE` (`real` by default, or `mock`). It is `mock` only when `kDebugMode` is true; otherwise it is always `real`.
+- `AppConfig.apiMode` reads `--dart-define=API_MODE` (`real` by default, or `mock`) and calls a pure function, `ApiMode resolveApiMode(String raw, {required bool isDebug})`, with `kDebugMode`. It returns `mock` only for `raw: 'mock'` and `isDebug: true`. `kDebugMode` is a compile-time constant that is always true under `flutter test`, so the function is what makes the non-debug case testable.
 - No `injectable` environments exist yet: every data source is a plain `@LazySingleton(as: ...)`. This issue adds a `real` and a `mock` environment in `lib/core/di/`, and passes the selected one to `configureDependencies`.
-- Only a remote data source that has a fake is split by environment: its real class is registered for `real` and its fake for `mock`. Today that is auth only (`FakeAuthRemoteDataSource`, a stateful in-memory backend that stays as it is). Challenges and runs keep their real data sources in both modes until their own mock task adds a fake.
+- Only a remote data source that has a fake is split by environment: its real class is registered for `real` and its fake for `mock`. Today that is auth only. `FakeAuthRemoteDataSource` is a stateful in-memory backend and its class stays free of DI annotations, because injectable can't resolve its optional `DateTime Function()? now` parameter. A DI module in `lib/core/di/` registers it for `mock` with `@Environment('mock')`, built as `FakeAuthRemoteDataSource(latency: ...)`. Challenges and runs keep their real data sources in both modes until their own mock task adds a fake.
 - README run instructions show both modes.
 
 Touches: mobile DI and config only. No public API, schema, authentication boundary, production data or cost is affected. The authentication flow itself is unchanged; only which data source answers it in a debug build with `API_MODE=mock`.
 
 ## Risks
 
-- **The fake drifts from the backend.** Contained by the fixture contract test (a fixture that differs from its `docs/api/examples/` file fails `flutter test test/contract`), and by the integration task, which runs against the real backend.
+- **The fake drifts from the backend.** For new fakes, contained by the fixture contract test (a fixture that differs from its `docs/api/examples/` file fails `flutter test test/contract`). The auth fake has no fixtures and relies on its existing `fake_auth_remote_data_source_test.dart`. In every case the integration task runs against the real backend.
 - **A mock build reaches users.** Contained by the `kDebugMode` guard, with a test.
 - **A screen can't resolve its dependencies in mock mode.** Contained by a test that builds the DI graph in `mock` and resolves every repository.
 - **More issues per feature.** Accepted: the mock task unblocks mobile work while the backend is in progress.
@@ -63,7 +64,7 @@ Touches: mobile DI and config only. No public API, schema, authentication bounda
 ## Verification
 
 - Issue 1: the changed docs render and links resolve. `git grep -n "(mobile, mock)\|Integration gate" CLAUDE.md docs/plans/README.md docs/workflow.md .claude/agents/planner.md .claude/agents/flutter-dev.md .claude/skills/flutter-feature/SKILL.md` finds at least one line in each file (neither string exists today).
-- Issue 2: `flutter analyze` and `flutter test` pass, including tests for both modes, for non-debug builds ignoring `mock`, and for every repository resolving in `mock`. Run the app with `--dart-define=API_MODE=mock` and against the local backend, or `Not verified: no emulator`.
+- Issue 2: `flutter analyze` and `flutter test` pass, including tests of `resolveApiMode` (`isDebug: false` with `mock` gives `real`), for both modes, and for every repository resolving in `mock`. Run the app with `--dart-define=API_MODE=mock` through the auth flow only (sign up, sign in, sign out), and against the local backend, or `Not verified: no emulator`.
 
 ## Ticket evidence
 
@@ -74,4 +75,4 @@ Both issues are chore / docs: the scope is above, and the behavior that must sta
 | # | Title | Labels | Acceptance criteria | Depends on |
 | --- | --- | --- | --- | --- |
 | 1 | `docs: split mobile tasks into mock and integration` | docs | - [ ] `CLAUDE.md`, `docs/plans/README.md` (template with the pair), `docs/workflow.md` (diagram), the `planner` and `flutter-dev` agents and the `flutter-feature` skill describe the two task types, the contract without `openapi.json`, the fixture contract test, their evidence and the integration gate<br>- [ ] The GitHub labels `mock` and `integration` exist, or the exact `gh label create` commands are given | none |
-| 2 | `chore: select fake or real remote data sources with API_MODE (mobile)` | frontend | - [ ] `AppConfig.apiMode` reads `--dart-define=API_MODE`, `real` by default, and is `real` whenever `kDebugMode` is false, with a test<br>- [ ] `real` and `mock` `injectable` environments in `lib/core/di/`; `FakeAuthRemoteDataSource` is registered for `mock` and the real auth data source for `real`; challenges and runs use their real data sources in both<br>- [ ] A test builds the DI graph in `mock` and resolves every repository<br>- [ ] Tests for both modes; `flutter analyze` and `flutter test` pass<br>- [ ] README shows how to run each mode | 1 |
+| 2 | `chore: select fake or real remote data sources with API_MODE (mobile)` | frontend | - [ ] `AppConfig.apiMode` reads `--dart-define=API_MODE`, `real` by default, through `resolveApiMode(raw, isDebug: kDebugMode)`; a test shows `isDebug: false` with `mock` gives `real`<br>- [ ] `real` and `mock` `injectable` environments in `lib/core/di/`; `FakeAuthRemoteDataSource` is registered for `mock` from a DI module (the class has no annotations) and the real auth data source for `real`; challenges and runs use their real data sources in both<br>- [ ] A test builds the DI graph in `mock` and resolves every repository<br>- [ ] Tests for both modes; `flutter analyze` and `flutter test` pass<br>- [ ] README shows how to run each mode | 1 |
