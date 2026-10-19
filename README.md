@@ -157,8 +157,8 @@ alembic revision --autogenerate -m "add medal awards table"
 alembic check
 ```
 
-- **Every schema change ships with a migration in the same merge request.** Review the generated file before committing: autogenerate misses some changes, such as renames.
-- **`alembic check` must report no new operations** before you open the merge request.
+- **Every schema change ships with a migration in the same pull request.** Review the generated file before committing: autogenerate misses some changes, such as renames.
+- **`alembic check` must report no new operations** before you open the pull request.
 
 **One-time reset for databases created before Alembic.** If your local database was created before migrations existed, recreate it instead of stamping it.
 
@@ -298,18 +298,34 @@ cd mobile && dart run build_runner build --force-jit
   - Use blocs for state and `get_it` for DI.
   - Navigate with `go_router`, passing only IDs in routes.
 - **Tests:** add tests with every feature. Backend: `pytest` unit tests for services and integration tests for routes. App: `flutter_test`, `bloc_test` and `mocktail`.
-- **Language:** code, comments, docs, commit messages and merge requests are written in English.
+- **Language:** code, comments, docs, commit messages and pull requests are written in English.
 - **Secrets:** never commit secrets. Add new settings to `.env.example` with placeholder values.
 
 ## Development workflow
 
-1. Pick a GitLab issue and create a branch from `develop` named `<type>/<issue-id>-<short-name>`, for example `feat/1-readme`.
+1. Pick a GitHub issue and create a branch from `develop` named `<type>/<issue-id>-<short-name>`, for example `feat/1-readme`.
 2. Commit small, focused changes with messages such as `feat: add challenge list endpoint`.
 3. Run lint and tests locally before pushing.
-4. Push the branch and open a merge request into `develop` using the default template. Link the issue with `Closes #<id>`.
-5. Review the merge request in this order: correctness, tests, readability, security basics, scope.
+4. Push the branch and open a pull request into `develop` using the default template. Link the issue with `Closes #<id>`.
+5. Review the pull request in this order: correctness, tests, readability, security basics, scope.
 6. Address review comments, make sure lint and tests pass locally, then merge.
 
-`develop` is the default branch and collects finished work. `main` holds released code and is updated only by merging `develop` into it. Both branches are protected, so changes land only through merge requests.
+`develop` is the default branch and collects finished work. `main` holds released code and is updated only by merging `develop` into it. Both branches are protected, so changes land only through pull requests.
 
 The full workflow, with its gates, is in [`CLAUDE.md`](CLAUDE.md#workflow) and drawn in [`docs/workflow.md`](docs/workflow.md).
+
+## GitLab mirror
+
+GitHub ([huynguyennang-agilityio/claude-code-training](https://github.com/huynguyennang-agilityio/claude-code-training)) is the primary repository. [GitLab](https://gitlab.asoft-python.com/huy.nguyennang/claude-code-training) is a read-only copy: don't push to it, and don't open issues or merge requests there (both are turned off).
+
+GitLab can only be reached through the VPN, so nothing mirrors it automatically. After a merge to `develop` or `main`, or after pushing a tag, update it by hand from a machine on the VPN, with GitHub as `origin` and GitLab as `gitlab`:
+
+```bash
+git fetch origin --prune
+git push gitlab origin/develop:refs/heads/develop origin/main:refs/heads/main --tags
+```
+
+Only `develop`, `main` and tags are mirrored. Feature branches stay on GitHub. The push never forces, so it can't overwrite anything on GitLab.
+
+- **Check that both hosts match:** `git ls-remote origin develop main` and `git ls-remote gitlab develop main` print the same SHAs.
+- **`! [rejected]`** means GitLab has a commit that GitHub doesn't: someone pushed to GitLab directly. Bring that commit to GitHub through a pull request, or discard it on GitLab, then push again.

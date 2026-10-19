@@ -9,7 +9,7 @@ import 'pump_screen.dart';
 /// Pass `settle: false` for a state with an endless animation.
 ///
 /// Regenerate the baseline with `flutter test --update-goldens --tags golden`
-/// and review the image diff in the merge request.
+/// and review the image diff in the pull request.
 void goldenScreen(
   String description,
   String fileName,

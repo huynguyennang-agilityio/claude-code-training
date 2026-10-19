@@ -43,7 +43,7 @@ backend/tests/{unit,integration}/                    pytest tests
 ## Language
 
 - Explain things to the user in Vietnamese.
-- Write all code, comments, docs, commit messages and MR text in English.
+- Write all code, comments, docs, commit messages and PR text in English.
 
 ## Workflow
 
@@ -52,28 +52,30 @@ Every change goes through the phases below in order. Don't skip a gate. When a g
 General rules:
 
 - Every non-trivial change starts from an approved plan file (Phase 1). No plan, no issue and no code.
-- Work on one GitLab issue at a time.
+- Work on one GitHub issue at a time.
 - `develop` is the default branch. `main` holds released code and only receives merges from `develop`.
 - Never push directly to `develop` or `main`.
+- GitHub is the primary repository. GitLab is a read-only mirror that the user updates by hand from a machine on the VPN (see [GitLab mirror](README.md#gitlab-mirror)). Claude never pushes to the `gitlab` remote.
 - Don't commit unless asked. After each task, suggest a short commit message.
 - A grant such as "go ahead without asking" or "skip the review" covers only the tasks or the session the user named. Don't carry it to new work.
 
-### Git and GitLab permissions
+### Git and GitHub permissions
 
 Being able to run a command is not permission to run it.
 
 | Action | Allowed |
 | --- | --- |
-| Write a plan under `docs/plans/`, push its `docs/plan-NNN-<name>` branch and open its MR | Yes, when the user asks for work that needs a plan |
+| Write a plan under `docs/plans/`, push its `docs/plan-NNN-<name>` branch and open its PR | Yes, when the user asks for work that needs a plan |
 | Set `Status: approved` on a plan | Never. Only the user does |
 | Create an issue | Only from a plan whose `Status:` is `approved` on `develop`, exactly as the plan lists it |
 | Create a branch and edit files for an issue from an approved plan | Yes |
 | Commit | Only when the user asks |
-| Push, open an MR | Only when the user asks or the task explicitly includes it |
-| Merge an MR, close an issue | Only when the user explicitly authorizes that MR or issue |
+| Push, open a PR | Only when the user asks or the task explicitly includes it |
+| Merge a PR, close an issue | Only when the user explicitly authorizes that PR or issue |
 | Push to `develop`/`main`, force-push, delete branches | Never |
+| Push to the `gitlab` remote | Never. The user mirrors GitLab by hand |
 
-If a GitLab action isn't possible in the current session (no `glab`, no network, tool not permitted), say so and give the user the exact content to do it themselves: issue text, MR title and description, or commands.
+If a GitHub action isn't possible in the current session (no `gh`, no network, tool not permitted), say so and give the user the exact content to do it themselves: issue text, PR title and description, or commands.
 
 ### Phase 0: Project foundation
 
@@ -85,9 +87,9 @@ Every change goes through a plan file first. The one exception is a trivial chan
 
 1. Classify the ticket by type and check that it has the evidence below (the ticket evidence gate).
 2. Write the plan as `docs/plans/NNN-<short-name>.md` (`NNN` is the next number; use the template in [`docs/plans/README.md`](docs/plans/README.md)): context, open questions and assumptions, approach (layers, files, API, schema, security), risks, verification, and the list of issues to create, each with a title, labels, acceptance criteria and dependencies.
-3. Put it on a `docs/plan-NNN-<short-name>` branch from `develop` and open an MR into `develop`. A plan needs no issue. Its first line after the title is `Status: draft`.
-4. Stop. The user reviews the plan and, when they agree, sets `Status: approved` (with the date) and merges the MR, or tells you to. You never write `approved` yourself. If the plan is edited after approval, it goes back to `draft` and needs approval again.
-5. Only when the plan is `approved` on `develop`: create the issues exactly as the plan lists them, each with `Plan: docs/plans/NNN-<short-name>.md` in its description, and write the issue numbers back into the plan's `Issues:` line (a docs change through its own MR).
+3. Put it on a `docs/plan-NNN-<short-name>` branch from `develop` and open a PR into `develop`. A plan needs no issue. Its first line after the title is `Status: draft`.
+4. Stop. The user reviews the plan and, when they agree, sets `Status: approved` (with the date) and merges the PR, or tells you to. You never write `approved` yourself. If the plan is edited after approval, it goes back to `draft` and needs approval again.
+5. Only when the plan is `approved` on `develop`: create the issues exactly as the plan lists them, each with `Plan: docs/plans/NNN-<short-name>.md` in its description, and write the issue numbers back into the plan's `Issues:` line (a docs change through its own PR).
 6. Branch from `develop` as `<type>/<issue-id>-<short-name>` (for example `feat/1-readme`, `fix/12-step-sync`).
 
 If the work needs something the approved plan does not cover (a new endpoint, a schema change, a dependency, a larger scope), stop and go back to step 2.
@@ -145,10 +147,10 @@ Record what you ran and what you saw as verification evidence (below). If you ca
 
 Verification evidence shows the work was checked. It is not the ticket evidence from Phase 1, which is input from the reporter.
 
-- Don't report a task as done without an `## Evidence` section in your report, in the format of the MR template. When the user asks for an MR, the same section goes into its description.
+- Don't report a task as done without an `## Evidence` section in your report, in the format of the PR template. When the user asks for a PR, the same section goes into its description.
 - Map each acceptance criterion to at least one piece of evidence. A change can match several rows below. Every row also includes the lint and type-check results.
 - Redact tokens, passwords, `Authorization` headers, cookies and connection strings before pasting anything.
-- Attach large logs and screenshots to the MR instead of committing them. Golden test baselines are test fixtures and are committed as usual. Font rendering differs between platforms, so generate and compare goldens on the same platform.
+- Attach large logs and screenshots to the PR instead of committing them. Golden test baselines are test fixtures and are committed as usual. Font rendering differs between platforms, so generate and compare goldens on the same platform.
 
 | Change | Evidence |
 | --- | --- |
@@ -168,7 +170,7 @@ If a piece of evidence can't be produced (no simulator, no database), write `Not
 
 ### Phase 4: Verification gate
 
-Before opening an MR, confirm:
+Before opening a PR, confirm:
 
 1. **Acceptance criteria:** each criterion is met, and you can say how it was checked.
 2. **Regression:** the full test suite passes.
@@ -176,32 +178,33 @@ Before opening an MR, confirm:
 4. **Git diff:** `git diff develop...HEAD` contains only changes for this issue.
 5. **Evidence:** the drafted `## Evidence` section covers each acceptance criterion, with evidence or a `Not verified: <reason>` line.
 
-### Phase 5: MR and review
+### Phase 5: PR and review
 
-1. When the user asks, push the branch and open an MR into `develop` using `.gitlab/merge_request_templates/Default.md`, link the issue with `Closes #<id>`, and name the plan (`Plan: docs/plans/NNN-<short-name>.md`). Say where the work deviates from the plan, or write "No deviations".
-2. As soon as the MR is open, Claude runs the `code-reviewer` subagent on it, following [Reviewing merge requests](#reviewing-merge-requests). This happens automatically — don't wait for the user to ask. This applies whether Claude opened the MR directly or a `fastapi-backend`/`flutter-dev` subagent did.
-3. The user reviews the MR.
+1. When the user asks, push the branch and open a PR into `develop` using `.github/pull_request_template.md`, link the issue with `Closes #<id>`, and name the plan (`Plan: docs/plans/NNN-<short-name>.md`). Say where the work deviates from the plan, or write "No deviations".
+2. As soon as the PR is open, Claude runs the `code-reviewer` subagent on it, following [Reviewing pull requests](#reviewing-pull-requests). This happens automatically — don't wait for the user to ask. This applies whether Claude opened the PR directly or a `fastapi-backend`/`flutter-dev` subagent did.
+3. The user reviews the PR.
 4. Address the review comments, then repeat Phases 3 and 4.
 
 ### Phase 6: Merge and close
 
-1. The user approves the MR.
-2. Claude merges only after the user explicitly authorizes merging that MR. Approving a plan, or an earlier "go ahead", is not that authorization.
+1. The user approves the PR.
+2. Claude merges only after the user explicitly authorizes merging that PR. Approving a plan, or an earlier "go ahead", is not that authorization.
 3. Verify `develop` after the merge:
-   - the MR shows as merged into `develop`;
+   - the PR shows as merged into `develop`;
    - the merge commit and diff on `develop` contain the change;
    - the relevant local checks pass again on `develop`, when feasible.
+   - remind the user to mirror the merge to GitLab ([GitLab mirror](README.md#gitlab-mirror)).
 4. Report a pipeline result only if a pipeline is configured and actually ran. The repo has no CI right now, so say "no pipeline" instead.
 5. Close the issue if `Closes #<id>` did not close it.
 
-## Reviewing merge requests
+## Reviewing pull requests
 
-When asked to review an MR, walk these five steps in order and report findings under each step's heading. Write "No issues found" for a step with nothing to report. Don't skip ahead: a correctness problem matters more than a naming nit.
+When asked to review a PR, walk these five steps in order and report findings under each step's heading. Write "No issues found" for a step with nothing to report. Don't skip ahead: a correctness problem matters more than a naming nit.
 
 1. **Correctness:** does the change do what the linked issue asks? Check edge cases, error handling and the issue's acceptance criteria.
 2. **Tests:** is new logic covered by tests, and do the tests check behavior rather than implementation? Compare the tests with the contract in `docs/api/` and the issue's acceptance criteria, not only with the code, and flag an assertion that was changed to make a test pass. Do lint and tests pass locally?
 3. **Readability:** are names clear, functions short and code free of duplication? Does it follow the layered structure above?
 4. **Security basics:** are there leaked secrets, unvalidated inputs or missing authorization checks?
-5. **Scope:** does the MR cover exactly one issue? Flag unrelated changes.
+5. **Scope:** does the PR cover exactly one issue? Flag unrelated changes.
 
 For each finding, give the file and line, what is wrong, and a suggested fix. End with a verdict: approve, approve with nits, or request changes.
