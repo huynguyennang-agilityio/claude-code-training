@@ -14,6 +14,9 @@ Paths below are relative to `mobile/` unless they start with `docs/` or `.claude
 1. Make sure the issue has its ticket evidence and acceptance criteria (CLAUDE.md, Phase 1).
 2. Read the API contract in `docs/api/<feature>.md`. If it doesn't exist yet, the contract comes first (CLAUDE.md, Phase 2). Its JSON examples are files under `docs/api/examples/<feature>/`; the backend tests compare their responses with the same files.
 3. Read the reference files listed under each step below. Copy their shape, not just the snippets here.
+4. Check which kind of issue it is (CLAUDE.md, "Mobile tasks: mock and integration"):
+   - **`(mobile, mock)`:** the contract (`docs/api/<feature>.md` and examples) must be on `develop`; `docs/api/openapi.json` may not have the endpoints yet. Build every layer, including the Dio remote data source, and add `Fake<Feature>RemoteDataSource` in `data/datasources/`. It returns Dart fixtures copied from the example files it needs (the app can't bundle `docs/api/examples/`, which is outside `mobile/`). Add a test in `test/contract/<feature>_examples_test.dart` that each fixture equals its example file. Run and screenshot the app with `--dart-define=API_MODE=mock`; write the Integration evidence row as `Not verified: backend not merged`.
+   - **`(mobile, integration)`:** check the Integration gate first: every backend issue it depends on is closed and its endpoints are in `docs/api/openapi.json` on `develop`. If not, stop and tell the user which backend issue is still open. Then run the app against the local backend, fix any drift from the contract, and record the Integration row (one success case and each documented error). A needed contract change goes back to the plan.
 
 ## Build order
 
@@ -305,4 +308,5 @@ Then record the results as verification evidence (CLAUDE.md, Phase 3), using the
 - [ ] A contract test (`test/contract/<feature>_examples_test.dart`, pattern: `auth_examples_test.dart`) parses every success example in `docs/api/examples/<feature>/` with the models and checks each field, sends each request example through the data source, and maps each error example to the right failure code.
 - [ ] Code generation is re-run and committed; `flutter analyze` and `flutter test` pass.
 - [ ] The app was run and each state screenshotted next to the design reference, or the evidence says `Not verified: <reason>`.
+- [ ] For a `(mobile, mock)` issue: the fake's fixtures are checked against the examples in `test/contract`. For a `(mobile, integration)` issue: the Integration gate was checked before starting, and the Integration row has the app against the local backend.
 - [ ] The `## Evidence` section is drafted.

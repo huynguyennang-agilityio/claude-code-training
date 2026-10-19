@@ -94,6 +94,19 @@ Every change goes through a plan file first. The one exception is a trivial chan
 
 If the work needs something the approved plan does not cover (a new endpoint, a schema change, a dependency, a larger scope), stop and go back to step 2.
 
+**Mobile tasks: mock and integration**
+
+A mobile feature that calls an endpoint is planned as two issues, so mobile work doesn't wait on the backend ([plan 009](docs/plans/009-mock-and-integration-tasks.md)). A feature with no backend call (pure UI, Health-only reading) stays one issue.
+
+| Issue | Labels | Depends on | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| `feat: <feature> (mobile, mock)` | `frontend`, `mock` | the contract issue: `docs/api/<module>.md` and `docs/api/examples/` on `develop` | domain, presentation, repository, the Dio remote data source written against the contract, and `Fake<Feature>RemoteDataSource` returning Dart fixtures copied from the examples it needs | the Bloc / logic, UI and Screen quality rows; a flow test with the fake; `flutter test test/contract`, including a test that each fixture equals its example file; a screenshot with `--dart-define=API_MODE=mock`. The Integration row is `Not verified: backend not merged` |
+| `feat: <feature> (mobile, integration)` | `frontend`, `integration` | the mock issue and every backend issue for those endpoints | run against the local backend, fix drift from the contract, error mapping, remote data source tests | the Integration row: the app against the local backend, one success case and each error documented in `docs/api/` |
+
+- The contract that unblocks a mock task does not include `docs/api/openapi.json`. `backend/tests/unit/test_openapi_snapshot.py` requires that file to match the schema the backend serves, so it changes with the backend issue.
+- **Integration gate:** start an integration issue only when every backend issue it depends on is closed and its endpoints are in `docs/api/openapi.json` on `develop`. Otherwise stop and tell the user which backend issue is still open.
+- If integration needs a contract change, stop and go back to step 2.
+
 **Ticket evidence gate**
 
 | Ticket type | Required evidence |
