@@ -1,7 +1,7 @@
 # Plan 014: CI and Claude on GitHub Actions
 
-Status: draft
-Approved: <the user fills in the date> (approved 2026-10-21 twice; back to draft for the review allowlist found in the first runs of #41)
+Status: approved
+Approved: 2026-10-21
 Issues: #39, #40, #41, #42, #43
 
 ## Context
