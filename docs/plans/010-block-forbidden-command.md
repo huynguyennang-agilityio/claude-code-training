@@ -1,7 +1,7 @@
 # Plan 010: Block forbidden git commands with a PreToolUse hook
 
-Status: draft
-Approved: <the user fills in the date>
+Status: Approved
+Approved: 2026-10-21
 Issues: <filled in after approval>
 
 ## Context
