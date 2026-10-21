@@ -30,7 +30,7 @@ flowchart TD
     G4{"Phase 4 gate:<br/>criteria met, full suite passes,<br/>security ok, diff in scope,<br/>evidence drafted<br/>(contract, a11y, auth rows)?"}
     G4 -- no --> P3
     G4 -- yes --> P5["Phase 5, when the user asks:<br/>first time: push, open PR into develop,<br/>Closes #id, Plan: link, deviations<br/>after review: push fixes to the same PR"]
-    P5 --> REV["CI (backend, mobile) and the<br/>claude-review workflow run on GitHub;<br/>again on @claude review"]
+    P5 --> REV["On GitHub: CI (backend, mobile) on every push;<br/>claude-review when the PR opens<br/>and again on @claude review"]
     REV --> UREV{"User review:<br/>changes needed?"}
     UREV -- yes --> P3
     UREV -- no --> MERGE{"User authorizes<br/>the merge of this PR?"}
@@ -76,7 +76,7 @@ sequenceDiagram
     G->>A: PR opened
     A->>G: CI: backend, mobile
     A->>G: claude-review: code-reviewer findings by step (correctness, tests, readability, security, scope) in one PR comment
-    C-->>U: PR link + CI and review results
+    C-->>U: PR link
     U->>G: review the PR
     loop until the user is satisfied
         U->>C: address comments
