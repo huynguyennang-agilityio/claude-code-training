@@ -1,0 +1,62 @@
+# Mobile checks: the same as the local Stop hook (.claude/hooks/check.sh).
+# Plan: docs/plans/014-claude-github-actions.md
+#
+# The trigger has no `paths:` filter on purpose. A required check that never reports
+# stays pending and blocks the merge, so the job always runs and the first step decides
+# whether there is anything to check.
+name: mobile
+
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+  pull-requests: read # dorny/paths-filter lists the PR's files through the API
+
+concurrency:
+  group: mobile-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile:
+    name: mobile
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: changes
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            mobile:
+              - 'mobile/**'
+              - 'docs/api/**'
+              - '.github/workflows/mobile-ci.yml'
+
+      - if: steps.changes.outputs.mobile != 'true'
+        run: echo "No mobile, docs/api or workflow changes; nothing to check."
+
+      - if: steps.changes.outputs.mobile == 'true'
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.38.5
+          cache: true
+
+      - if: steps.changes.outputs.mobile == 'true'
+        run: flutter pub get
+
+      - if: steps.changes.outputs.mobile == 'true'
+        name: flutter analyze
+        run: flutter analyze
+
+      - if: steps.changes.outputs.mobile == 'true'
+        name: flutter test
+        run: flutter test
