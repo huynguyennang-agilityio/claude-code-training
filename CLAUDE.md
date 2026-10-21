@@ -75,6 +75,8 @@ Being able to run a command is not permission to run it.
 | Push to `develop`/`main`, force-push, delete branches | Never |
 | Push to the `gitlab` remote | Never. The user mirrors GitLab by hand |
 
+A `PreToolUse` hook (`.claude/hooks/block-forbidden-command.sh`, set up in `.claude/settings.json`) refuses the rows marked Never that are git commands: pushing to `develop`/`main`, force-pushing, deleting branches and pushing to `gitlab`. It is a best-effort guard, not a replacement for this rule. Its tests are in `.claude/hooks/test-block-forbidden-command.sh`.
+
 If a GitHub action isn't possible in the current session (no `gh`, no network, tool not permitted), say so and give the user the exact content to do it themselves: issue text, PR title and description, or commands.
 
 ### Phase 0: Project foundation
