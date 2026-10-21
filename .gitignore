@@ -20,3 +20,6 @@ build/
 *.iml
 .DS_Store
 mutants/
+
+# Understand-Anything knowledge graphs
+.ua/
