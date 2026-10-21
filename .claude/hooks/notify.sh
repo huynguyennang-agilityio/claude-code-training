@@ -25,7 +25,7 @@ event=$(jq -r '.hook_event_name // empty' <<<"$input" 2>/dev/null) || exit 0
 title="Claude Code"
 case "$event" in
   Stop)
-    project=$(basename "${CLAUDE_PROJECT_DIR:-$(jq -r '.cwd // empty' <<<"$input" 2>/dev/null)}")
+    project=$(basename -- "${CLAUDE_PROJECT_DIR:-$(jq -r '.cwd // empty' <<<"$input" 2>/dev/null)}")
     message="Finished in ${project:-the project}"
     ;;
   Notification) message=$(jq -r '.message // ""' <<<"$input" 2>/dev/null) || exit 0 ;;

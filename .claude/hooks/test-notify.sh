@@ -103,6 +103,27 @@ run "$viet"
 count=$(last_message | jq -Rr 'length')
 [ "$count" = 200 ] && ok || bad "multibyte message: $count characters, expected 200"
 
+# --- odd values in the input ---
+run '{"hook_event_name":"Notification","message":42}'
+[ "$(last_message)" = "42" ] && ok || bad "number message: '$(last_message)'"
+run '{"hook_event_name":"Notification","message":null}'
+[ "$(last_message)" = "Claude Code needs your attention" ] && ok || bad "null message: '$(last_message)'"
+run '{"hook_event_name":"Notification","message":[1,2]}'
+[ "$(calls)" = 9 ] && ok || bad "array message: expected 9 argument lines, got $(calls)"
+
+huge=$(jq -n --arg m "$(head -c 1000000 /dev/zero | tr '\0' 'z')" '{hook_event_name: "Notification", message: $m}')
+run "$huge"
+len=$(last_message | tr -d '\n' | wc -c | tr -d ' ')
+[ "$len" = 200 ] && ok || bad "1 MB message: length was $len, expected 200"
+
+: >"$log"
+env -u CLAUDE_PROJECT_DIR PATH="$fake:$PATH" "$hook" <<<'{"hook_event_name":"Stop"}' >/dev/null 2>&1 || bad "stop without cwd: exit code"
+[ "$(last_message)" = "Finished in the project" ] && ok || bad "stop without cwd: '$(last_message)'"
+
+# A relative project folder that starts with a dash must not be read as an option.
+run "$stop" CLAUDE_PROJECT_DIR=-n || bad "dash folder: exit code was not 0"
+[ "$(last_message)" = "Finished in -n" ] && ok || bad "dash folder: '$(last_message)'"
+
 # --- does nothing ---
 run "$stop" STRIDEQUEST_NOTIFY=0 && [ "$(calls)" = 0 ] && ok || bad "STRIDEQUEST_NOTIFY=0 still notified"
 run "$stop" FAKE_UNAME=Linux && [ "$(calls)" = 0 ] && ok || bad "non-macOS still notified"
