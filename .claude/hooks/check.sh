@@ -9,7 +9,11 @@
 # Integration tests need Docker (docker compose up -d --wait db), so run them by hand
 # in Phase 4. After MAX_BLOCKS failed stops in a row the hook lets Claude stop and warns
 # the user, so a failure Claude can't fix doesn't loop forever.
+# In GitHub Actions (GITHUB_ACTIONS=true) the hook does nothing: the CI workflows run these
+# checks, and the runners Claude uses there have no Flutter or Python toolchain (plan 014).
 set -uo pipefail
+
+[ "${GITHUB_ACTIONS:-}" = "true" ] && exit 0
 
 MAX_BLOCKS=3
 
