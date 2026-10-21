@@ -151,6 +151,8 @@ A `PostToolUse` hook (`.claude/hooks/format-on-edit.sh`, set up in `.claude/sett
 
 A `Stop` hook (`.claude/hooks/check.sh`, set up in `.claude/settings.json`) runs these checks for the files you changed when you try to finish, and blocks until they pass: `flutter analyze` and `flutter test` for `mobile/`; `ruff check`, `ruff format --check`, `mypy` and `pytest tests/unit` for `backend/`. It skips the integration tests, which need Docker, so run those yourself before Phase 4. After 3 failed stops in a row it lets you stop and warns the user.
 
+A macOS notification (`.claude/hooks/notify.sh`, on the `Stop` and `Notification` events in `.claude/settings.json`) tells the user when you finish or need them. It also appears for a stop that the `Stop` hook above then blocks. Set `STRIDEQUEST_NOTIFY=0` to switch it off. Its tests are in `.claude/hooks/test-notify.sh`.
+
 Passing tests don't prove everything works: `flutter_test` doesn't show the UI matches the design, and `pytest` doesn't show the mobile-backend flow works. Also verify by ticket type:
 
 - **UI:** compare a screenshot of the running app with the design reference when the environment allows it.
