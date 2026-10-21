@@ -60,6 +60,10 @@ jobs:
         name: flutter analyze
         run: flutter analyze
 
+      # Golden tests are skipped here: the baselines in goldens/ci/ are made on macOS and
+      # differ by 0.01-0.02% of pixels on Linux, so they only match on the platform that
+      # made them (CLAUDE.md, Verification evidence). Run them locally with
+      # `flutter test --tags golden`.
       - if: steps.changes.outputs.mobile == 'true'
         name: flutter test
-        run: flutter test
+        run: flutter test --exclude-tags golden
