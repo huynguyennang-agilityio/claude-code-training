@@ -30,7 +30,7 @@ flowchart TD
     G4{"Phase 4 gate:<br/>criteria met, full suite passes,<br/>security ok, diff in scope,<br/>evidence drafted<br/>(contract, a11y, auth rows)?"}
     G4 -- no --> P3
     G4 -- yes --> P5["Phase 5, when the user asks:<br/>first time: push, open PR into develop,<br/>Closes #id, Plan: link, deviations<br/>after review: push fixes to the same PR"]
-    P5 --> REV["code-reviewer runs automatically<br/>when the PR is opened"]
+    P5 --> REV["CI (backend, mobile) and the<br/>claude-review workflow run on GitHub;<br/>again on @claude review"]
     REV --> UREV{"User review:<br/>changes needed?"}
     UREV -- yes --> P3
     UREV -- no --> MERGE{"User authorizes<br/>the merge of this PR?"}
@@ -69,25 +69,28 @@ gitGraph
 sequenceDiagram
     actor U as User
     participant C as Claude
-    participant R as code-reviewer agent
     participant G as GitHub
+    participant A as GitHub Actions
     U->>C: Push and open the PR
     C->>G: git push, open PR into develop (template, Closes #id)
-    C->>R: review the PR (runs automatically)
-    R-->>C: findings by step: correctness, tests (against docs/api and criteria), readability, security, scope
-    C-->>U: PR link + review findings
+    G->>A: PR opened
+    A->>G: CI: backend, mobile
+    A->>G: claude-review: code-reviewer findings by step (correctness, tests, readability, security, scope) in one PR comment
+    C-->>U: PR link + CI and review results
     U->>G: review the PR
     loop until the user is satisfied
         U->>C: address comments
         C->>C: repeat Phase 3 and Phase 4
         U->>C: commit and push
         C->>G: push fixes to the same PR
+        G->>A: CI runs again (a new review only on "@claude review")
     end
     U->>C: Merge PR #id
     C->>G: merge into develop
     C->>G: check PR merged, diff on develop
     C->>C: rerun local checks on develop
-    C-->>U: result ("no pipeline" while CI is off)
+    A->>G: CI on the merge commit
+    C-->>U: CI result on develop
     C->>G: close the issue if Closes #id did not
     C-->>U: reminder to mirror develop to GitLab
     U->>U: on the VPN: push develop and main to the gitlab remote

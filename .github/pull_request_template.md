@@ -22,6 +22,8 @@ Plan: docs/plans/NNN-name.md
 
 ## Review checklist
 
+Comment `@claude review` after your last push, before asking for a merge.
+
 Review in this order. Tick an item only after checking it.
 
 - [ ] **Correctness:** the change does what the issue asks and handles edge cases and errors.

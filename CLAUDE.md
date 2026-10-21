@@ -77,6 +77,8 @@ Being able to run a command is not permission to run it.
 
 A `PreToolUse` hook (`.claude/hooks/block-forbidden-command.sh`, set up in `.claude/settings.json`) refuses the rows marked Never that are git commands: pushing to `develop`/`main`, force-pushing, deleting branches and pushing to `gitlab`. It is a best-effort guard, not a replacement for this rule. Its tests are in `.claude/hooks/test-block-forbidden-command.sh`.
 
+The Claude workflows on GitHub (`claude-review.yml`, `claude.yml`, see [CI and Claude on GitHub](README.md#ci-and-claude-on-github)) follow the same table. On GitHub a ruleset backs it: `develop` and `main` refuse direct pushes, force-pushes and deletion for everyone, with no bypass, so changes reach them only through a pull request.
+
 If a GitHub action isn't possible in the current session (no `gh`, no network, tool not permitted), say so and give the user the exact content to do it themselves: issue text, PR title and description, or commands.
 
 ### Phase 0: Project foundation
@@ -149,7 +151,9 @@ Build in small steps. For each step:
 
 A `PostToolUse` hook (`.claude/hooks/format-on-edit.sh`, set up in `.claude/settings.json`) formats each Python file under `backend/` (`ruff format`) and each Dart file under `mobile/lib/` or `mobile/test/` (`dart format`) right after you write it with `Edit` or `Write`. Generated Dart files are skipped, and files changed through Bash are not formatted. The `Stop` hook below still checks them. Its tests are in `.claude/hooks/test-format-on-edit.sh`.
 
-A `Stop` hook (`.claude/hooks/check.sh`, set up in `.claude/settings.json`) runs these checks for the files you changed when you try to finish, and blocks until they pass: `flutter analyze` and `flutter test` for `mobile/`; `ruff check`, `ruff format --check`, `mypy` and `pytest tests/unit` for `backend/`. It skips the integration tests, which need Docker, so run those yourself before Phase 4. After 3 failed stops in a row it lets you stop and warns the user.
+A `Stop` hook (`.claude/hooks/check.sh`, set up in `.claude/settings.json`) runs these checks for the files you changed when you try to finish, and blocks until they pass: `flutter analyze` and `flutter test` for `mobile/`; `ruff check`, `ruff format --check`, `mypy` and `pytest tests/unit` for `backend/`. It skips the integration tests, which need Docker, so run those yourself before Phase 4. After 3 failed stops in a row it lets you stop and warns the user. In GitHub Actions (`GITHUB_ACTIONS=true`) it does nothing. Its tests are in `.claude/hooks/test-check.sh`.
+
+CI on GitHub runs the same checks on every PR into `develop` and every push to `develop`, plus the integration tests against PostgreSQL: `.github/workflows/backend-ci.yml` (job `backend`) and `.github/workflows/mobile-ci.yml` (job `mobile`). Each job always reports, and runs its checks only when `backend/**` or `mobile/**`, `docs/api/**` or its own workflow changed. Golden tests are skipped in CI because the baselines are made on macOS; run them locally with `flutter test --tags golden`.
 
 A macOS notification (`.claude/hooks/notify.sh`, on the `Stop` and `Notification` events in `.claude/settings.json`) tells the user when you finish or need them. It also appears for a stop that the `Stop` hook above then blocks. Set `STRIDEQUEST_NOTIFY=0` to switch it off. Its tests are in `.claude/hooks/test-notify.sh`.
 
@@ -200,7 +204,7 @@ Before opening a PR, confirm:
 ### Phase 5: PR and review
 
 1. When the user asks, push the branch and open a PR into `develop` using `.github/pull_request_template.md`, link the issue with `Closes #<id>`, and name the plan (`Plan: docs/plans/NNN-<short-name>.md`). Say where the work deviates from the plan, or write "No deviations".
-2. As soon as the PR is open, Claude runs the `code-reviewer` subagent on it, following [Reviewing pull requests](#reviewing-pull-requests). This happens automatically — don't wait for the user to ask. This applies whether Claude opened the PR directly or a `fastapi-backend`/`flutter-dev` subagent did. Each subagent's model is set in the `model:` line of `.claude/agents/<name>.md`; a hard task can override it for one call.
+2. The `claude-review.yml` workflow reviews each PR into `develop` when it opens, is marked ready for review or is reopened, and again when a collaborator comments `@claude review`. It runs the `code-reviewer` subagent, following [Reviewing pull requests](#reviewing-pull-requests), and posts one comment that later runs edit. New commits do not start a review: comment `@claude review` after the last push. Claude runs the `code-reviewer` subagent locally only when the user asks (for example before pushing), or when the workflow did not run: a PR from a fork, a draft, a missing secret, a failed workflow, or a PR into another branch. Each subagent's model is set in the `model:` line of `.claude/agents/<name>.md`; a hard task can override it for one call.
 3. The user reviews the PR.
 4. Address the review comments, then repeat Phases 3 and 4.
 
@@ -213,15 +217,15 @@ Before opening a PR, confirm:
    - the merge commit and diff on `develop` contain the change;
    - the relevant local checks pass again on `develop`, when feasible.
    - remind the user to mirror the merge to GitLab ([GitLab mirror](README.md#gitlab-mirror)).
-4. Report a pipeline result only if a pipeline is configured and actually ran. The repo has no CI right now, so say "no pipeline" instead.
+4. Report the CI result: the `backend` and `mobile` runs for the merge commit on `develop` (`gh run list --branch develop --event push`). If a run failed or did not run, say so.
 5. Close the issue if `Closes #<id>` did not close it.
 
 ## Reviewing pull requests
 
 When asked to review a PR, walk these five steps in order and report findings under each step's heading. Write "No issues found" for a step with nothing to report. Don't skip ahead: a correctness problem matters more than a naming nit.
 
-1. **Correctness:** does the change do what the linked issue asks? Check edge cases, error handling and the issue's acceptance criteria.
-2. **Tests:** is new logic covered by tests, and do the tests check behavior rather than implementation? Compare the tests with the contract in `docs/api/` and the issue's acceptance criteria, not only with the code, and flag an assertion that was changed to make a test pass. Do lint and tests pass locally?
+1. **Correctness:** does the change do what the linked issue asks? Check edge cases, error handling and the issue's acceptance criteria. Check that the PR links its issue (`Closes #<id>`) and names its plan (`Plan: docs/plans/NNN-<short-name>.md`), and that it lists its deviations from the plan or says "No deviations".
+2. **Tests:** is new logic covered by tests, and do the tests check behavior rather than implementation? Compare the tests with the contract in `docs/api/` and the issue's acceptance criteria, not only with the code, and flag an assertion that was changed to make a test pass. Do lint and tests pass, locally or in CI? Does the PR's `## Evidence` section cover each acceptance criterion of the linked issue, or say `Not verified: <reason>`?
 3. **Readability:** are names clear, functions short and code free of duplication? Does it follow the layered structure above?
 4. **Security basics:** are there leaked secrets, unvalidated inputs or missing authorization checks?
 5. **Scope:** does the PR cover exactly one issue? Flag unrelated changes.
