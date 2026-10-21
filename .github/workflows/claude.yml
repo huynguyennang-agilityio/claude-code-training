@@ -67,30 +67,36 @@ jobs:
   claude:
     needs: gate
     if: needs.gate.outputs.ok == 'true'
-    # One run at a time per issue or PR; a second mention waits instead of cancelling work
-    # in progress.
+    # One run at a time per issue or PR, never cancelled midway. GitHub keeps only the latest
+    # waiting run per group, so of several mentions made during a run only the last is answered.
     concurrency:
       group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # The job's own token stays read-only: comments, pushes and PRs use the Claude GitHub
+    # App's token, which the action gets in exchange for the OIDC token.
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      id-token: write # the action trades it for the Claude GitHub App's token
+      contents: read
+      pull-requests: read
+      issues: read
       actions: read # lets Claude read CI results on PRs
+      id-token: write # the action trades it for the Claude GitHub App's token
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
+          # Do not leave the job token in .git/config.
+          persist-credentials: false
 
       - uses: anthropics/claude-code-action@58985842b834ed26087302ba27d07bc24ca8697a # v1.0.244
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # No github_token: the action uses the Claude GitHub App, so comments and commits
-          # come from claude[bot]. CLAUDE.md (restored from develop) applies: no code without
-          # an approved plan, never push to develop or main.
+          # come from claude[bot]. The App issues its token only when this file is identical
+          # to the one on develop, so a PR cannot change this workflow and still get it.
+          # CLAUDE.md (restored from develop) applies: no code without an approved plan, never
+          # push to develop or main.
           claude_args: >-
             --model sonnet
             --max-turns 40
