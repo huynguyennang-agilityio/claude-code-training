@@ -1,0 +1,99 @@
+# Backend checks: the same as the local Stop hook (.claude/hooks/check.sh) plus the
+# integration tests against PostgreSQL. Plan: docs/plans/014-claude-github-actions.md
+#
+# The trigger has no `paths:` filter on purpose. A required check that never reports
+# stays pending and blocks the merge, so the job always runs and the first step decides
+# whether there is anything to check.
+name: backend
+
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  # A new push to a PR cancels its older run. Each push to develop gets its own group
+  # (the commit SHA), so every commit there gets a result.
+  group: backend-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: stridequest
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: stridequest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U stridequest -d stridequest"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Throwaway values for this job only. Settings requires them and the runner has
+      # no .env. The test database name must end in _test (tests/integration/conftest.py).
+      DATABASE_URL: postgresql+asyncpg://stridequest:ci-only-password@localhost:5432/stridequest
+      TEST_DATABASE_URL: postgresql+asyncpg://stridequest:ci-only-password@localhost:5432/stridequest_test
+      JWT_SECRET: ci-only-jwt-secret-not-used-anywhere-else
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: changes
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          # No API token: compare with git, so the job needs only contents: read.
+          token: ""
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'docs/api/**'
+              - '.github/workflows/backend-ci.yml'
+
+      - if: steps.changes.outputs.backend != 'true'
+        run: echo "No backend, docs/api or workflow changes; nothing to check."
+
+      - if: steps.changes.outputs.backend == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - if: steps.changes.outputs.backend == 'true'
+        run: pip install -r requirements-dev.txt
+
+      - if: steps.changes.outputs.backend == 'true'
+        name: ruff check
+        run: ruff check .
+
+      - if: steps.changes.outputs.backend == 'true'
+        name: ruff format
+        run: ruff format --check .
+
+      - if: steps.changes.outputs.backend == 'true'
+        name: mypy
+        run: mypy
+
+      - if: steps.changes.outputs.backend == 'true'
+        name: unit tests
+        run: pytest -q tests/unit
+
+      - if: steps.changes.outputs.backend == 'true'
+        name: integration tests
+        run: pytest -q tests/integration
