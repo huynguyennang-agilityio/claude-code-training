@@ -1,7 +1,7 @@
 # Plan 013: Set a model for each subagent, and ignore `.ua/`
 
-Status: draft
-Approved: <the user fills in the date>
+Status: approved
+Approved: 2026-10-21
 Issues: <filled in after approval>
 
 ## Context
