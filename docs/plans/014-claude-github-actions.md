@@ -1,7 +1,7 @@
 # Plan 014: CI and Claude on GitHub Actions
 
-Status: draft
-Approved: <the user fills in the date> (first approved 2026-10-21; back to draft for the review posting change in Approach 3)
+Status: approved
+Approved: 2026-10-21
 Issues: #39, #40, #41, #42, #43
 
 ## Context
