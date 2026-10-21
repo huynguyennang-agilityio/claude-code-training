@@ -200,7 +200,7 @@ Before opening a PR, confirm:
 ### Phase 5: PR and review
 
 1. When the user asks, push the branch and open a PR into `develop` using `.github/pull_request_template.md`, link the issue with `Closes #<id>`, and name the plan (`Plan: docs/plans/NNN-<short-name>.md`). Say where the work deviates from the plan, or write "No deviations".
-2. As soon as the PR is open, Claude runs the `code-reviewer` subagent on it, following [Reviewing pull requests](#reviewing-pull-requests). This happens automatically — don't wait for the user to ask. This applies whether Claude opened the PR directly or a `fastapi-backend`/`flutter-dev` subagent did.
+2. As soon as the PR is open, Claude runs the `code-reviewer` subagent on it, following [Reviewing pull requests](#reviewing-pull-requests). This happens automatically — don't wait for the user to ask. This applies whether Claude opened the PR directly or a `fastapi-backend`/`flutter-dev` subagent did. Each subagent's model is set in the `model:` line of `.claude/agents/<name>.md`; a hard task can override it for one call.
 3. The user reviews the PR.
 4. Address the review comments, then repeat Phases 3 and 4.
 
