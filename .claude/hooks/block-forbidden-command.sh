@@ -145,7 +145,11 @@ input=$(cat)
 command_text=$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null) || exit 0
 [ -n "$command_text" ] || exit 0
 
+# A heredoc with a quoted delimiter (<<'EOF') is plain text, never run, so drop its body.
 # shellcheck disable=SC2016  # the perl programs are meant to be literal
+command_text=$(perl -0pe 's/<<-?[ \t]*(["\x27])(\w+)\1([^\n]*)\n.*?\n[ \t]*\2[ \t]*(?=\n|$)/<<$1$2$1$3/gs' <<<"$command_text") || exit 0
+
+# shellcheck disable=SC2016
 # Pass 1: inside quotes, ; & | and newlines become spaces, so a commit message that
 # mentions `git push -f` stays one harmless argument. Outside quotes they split commands.
 scan 's/("(?:\\.|[^"\\])*"|\x27[^\x27]*\x27)/(my $q = $1) =~ tr{;&|\n}{    }; $q/ge;
