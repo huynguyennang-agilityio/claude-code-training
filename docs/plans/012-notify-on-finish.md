@@ -1,7 +1,7 @@
 # Plan 012: Notify the user when Claude finishes or needs them
 
-Status: draft
-Approved: <the user fills in the date>
+Status: approved
+Approved: 2026-10-21
 Issues: <filled in after approval>
 
 ## Context
