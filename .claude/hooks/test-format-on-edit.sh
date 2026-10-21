@@ -13,7 +13,9 @@ trap 'rm -rf "$tmp"' EXIT
 proj="$tmp/proj"
 mkdir -p "$proj/backend/app" "$proj/backend/.venv/lib" "$proj/backend/.venv/bin" \
   "$proj/mobile/lib/core" "$proj/mobile/test" "$proj/mobile/ios" "$proj/docs" "$proj/tools"
-printf '[tool.ruff]\nline-length = 100\n\n[tool.ruff.format]\nquote-style = "double"\n' \
+# `exclude = []` turns off ruff's own default exclusion of .venv, so the .venv case below
+# can only pass because of the hook's guard.
+printf '[tool.ruff]\nline-length = 100\nexclude = []\n\n[tool.ruff.format]\nquote-style = "double"\n' \
   >"$proj/backend/pyproject.toml"
 
 ruff=""
@@ -74,6 +76,13 @@ if [ -n "$ruff" ]; then
   unchanged "python: syntax error" "$f"
   f=$(make backend/.venv/lib/vendored.py "$UGLY_PY")
   unchanged "python: backend/.venv" "$f"
+
+  # A symlink inside the project that points outside it: the target must stay as it is.
+  mkdir -p "$tmp/outside"
+  printf '%s\n' "$UGLY_PY" >"$tmp/outside/victim.py"
+  ln -s "$tmp/outside/victim.py" "$proj/backend/app/link.py"
+  unchanged "python: symlink to a file outside the project" "$proj/backend/app/link.py"
+  if [ "$(cat "$tmp/outside/victim.py")" = "$UGLY_PY" ]; then ok; else bad "python: the symlink target was formatted"; fi
 else
   echo "SKIPPED: python cases (ruff not installed)"
   skipped=$((skipped + 1))

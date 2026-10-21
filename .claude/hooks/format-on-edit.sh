@@ -17,6 +17,8 @@ command -v jq >/dev/null 2>&1 || exit 0
 input=$(cat)
 file=$(jq -r '.tool_input.file_path // empty' <<<"$input" 2>/dev/null) || exit 0
 [ -n "$file" ] && [ -f "$file" ] || exit 0
+# A symlinked file could point outside the project, and the formatters follow the link.
+[ ! -L "$file" ] || exit 0
 
 root=${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)} || exit 0
 root=$(cd "$root" 2>/dev/null && pwd -P) || exit 0
