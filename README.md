@@ -339,3 +339,5 @@ Only `develop`, `main` and tags are mirrored. Feature branches stay on GitHub. T
 
 - **Check that both hosts match:** `git ls-remote origin develop main` and `git ls-remote gitlab develop main` print the same SHAs.
 - **`! [rejected]`** means GitLab has a commit that GitHub doesn't: someone pushed to GitLab directly. Bring that commit to GitHub through a pull request, or discard it on GitLab, then push again.
+
+<!-- CI check for #39: docs-only change. Do not merge. -->
