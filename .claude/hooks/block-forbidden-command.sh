@@ -12,7 +12,11 @@
 #
 # Best effort, not a security boundary: the command text is split on ; & | ( ) ` and
 # newlines (not inside quotes), and `sh -c` / `bash -c` / `eval` strings are scanned too.
-# A command built through a variable or a script file can still slip past.
+# Known gaps: a command built through a variable or a script file; a bare `git push` after
+# a `checkout`, `switch` or `cd` in the same command (the branch is read before they run);
+# exotic refs such as `develop^{}`; `git update-ref -d`. Known nuisance: when the command
+# contains `bash -c` or `eval`, any quoted string that starts with `git push ... main` is
+# blocked too.
 # Needs jq and perl; without them the hook warns and allows the command.
 # Tests: .claude/hooks/test-block-forbidden-command.sh
 set -o pipefail
@@ -28,15 +32,18 @@ is_protected() { [ "$1" = develop ] || [ "$1" = main ]; }
 current_branch() { "${git_cmd[@]}" symbolic-ref --short -q HEAD 2>/dev/null || true; }
 
 check_push() {
-  local arg skip=false remote="" spec dest branch
+  local arg pending="" remote="" spec dest branch
   local refs=()
   for arg in "$@"; do
-    if $skip; then
-      skip=false
+    if [ -n "$pending" ]; then
+      [ "$pending" = repo ] && remote=$arg
+      pending=""
       continue
     fi
     case "$arg" in
-      -o | --push-option | --repo | --receive-pack | --exec) skip=true ;;
+      -o | --push-option | --receive-pack | --exec) pending=skip ;;
+      --repo) pending=repo ;;
+      --repo=*) remote=${arg#--repo=} ;;
       --force | --force-with-lease | --force-with-lease=* | --force-if-includes)
         block "force-push" ;;
       --delete) block "deleting a remote branch" ;;
@@ -74,10 +81,15 @@ check_push() {
 }
 
 check_branch() {
-  local arg
+  local arg skip=false
   for arg in "$@"; do
+    if $skip; then
+      skip=false
+      continue
+    fi
     case "$arg" in
       --delete) block "deleting a branch" ;;
+      --sort | --format | --contains | --no-contains | --merged | --no-merged | --points-at) skip=true ;;
       --*) ;;
       -*) case "$arg" in *d* | *D*) block "deleting a branch" ;; esac ;;
     esac
@@ -106,6 +118,7 @@ analyze_fragment() {
     case "${toks[$i]}" in
       -C)
         dir=${toks[$((i + 1))]:-}
+        dir=${dir//$'\x01'/ }
         i=$((i + 2))
         ;;
       -c | --git-dir | --work-tree | --namespace) i=$((i + 2)) ;;
@@ -150,9 +163,10 @@ command_text=$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null) || 
 command_text=$(perl -0pe 's/<<-?[ \t]*(["\x27])(\w+)\1([^\n]*)\n.*?\n[ \t]*\2[ \t]*(?=\n|$)/<<$1$2$1$3/gs' <<<"$command_text") || exit 0
 
 # shellcheck disable=SC2016
-# Pass 1: inside quotes, ; & | and newlines become spaces, so a commit message that
-# mentions `git push -f` stays one harmless argument. Outside quotes they split commands.
-scan 's/("(?:\\.|[^"\\])*"|\x27[^\x27]*\x27)/(my $q = $1) =~ tr{;&|\n}{    }; $q/ge;
+# Pass 1: inside quotes, ; & | and newlines become spaces and spaces become \x01, so a
+# commit message that mentions `git push -f`, or `-c user.name="A B"`, stays one argument.
+# Outside quotes ; & | and friends split commands.
+scan 's/("(?:\\.|[^"\\])*"|\x27[^\x27]*\x27)/(my $q = $1) =~ tr{;&|\n}{    }; $q =~ s{[ \t]}{\x01}g; $q/ge;
      s/&&|\|\||[;|&\n()`]/\n/g' "$command_text"
 
 # shellcheck disable=SC2016
