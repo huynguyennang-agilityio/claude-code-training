@@ -13,7 +13,11 @@
 # checks, and the runners Claude uses there have no Flutter or Python toolchain (plan 014).
 set -uo pipefail
 
-[ "${GITHUB_ACTIONS:-}" = "true" ] && exit 0
+# The stderr line shows in the Actions run log that the hook loaded and skipped.
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+  echo "check.sh: skipped in GitHub Actions" >&2
+  exit 0
+fi
 
 MAX_BLOCKS=3
 

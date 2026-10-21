@@ -26,9 +26,14 @@ done
 
 repo="$tmp/repo"
 mkdir -p "$repo"
-git -C "$repo" init -q -b develop
-git -C "$repo" -c user.name=t -c user.email=t@t commit -q --allow-empty -m base
-git -C "$repo" switch -q -c feature
+# Ignore the developer's git config (commit signing, hooks), so the setup cannot fail on it.
+setup_git() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -C "$repo" "$@"; }
+if ! { setup_git init -q -b develop &&
+  setup_git -c user.name=t -c user.email=t@t commit -q --allow-empty -m base &&
+  setup_git switch -q -c feature; }; then
+  echo "test-check.sh: could not set up the test git repo" >&2
+  exit 1
+fi
 mkdir -p "$repo/backend" "$repo/mobile"
 echo "x = 1" >"$repo/backend/app.py"
 echo "void main() {}" >"$repo/mobile/main.dart"
@@ -43,6 +48,9 @@ run() {
   local session=$1
   shift
   : >"$log"
+  # Start each run with no block counter, so one case's blocks never count toward another's
+  # (without jq every session id would be "unknown" and share one counter).
+  rm -f "$tmp"/stridequest-stop-hook-*
   out=$(cd "$repo" && env -u GITHUB_ACTIONS PATH="$fake:$PATH" TMPDIR="$tmp" "$@" \
     "$hook" <<<"{\"session_id\":\"$session\"}" 2>&1 >/dev/null)
   code=$?
@@ -54,6 +62,7 @@ run gha GITHUB_ACTIONS=true FAKE_TOOL_EXIT=1
 [ "$code" = 0 ] && ok || bad "actions: exit code was $code, expected 0"
 [ "$(calls)" = 0 ] && ok || bad "actions: $(calls) tool calls, expected none"
 [ ! -e "$tmp/stridequest-stop-hook-gha" ] && ok || bad "actions: wrote a block counter"
+grep -q "check.sh: skipped in GitHub Actions" <<<"$out" && ok || bad "actions: no skip line on stderr"
 
 # --- local, checks pass: run all six checks, allow the stop ---
 run pass FAKE_TOOL_EXIT=0
