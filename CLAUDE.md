@@ -147,6 +147,8 @@ Build in small steps. For each step:
 3. Run lint: `flutter analyze` in `mobile/`; `ruff check .` and `ruff format --check .` in `backend/`.
 4. Run type checks: `flutter analyze` covers Dart; `mypy` in `backend/` (strict, configured in `pyproject.toml`).
 
+A `PostToolUse` hook (`.claude/hooks/format-on-edit.sh`, set up in `.claude/settings.json`) formats each Python file under `backend/` (`ruff format`) and each Dart file under `mobile/lib/` or `mobile/test/` (`dart format`) right after you write it with `Edit` or `Write`. Generated Dart files are skipped, and files changed through Bash are not formatted. The `Stop` hook below still checks them. Its tests are in `.claude/hooks/test-format-on-edit.sh`.
+
 A `Stop` hook (`.claude/hooks/check.sh`, set up in `.claude/settings.json`) runs these checks for the files you changed when you try to finish, and blocks until they pass: `flutter analyze` and `flutter test` for `mobile/`; `ruff check`, `ruff format --check`, `mypy` and `pytest tests/unit` for `backend/`. It skips the integration tests, which need Docker, so run those yourself before Phase 4. After 3 failed stops in a row it lets you stop and warns the user.
 
 Passing tests don't prove everything works: `flutter_test` doesn't show the UI matches the design, and `pytest` doesn't show the mobile-backend flow works. Also verify by ticket type:
