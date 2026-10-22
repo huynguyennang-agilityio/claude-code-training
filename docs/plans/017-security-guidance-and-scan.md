@@ -1,7 +1,7 @@
 # Plan 017: Security guidance plugin and a security scan in CI
 
-Status: approved
-Approved: 2026-10-22
+Status: draft
+Approved: <the user fills in the date> (first approved 2026-10-22; back to draft for the marketplace id, see assumption 4)
 Issues: <filled in after approval>
 
 ## Context
@@ -28,7 +28,7 @@ The code has real security boundaries:
 
 ### What the plugin is (checked 2026-10-22)
 
-[`security-guidance`](https://github.com/anthropics/claude-code/tree/main/plugins/security-guidance) v2.0.0 is published by Anthropic in the `claude-plugins-official` marketplace, which ships with Claude Code. It needs Claude Code ≥ 2.1.144 (this Mac has 2.1.306) and Python 3.8+. Its README describes three layers:
+[`security-guidance`](https://github.com/anthropics/claude-code/tree/main/plugins/security-guidance) v2.0.0 is published by Anthropic. Its README calls the marketplace `claude-plugins-official`; Claude Code 2.1.306 has no marketplace by that name and lists the same plugin (version 2.0.13) in its built-in Anthropic marketplace `anthropic-plugin-directory`, whose entry points at `github.com/anthropics/claude-plugins-official#plugins/security-guidance` (found while implementing #75). It needs Claude Code ≥ 2.1.144 (this Mac has 2.1.306) and Python 3.8+. Its README describes three layers:
 
 | Layer | Hook | What it does |
 | --- | --- | --- |
@@ -64,7 +64,9 @@ Each of these goes against how plan 014 split `claude-review.yml`: a gate first,
    That means more YAML to own, but no new secret and no new trust model. The official action (option A) was not chosen because it needs a separate paid `ANTHROPIC_API_KEY`, comments from the job that holds the key, and its README says it is not hardened against prompt injection.
 2. **The scan is advisory at first (assumption).** It posts one comment and the job passes, whatever it finds. It does not become a required check until a few weeks of findings show how noisy it is. Making it blocking (failing on a `high` finding) is a later plan.
 3. **When the scan runs (assumption).** It uses the same triggers as the review: PR `opened`, `ready_for_review`, `reopened`, plus a collaborator commenting `@claude security`. The gate also skips a PR whose files are all under `docs/` or are `*.md`, except `.claude/**` and `CLAUDE.md`, because those configure Claude.
-4. **The plugin is enabled for the project, not only for one person (assumption).** It is added to `enabledPlugins` in the committed `.claude/settings.json`, so every collaborator gets it after a pull. The issue checks how Claude Code asks a collaborator to install it (expected: a prompt when the folder is trusted). If project-level enabling does not install it, the README gives the command `/plugin install security-guidance@claude-plugins-official`.
+4. **The plugin is enabled for the project, not only for one person (assumption).** It is added to `enabledPlugins` in the committed `.claude/settings.json`, so every collaborator gets it after a pull. The issue checks how Claude Code asks a collaborator to install it (expected: a prompt when the folder is trusted). If project-level enabling does not install it, the README gives the command `claude plugin install security-guidance@anthropic-plugin-directory --scope project`.
+
+   The plugin id is `security-guidance@anthropic-plugin-directory`, the name Claude Code 2.1.306 uses for its built-in Anthropic marketplace; `security-guidance@claude-plugins-official`, the name in the plugin's README, does not resolve there. Not verified: whether a Claude Code version that only knows `claude-plugins-official` resolves the id. A collaborator on such a version installs the plugin by hand with the name their `claude plugin marketplace list` shows.
 5. **The plugin does not run on GitHub runners (assumption).** It is not known whether `claude-code-action` installs plugins from `enabledPlugins`. The Claude steps in `claude-review.yml`, `claude.yml` and the new workflow set `SECURITY_GUIDANCE_DISABLE: "1"` either way. The CI scan is the security layer there, and the plugin's `SessionStart` install and LLM calls would only slow the runs down and cost more.
 6. **The plugin's own model and switches stay at their defaults (assumption).** All three layers are on, with Opus. If the cost or noise is too high, the user can set `ENABLE_STOP_REVIEW=0` or a cheaper `SECURITY_REVIEW_MODEL` in their own shell. The README lists both.
 7. **Scheduled runs (assumption).** The 17:00 `pr-report` task and the 08:00 routine ([plan 016](016-cloud-routines.md)) run in this repo and only read, so the plugin's Stop review finds no diff and should cost nothing. The issue checks the next `pr-report` run.
@@ -82,7 +84,7 @@ The approval must cover all three.
 
 ### 1. The plugin for the project (issue 1)
 
-- **`.claude/settings.json`:** add `"enabledPlugins": { "security-guidance@claude-plugins-official": true }`. The existing hooks are left as they are.
+- **`.claude/settings.json`:** add `"enabledPlugins": { "security-guidance@anthropic-plugin-directory": true }`. The existing hooks are left as they are.
   - The plugin's `Stop` and commit hooks are `asyncRewake`. They do not block, and they run next to `check.sh`, which still blocks until the checks pass.
   - The plugin's `PostToolUse` hook runs next to `format-on-edit.sh`. Neither depends on the other's order.
 - **`.claude/claude-security-guidance.md`:** the StrideQuest rules, kept under 8 KB. This one file is the shared rule source for the local plugin and for the CI scan (step 2):
@@ -191,5 +193,5 @@ Chore: the scope is above. Behaviour that must stay unchanged:
 
 | # | Title | Labels | Acceptance criteria | Depends on |
 | --- | --- | --- | --- | --- |
-| 1 | `chore: enable the security-guidance plugin for the project` | chore | - [ ] `.claude/settings.json` enables `security-guidance@claude-plugins-official`; existing hooks unchanged<br>- [ ] `.claude/claude-security-guidance.md` with the StrideQuest rules from Approach 1, under 8 KB<br>- [ ] `.claude/claude-security-guidance.local.md` in `.gitignore`<br>- [ ] `SECURITY_GUIDANCE_DISABLE: "1"` on the Claude steps of `claude-review.yml` and `claude.yml`<br>- [ ] `CLAUDE.md` (Phase 3 paragraph, Phase 4 step 3) and `README.md` updated<br>- [ ] Evidence for layers 1–3 on a throwaway branch, the hook tests, and an unchanged `claude-review` run, as in Verification | none |
+| 1 | `chore: enable the security-guidance plugin for the project` | chore | - [ ] `.claude/settings.json` enables `security-guidance@anthropic-plugin-directory`; existing hooks unchanged<br>- [ ] `.claude/claude-security-guidance.md` with the StrideQuest rules from Approach 1, under 8 KB<br>- [ ] `.claude/claude-security-guidance.local.md` in `.gitignore`<br>- [ ] `SECURITY_GUIDANCE_DISABLE: "1"` on the Claude steps of `claude-review.yml` and `claude.yml`<br>- [ ] `CLAUDE.md` (Phase 3 paragraph, Phase 4 step 3) and `README.md` updated<br>- [ ] Evidence for layers 1–3 on a throwaway branch, the hook tests, and an unchanged `claude-review` run, as in Verification | none |
 | 2 | `ci: advisory Claude security scan on PRs into develop` | chore | - [ ] `.github/workflows/claude-security-scan.yml` with `gate`, `scan` and `post` jobs as in Approach 2, on `claude-code-action` with the existing `CLAUDE_CODE_OAUTH_TOKEN` (no new secret)<br>- [ ] The scan applies `.claude/claude-security-guidance.md` from `develop`<br>- [ ] One comment per PR with the marker `<!-- claude-security-scan -->`, edited on `@claude security`<br>- [ ] `claude.yml` ignores `@claude security`<br>- [ ] The job never fails on findings (advisory)<br>- [ ] `CLAUDE.md` Phase 5 step 2 and the README CI section updated<br>- [ ] Evidence: the test PR with two planted issues, a clean PR, the re-run, a draft and a docs-only skip | 1 |
