@@ -175,11 +175,11 @@ jobs:
           echo "Bash commands:"
           jq -r '.. | objects | select(.type? == "tool_use" and .name == "Bash") | "  \(.input.command)"' \
             "$EXECUTION_FILE" || echo "  (could not read the execution file)"
-          if grep -q "security_reminder_hook\|ensure_agent_sdk" "$EXECUTION_FILE"; then
-            echo "security-guidance plugin: hook activity found (expected none)"
-          else
-            echo "security-guidance plugin: no hook activity"
-          fi
+          # Read the plugins from the session's init message, not by grepping the whole file:
+          # the transcript also holds the diff Claude read, which may mention any hook name.
+          echo "Plugins loaded:"
+          jq -r '[.. | objects | select(.type? == "system" and .subtype? == "init") | (.plugins // [])[] | (.name? // .)] | if length == 0 then "  none" else map("  \(.)") | .[] end' \
+            "$EXECUTION_FILE" || echo "  (could not read the execution file)"
 
   post:
     needs: scan
