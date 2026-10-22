@@ -321,7 +321,7 @@ The project enables Anthropic's `security-guidance` plugin in `.claude/settings.
 
 The StrideQuest rules it applies are in [`.claude/claude-security-guidance.md`](.claude/claude-security-guidance.md). Put personal additions in `.claude/claude-security-guidance.local.md`, which git ignores.
 
-- **Install:** Claude Code (2.1.144 or newer) offers to install it the first time you trust the folder. You can also install it yourself: `claude plugin install security-guidance@anthropic-plugin-directory --scope project`. It needs Python 3.8+, and its first session creates `~/.claude/security/agent-sdk-venv` for the Agent SDK.
+- **Install:** with Claude Code 2.1.144 or newer, run `claude plugin install security-guidance@anthropic-plugin-directory --scope project` once in the repo. Claude Code may also offer to install it when you trust the folder. It needs Python 3.8+, and its first session creates `~/.claude/security/agent-sdk-venv` for the Agent SDK.
 - **Cost:** steps 2 and 3 are model calls (Opus by default) on your Claude plan.
   - To use a cheaper model, set `SECURITY_REVIEW_MODEL` (for example `claude-sonnet-5-5`).
   - To skip the end-of-turn review, set `ENABLE_STOP_REVIEW=0`.

@@ -33,7 +33,7 @@ The app: a Flutter mobile app and a FastAPI backend (modules `auth`, `challenges
 
 - Untrusted event text (`github.event.*.title`, `.body`, `.head_ref`, comment bodies, branch names) is never written inside `run:` with `${{ }}`. It is passed through `env:` and quoted. Anything else is script injection.
 - No `pull_request_target`, and no `workflow_run` that checks out PR code next to a secret. Fork code must never run in a job that holds a secret.
-- `permissions: {}` at the top; each job asks only for what it needs. A job that runs Claude has no write permission; a separate job without AI posts its output.
+- `permissions: {}` at the top; each job asks only for what it needs. A review or scan job that runs Claude has no write permission; a separate job without AI posts its output. The one exception is `claude.yml`: by design (plan 014) it runs Claude with the Claude GitHub App token, which may comment, push `claude/...` or PR branches and open PRs, while the `develop`/`main` ruleset refuses pushes to those branches.
 - Third-party actions are pinned to a full commit SHA, with the tag in a comment.
 - Claude workflows run only for `OWNER`, `MEMBER` or `COLLABORATOR`, after the fail-closed `gate` job.
 - No secrets in job outputs, artifacts or logs. The Claude transcript is not uploaded (the repo is public).
