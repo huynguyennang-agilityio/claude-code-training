@@ -63,5 +63,8 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "security-guidance@anthropic-plugin-directory": true
   }
 }

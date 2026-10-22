@@ -311,6 +311,26 @@ cd mobile && dart run build_runner build --force-jit
 - **Language:** code, comments, docs, commit messages and pull requests are written in English.
 - **Secrets:** never commit secrets. Add new settings to `.env.example` with placeholder values.
 
+### Security review in Claude Code
+
+The project enables Anthropic's `security-guidance` plugin in `.claude/settings.json` ([plan 017](docs/plans/017-security-guidance-and-scan.md)). While Claude works in this repo, it:
+
+1. warns on dangerous patterns right after an edit (`yaml.load`, `pickle.load`, hardcoded secrets, ...);
+2. sends the diff to a model when Claude finishes a turn, and hands high-severity findings back to Claude;
+3. reviews each `git commit` and `git push` with an agent that reads related files (IDOR, auth bypass, SSRF).
+
+The StrideQuest rules it applies are in [`.claude/claude-security-guidance.md`](.claude/claude-security-guidance.md). Put personal additions in `.claude/claude-security-guidance.local.md`, which git ignores.
+
+- **Install:** Claude Code (2.1.144 or newer) offers to install it the first time you trust the folder. You can also install it yourself: `claude plugin install security-guidance@anthropic-plugin-directory --scope project`. It needs Python 3.8+, and its first session creates `~/.claude/security/agent-sdk-venv` for the Agent SDK.
+- **Cost:** steps 2 and 3 are model calls (Opus by default) on your Claude plan.
+  - To use a cheaper model, set `SECURITY_REVIEW_MODEL` (for example `claude-sonnet-5-5`).
+  - To skip the end-of-turn review, set `ENABLE_STOP_REVIEW=0`.
+  - To turn the whole plugin off, set `SECURITY_GUIDANCE_DISABLE=1`.
+- **Log:** `~/.claude/security/log.txt`.
+- **A false positive:** add a comment on the line saying why it is safe. For a project-wide exception, change the rules file in a PR.
+
+The plugin is turned off in the Claude GitHub workflows (`SECURITY_GUIDANCE_DISABLE=1`).
+
 ## Development workflow
 
 1. Pick a GitHub issue and create a branch from `develop` named `<type>/<issue-id>-<short-name>`, for example `feat/1-readme`.
