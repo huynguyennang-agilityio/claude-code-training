@@ -41,7 +41,9 @@ jobs:
         with:
           # No API token: compare with git, so the job needs only contents: read.
           token: ""
-          filters: |
+          # Declared once here and reused by the goldens job, so the two jobs always agree
+          # on whether there is anything to check.
+          filters: &mobile-filters |
             mobile:
               - 'mobile/**'
               - 'docs/api/**'
@@ -83,16 +85,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The same change check as the mobile job, so this job also always reports.
+      # The mobile job's change check (the same filters), so this job also always reports.
       - id: changes
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
+          # No API token: compare with git, so the job needs only contents: read.
           token: ""
-          filters: |
-            mobile:
-              - 'mobile/**'
-              - 'docs/api/**'
-              - '.github/workflows/mobile-ci.yml'
+          filters: *mobile-filters
 
       - if: steps.changes.outputs.mobile != 'true'
         run: echo "No mobile, docs/api or workflow changes; nothing to check."
