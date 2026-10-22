@@ -1,5 +1,9 @@
 # Mobile checks: the same as the local Stop hook (.claude/hooks/check.sh).
-# Plan: docs/plans/014-claude-github-actions.md
+# Plans: docs/plans/014-claude-github-actions.md, docs/plans/015-linux-goldens.md
+#
+# Two jobs:
+#   mobile   analyze and every test except the golden tests, on Linux
+#   goldens  the golden tests, on macOS (Apple Silicon), where the baselines are made
 #
 # The trigger has no `paths:` filter on purpose. A required check that never reports
 # stays pending and blocks the merge, so the job always runs and the first step decides
@@ -60,10 +64,57 @@ jobs:
         name: flutter analyze
         run: flutter analyze
 
-      # Golden tests are skipped here: the baselines in goldens/ci/ are made on macOS and
-      # differ by 0.01-0.02% of pixels on Linux, so they only match on the platform that
-      # made them (CLAUDE.md, Verification evidence). Run them locally with
-      # `flutter test --tags golden`.
+      # Golden tests run in the goldens job instead: the baselines in goldens/ci/ are made
+      # on an Apple Silicon Mac and differ by 0.01-0.02% of pixels on Linux, x86_64 and
+      # arm64 alike (#59).
       - if: steps.changes.outputs.mobile == 'true'
         name: flutter test
         run: flutter test --exclude-tags golden
+
+  goldens:
+    name: goldens
+    # Pinned label, never macos-latest: a new macOS can change rendering. #59 measured
+    # macos-15 (arm64) matching the baselines pixel for pixel.
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The same change check as the mobile job, so this job also always reports.
+      - id: changes
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          token: ""
+          filters: |
+            mobile:
+              - 'mobile/**'
+              - 'docs/api/**'
+              - '.github/workflows/mobile-ci.yml'
+
+      - if: steps.changes.outputs.mobile != 'true'
+        run: echo "No mobile, docs/api or workflow changes; nothing to check."
+
+      - if: steps.changes.outputs.mobile == 'true'
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.38.5
+          cache: true
+
+      - if: steps.changes.outputs.mobile == 'true'
+        run: flutter pub get
+
+      - if: steps.changes.outputs.mobile == 'true'
+        name: flutter test --tags golden
+        run: flutter test --tags golden
+
+      # The diff images are git-ignored, so keep them with the run for the reviewer.
+      - if: failure() && steps.changes.outputs.mobile == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: golden-failures
+          path: mobile/test/**/failures/
+          retention-days: 7

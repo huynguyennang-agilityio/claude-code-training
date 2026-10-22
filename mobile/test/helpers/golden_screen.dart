@@ -8,8 +8,9 @@ import 'pump_screen.dart';
 ///
 /// Pass `settle: false` for a state with an endless animation.
 ///
-/// Regenerate the baseline with `flutter test --update-goldens --tags golden`
-/// and review the image diff in the pull request.
+/// Regenerate the baseline on an Apple Silicon Mac with
+/// `flutter test --update-goldens --tags golden` and review the image diff in
+/// the pull request. CI compares it on macOS; see `flutter_test_config.dart`.
 void goldenScreen(
   String description,
   String fileName,
