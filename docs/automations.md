@@ -68,7 +68,7 @@ A cloud routine (scheduled task) in the user's claude.ai account. It runs on Ant
 
 ### Settings
 
-Enter these in claude.ai at **Code > Scheduled > New task** (`claude.ai/code/routines`):
+The routine is `trig_013Ch3TLycYhLhwScRA8wjxw` ([open it](https://claude.ai/code/routines/trig_013Ch3TLycYhLhwScRA8wjxw)). Claude created it with `/schedule` (the routines API). To make it again, use `/schedule` or claude.ai at **Code > Scheduled > New task** (`claude.ai/code/routines`) with these settings:
 
 | Setting | Value |
 | --- | --- |
@@ -77,8 +77,9 @@ Enter these in claude.ai at **Code > Scheduled > New task** (`claude.ai/code/rou
 | Model | Sonnet |
 | Trigger | Weekdays at 08:00 Asia/Ho_Chi_Minh. On-the-hour runs can start a few minutes late |
 | Repository | `huynguyennang-agilityio/claude-code-training` |
-| Environment | A new environment, `stridequest-routines`: network access **None**, no environment variables, no setup script. GitHub still works through its proxy |
-| Connectors | **Slack only.** Remove every other connector (all of them are included by default) |
+| Environment | `Default` (network Trusted) today, because the API cannot create environments. Plan 016 asks for a dedicated `stridequest-routines` with network **None**, no variables and no setup script. Switch to it in the routine's **Edit > Cloud environment**; GitHub still works through its proxy |
+| Connectors | **Slack only.** A new routine gets every connector by default; remove the others |
+| Tools | `Bash`, `Read`, `Glob`, `Grep` (no `Write` or `Edit`), plus the Slack connector's tools |
 
 Prompt:
 
