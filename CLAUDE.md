@@ -77,7 +77,7 @@ Being able to run a command is not permission to run it.
 
 A `PreToolUse` hook (`.claude/hooks/block-forbidden-command.sh`, set up in `.claude/settings.json`) refuses the rows marked Never that are git commands: pushing to `develop`/`main`, force-pushing, deleting branches and pushing to `gitlab`. It is a best-effort guard, not a replacement for this rule. Its tests are in `.claude/hooks/test-block-forbidden-command.sh`.
 
-The Claude workflows on GitHub (`claude-review.yml`, `claude.yml`, see [CI and Claude on GitHub](README.md#ci-and-claude-on-github)) follow the same table. On GitHub a ruleset backs it: `develop` and `main` refuse direct pushes, force-pushes and deletion for everyone, with no bypass, so changes reach them only through a pull request.
+The Claude workflows on GitHub (`claude-review.yml`, `claude-security-scan.yml`, `claude.yml`, see [CI and Claude on GitHub](README.md#ci-and-claude-on-github)) follow the same table. On GitHub a ruleset backs it: `develop` and `main` refuse direct pushes, force-pushes and deletion for everyone, with no bypass, so changes reach them only through a pull request.
 
 If a GitHub action isn't possible in the current session (no `gh`, no network, tool not permitted), say so and give the user the exact content to do it themselves: issue text, PR title and description, or commands.
 
@@ -207,14 +207,14 @@ Before opening a PR, confirm:
 
 1. **Acceptance criteria:** each criterion is met, and you can say how it was checked.
 2. **Regression:** the full test suite passes.
-3. **Security:** no leaked secrets, inputs are validated and authorization checks are in place. Every `security-guidance` finding in this branch's sessions is fixed or answered.
+3. **Security:** no leaked secrets, inputs are validated and authorization checks are in place. Every `security-guidance` finding in this branch's sessions is fixed or answered. After the PR opens, every high-severity finding in the `claude-security-scan` comment is fixed or answered in the PR.
 4. **Git diff:** `git diff develop...HEAD` contains only changes for this issue.
 5. **Evidence:** the drafted `## Evidence` section covers each acceptance criterion, with evidence or a `Not verified: <reason>` line.
 
 ### Phase 5: PR and review
 
 1. When the user asks, push the branch and open a PR into `develop` using `.github/pull_request_template.md`, link the issue with `Closes #<id>`, and name the plan (`Plan: docs/plans/NNN-<short-name>.md`). Say where the work deviates from the plan, or write "No deviations".
-2. The `claude-review.yml` workflow reviews each PR into `develop` when it opens, is marked ready for review or is reopened, and again when a collaborator comments `@claude review`. It runs the `code-reviewer` subagent, following [Reviewing pull requests](#reviewing-pull-requests), and posts one comment that later runs edit. New commits do not start a review: comment `@claude review` after the last push. Claude runs the `code-reviewer` subagent locally only when the user asks (for example before pushing), or when the workflow did not run: a PR from a fork, a draft, a missing secret, a failed workflow, or a PR into another branch. Each subagent's model is set in the `model:` line of `.claude/agents/<name>.md`; a hard task can override it for one call.
+2. The `claude-review.yml` workflow reviews each PR into `develop` when it opens, is marked ready for review or is reopened, and again when a collaborator comments `@claude review`. It runs the `code-reviewer` subagent, following [Reviewing pull requests](#reviewing-pull-requests), and posts one comment that later runs edit. New commits do not start a review: comment `@claude review` after the last push. Claude runs the `code-reviewer` subagent locally only when the user asks (for example before pushing), or when the workflow did not run: a PR from a fork, a draft, a missing secret, a failed workflow, or a PR into another branch. Each subagent's model is set in the `model:` line of `.claude/agents/<name>.md`; a hard task can override it for one call. Next to it, `claude-security-scan.yml` scans the same PRs for security issues against `.claude/claude-security-guidance.md` from `develop` ([plan 017](docs/plans/017-security-guidance-and-scan.md)). It skips docs-only PRs, posts its own single comment, and is advisory: it never fails on findings. Comment `@claude security` to scan again after the last push.
 3. The user reviews the PR.
 4. Address the review comments, then repeat Phases 3 and 4.
 
