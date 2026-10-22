@@ -331,11 +331,12 @@ Three kinds of workflow run on GitHub. The design and its reasons are in [plan 0
 | Workflow | Runs when | What it does |
 | --- | --- | --- |
 | `backend-ci.yml` (job `backend`) | every PR into `develop`, every push to `develop` | `ruff check`, `ruff format --check`, `mypy`, `pytest tests/unit` and `pytest tests/integration` against a PostgreSQL 17 service |
-| `mobile-ci.yml` (job `mobile`) | the same | `flutter analyze` and `flutter test` (golden tests excluded, see below) |
+| `mobile-ci.yml` (job `mobile`) | the same | `flutter analyze` and `flutter test` without the golden tests, on Linux |
+| `mobile-ci.yml` (job `goldens`) | the same | `flutter test --tags golden` on `macos-15`; on failure, the diff images are the run's `golden-failures` artifact |
 | `claude-review.yml` | a PR into `develop` is opened, marked ready for review or reopened; a collaborator comments `@claude review` on a PR | Claude reviews the PR with the `code-reviewer` agent and posts one comment, edited on later runs |
 | `claude.yml` | a collaborator mentions `@claude` in an issue, an issue comment or a PR review | Claude answers as `claude[bot]`, and may push a `claude/...` branch and open a PR into `develop` |
 
-Each CI job always reports, so it can be a required check. It runs its checks only when its folder (`backend/` or `mobile/`), `docs/api/` or its own workflow file changed, and otherwise passes in seconds. Golden tests are skipped in CI because the baselines in `goldens/ci/` are made on macOS; run them locally with `flutter test --tags golden`.
+Each CI job always reports, so it can be a required check. It runs its checks only when its folder (`backend/` or `mobile/`), `docs/api/` or its own workflow file changed, and otherwise passes in seconds. The golden tests run on macOS because the baselines in `goldens/ci/` are made on an Apple Silicon Mac, and Linux renders tens to hundreds of edge pixels differently (0.01–0.02% per image) ([plan 015](docs/plans/015-linux-goldens.md)). Update a baseline on an Apple Silicon Mac with `flutter test --update-goldens --tags golden`.
 
 The Claude workflows run only for an `OWNER`, `MEMBER` or `COLLABORATOR` and never for a PR from a fork; the review also skips drafts and closed PRs.
 
@@ -352,7 +353,7 @@ The user does these once, in the repository settings:
 1. **Secret `CLAUDE_CODE_OAUTH_TOKEN`:** run `claude setup-token` (Claude Code CLI) and add the token under Settings → Secrets and variables → Actions. Its usage counts against your Pro/Max subscription. To bill the API instead, add `ANTHROPIC_API_KEY` and use `anthropic_api_key:` in place of `claude_code_oauth_token:` in both Claude workflows. If the token leaks, revoke it, make a new one and replace the secret.
 2. **Claude GitHub App:** install it from <https://github.com/apps/claude> for this repository only ("Only select repositories"). `claude.yml` needs it; `claude-review.yml` does not. The App issues its token only when `claude.yml` matches the version on `develop`, so a change to that workflow can be tested only after it is merged.
 3. **Ruleset "Protect develop and main":** `develop` and `main` require a pull request, block force pushes and deletion, and have no bypass actors. Approvals required: 0.
-4. **Required checks (optional):** once CI has run cleanly on a few PRs, add `backend` and `mobile` as required status checks to the ruleset.
+4. **Ruleset "Require CI on develop":** targets `develop` only and requires the status checks `backend`, `mobile` and `goldens` (source GitHub Actions), with no bypass actors. It is separate from the ruleset above because CI does not run on PRs into `main`, so a required check there would never report.
 
 ## GitLab mirror
 
