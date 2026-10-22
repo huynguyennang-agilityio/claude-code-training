@@ -336,7 +336,7 @@ Three kinds of workflow run on GitHub. The design and its reasons are in [plan 0
 | `claude-review.yml` | a PR into `develop` is opened, marked ready for review or reopened; a collaborator comments `@claude review` on a PR | Claude reviews the PR with the `code-reviewer` agent and posts one comment, edited on later runs |
 | `claude.yml` | a collaborator mentions `@claude` in an issue, an issue comment or a PR review | Claude answers as `claude[bot]`, and may push a `claude/...` branch and open a PR into `develop` |
 
-Each CI job always reports, so it can be a required check. It runs its checks only when its folder (`backend/` or `mobile/`), `docs/api/` or its own workflow file changed, and otherwise passes in seconds. The golden tests run on macOS because the baselines in `goldens/ci/` are made on an Apple Silicon Mac, and Linux renders edges a few pixels differently ([plan 015](docs/plans/015-linux-goldens.md)). Update a baseline on an Apple Silicon Mac with `flutter test --update-goldens --tags golden`.
+Each CI job always reports, so it can be a required check. It runs its checks only when its folder (`backend/` or `mobile/`), `docs/api/` or its own workflow file changed, and otherwise passes in seconds. The golden tests run on macOS because the baselines in `goldens/ci/` are made on an Apple Silicon Mac, and Linux renders tens to hundreds of edge pixels differently (0.01–0.02% per image) ([plan 015](docs/plans/015-linux-goldens.md)). Update a baseline on an Apple Silicon Mac with `flutter test --update-goldens --tags golden`.
 
 The Claude workflows run only for an `OWNER`, `MEMBER` or `COLLABORATOR` and never for a PR from a fork; the review also skips drafts and closed PRs.
 
