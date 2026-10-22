@@ -23,3 +23,6 @@ mutants/
 
 # Understand-Anything knowledge graphs
 .ua/
+
+# Local overrides of the security-guidance plugin's rules (plan 017)
+.claude/claude-security-guidance.local.md

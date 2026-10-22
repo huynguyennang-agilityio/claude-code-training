@@ -159,6 +159,14 @@ A macOS notification (`.claude/hooks/notify.sh`, on the `Stop` and `Notification
 
 A `SessionStart` hook (`.claude/hooks/automations-check.sh`, on `startup` in `.claude/settings.json`) checks whether this Mac has the `stridequest-pr-report` Desktop scheduled task, the 17:00 PR report from [plan 016](docs/plans/016-cloud-routines.md). If the task is missing, the hook asks you to offer `/setup-automations`. That skill creates the task only after the user says yes, and the task runs `/pr-report` (`.claude/skills/pr-report/`), so the report itself lives in the repo. The hook only prints a hint, and does nothing in GitHub Actions, in cloud sessions, off macOS, or when `STRIDEQUEST_AUTOMATIONS_HINT=0`. Its tests are in `.claude/hooks/test-automations-check.sh`. See [`docs/automations.md`](docs/automations.md).
 
+The `security-guidance` plugin (enabled in `.claude/settings.json`, [plan 017](docs/plans/017-security-guidance-and-scan.md)) adds three hooks of its own:
+
+- after each edit, a warning on dangerous patterns;
+- when you finish a turn, a model review of the diff, which hands high-severity findings back to you;
+- on `git commit` and `git push`, an agentic review that reads related files.
+
+The second and third can wake you after you stop. Fix each finding, or answer it in your reply (an inline comment on the line saying why it is safe also counts). The project rules it applies are in `.claude/claude-security-guidance.md`: keep them under 8 KB and free of secrets. `SECURITY_GUIDANCE_DISABLE=1` turns the plugin off. The Claude GitHub workflows set it, and the README lists the other switches.
+
 Passing tests don't prove everything works: `flutter_test` doesn't show the UI matches the design, and `pytest` doesn't show the mobile-backend flow works. Also verify by ticket type:
 
 - **UI:** compare a screenshot of the running app with the design reference when the environment allows it.
@@ -199,7 +207,7 @@ Before opening a PR, confirm:
 
 1. **Acceptance criteria:** each criterion is met, and you can say how it was checked.
 2. **Regression:** the full test suite passes.
-3. **Security:** no leaked secrets, inputs are validated and authorization checks are in place.
+3. **Security:** no leaked secrets, inputs are validated and authorization checks are in place. Every `security-guidance` finding in this branch's sessions is fixed or answered.
 4. **Git diff:** `git diff develop...HEAD` contains only changes for this issue.
 5. **Evidence:** the drafted `## Evidence` section covers each acceptance criterion, with evidence or a `Not verified: <reason>` line.
 

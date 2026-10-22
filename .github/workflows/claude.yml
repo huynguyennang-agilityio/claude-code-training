@@ -90,6 +90,10 @@ jobs:
           persist-credentials: false
 
       - uses: anthropics/claude-code-action@58985842b834ed26087302ba27d07bc24ca8697a # v1.0.244
+        env:
+          # The security-guidance plugin is for local sessions; on runners it would only add
+          # an SDK install and extra model calls (plan 017, assumption 5).
+          SECURITY_GUIDANCE_DISABLE: "1"
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # No github_token: the action uses the Claude GitHub App, so comments and commits
