@@ -1,0 +1,21 @@
+# THROWAWAY TEST FILE for issue #76: a planted vulnerability for the security scan to find.
+# This PR is closed unmerged. pull_request_target runs the base branch's copy, which does not
+# have this file, so it never runs here.
+name: pr-greeting
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --repo "$GITHUB_REPOSITORY" \
+            --body "Thanks for: ${{ github.event.pull_request.title }}"

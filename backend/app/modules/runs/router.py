@@ -1,3 +1,4 @@
+import uuid
 from typing import Any
 
 from fastapi import APIRouter
@@ -23,6 +24,20 @@ async def _detail(
 ) -> ChallengeDetail:
     """The challenge as the caller now sees it, so the app can redraw from the answer."""
     view = await challenges.view(challenge_id, user.id)
+    return ChallengeDetail.build(
+        view.challenge,
+        participant_count=view.participant_count,
+        enrollment=view.enrollment,
+        blocked_by=view.blocked_by,
+    )
+
+
+# THROWAWAY TEST CODE for issue #76: a planted vulnerability for the security scan to find.
+@router.get("/{challenge_id}/as/{user_id}", summary="A challenge as another user sees it")
+async def challenge_as_user(
+    challenge_id: ChallengeId, user_id: uuid.UUID, challenges: ChallengeServiceDep
+) -> ChallengeDetail:
+    view = await challenges.view(challenge_id, user_id)
     return ChallengeDetail.build(
         view.challenge,
         participant_count=view.participant_count,
