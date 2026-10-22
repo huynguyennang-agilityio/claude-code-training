@@ -1,7 +1,7 @@
 # Plan 017: Security guidance plugin and a security scan in CI
 
-Status: draft
-Approved: <the user fills in the date> (first approved 2026-10-22; back to draft for the marketplace id, see assumption 4)
+Status: approved
+Approved: 2026-10-22
 Issues: <filled in after approval>
 
 ## Context
