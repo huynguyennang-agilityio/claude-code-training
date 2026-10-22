@@ -8,7 +8,7 @@ Issues: <filled in after approval>
 
 The user wants two daily automations (rungs 2 and 3 of the automation ladder in [plan 014](014-claude-github-actions.md#context)):
 
-1. **Evening PR report (Desktop scheduled task, on the Mac).** At 17:00 Asia/Ho_Chi_Minh, summarize the pull requests worked on today. For each one, list the technical changes and the evidence, and publish the report as an artifact or a Notion page.
+1. **Evening PR report (Desktop scheduled task, on the Mac).** At 17:00 Asia/Ho_Chi_Minh, summarize the pull requests worked on today. For each one, list the technical changes and the evidence, and publish the report as a private artifact.
 2. **Morning issue plan (cloud routine).** At 08:00 Asia/Ho_Chi_Minh, review the open issues, order what to do today, and post the result to Slack.
 
 Both read GitHub and write only the report. Neither edits the repo.
