@@ -78,7 +78,6 @@ jobs:
       contents: read
       pull-requests: read
       issues: read
-      checks: read
     outputs:
       result: ${{ steps.claude.outputs.structured_output }}
     env:
@@ -192,6 +191,8 @@ jobs:
     permissions:
       pull-requests: write
     steps:
+      # Only a comment that ends with the marker is this scan's own: the review comment, posted
+      # by the same bot user, may quote the marker in its text.
       # The report arrives through an environment variable and is never interpolated into
       # the script. GitHub drops a job output that contains a masked secret, so such a report
       # arrives empty and this job fails instead of posting it.
@@ -201,7 +202,9 @@ jobs:
           RESULT: ${{ needs.scan.outputs.result }}
         run: |
           set -euo pipefail
-          REPORT=$(printf '%s' "$RESULT" | jq -r '.report // empty' 2>/dev/null || true)
+          # Drop any copy of the marker from the report, so only the one this script appends
+          # identifies the comment.
+          REPORT=$(printf '%s' "$RESULT" | jq -r '.report // empty | gsub("<!-- claude-security-scan -->"; "")' 2>/dev/null || true)
           HIGH=$(printf '%s' "$RESULT" | jq -r '.high | select(type == "number") | floor' 2>/dev/null || true)
           if [ -z "$REPORT" ] || [ -z "$HIGH" ]; then
             echo "The report is empty or has no high count; nothing posted." >&2
@@ -210,7 +213,7 @@ jobs:
           footer="_High-severity findings: ${HIGH}. Advisory: this scan does not block merging. Comment \`@claude security\` to scan again._"
           body=$(printf '%s\n\n%s\n\n<!-- claude-security-scan -->\n' "$REPORT" "$footer")
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
-            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- claude-security-scan -->"))) | .id' |
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | test("<!-- claude-security-scan -->\\s*$"))) | .id' |
             awk 'NR==1')
           if [ -n "$id" ]; then
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" >/dev/null

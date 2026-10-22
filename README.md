@@ -371,7 +371,7 @@ Scheduled runs outside GitHub (an evening PR report on the Mac, a morning issue 
 
 ### Asking for a security scan
 
-- A scan runs when the PR opens or is marked ready for review, unless the PR changes only docs. Comment `@claude security` to scan again after your last push.
+- A scan runs when the PR opens, is marked ready for review or is reopened, unless the PR changes only docs. Comment `@claude security` to scan again after your last push.
 - The scan reports only findings with a concrete exploit path, each with a severity. The comment ends with the number of high-severity findings.
 - It is advisory and does not block merging. Fix each high-severity finding, or answer it in the PR, before asking for a merge.
 - It uses the rules on `develop`, so a PR that changes `.claude/claude-security-guidance.md` is scanned against the old rules until it is merged.
