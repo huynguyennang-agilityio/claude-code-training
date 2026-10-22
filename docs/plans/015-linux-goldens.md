@@ -1,7 +1,7 @@
 # Plan 015: Golden tests in CI
 
-Status: draft
-Approved: <the user fills in the date>
+Status: approved
+Approved: 2026-10-22
 Issues: <filled in after approval>
 
 ## Context
