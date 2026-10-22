@@ -1,7 +1,7 @@
 # Plan 017: Security guidance plugin and a security scan in CI
 
-Status: draft
-Approved: <the user fills in the date>
+Status: approved
+Approved: 2026-10-22
 Issues: <filled in after approval>
 
 ## Context
