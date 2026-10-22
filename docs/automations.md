@@ -22,12 +22,12 @@ The report is the project skill [`.claude/skills/pr-report/`](../.claude/skills/
 | Schedule | Daily 17:00 local time (`0 17 * * *`). The app adds a fixed delay of a few minutes |
 | Prompt | `Run /pr-report.` |
 | Permission mode | Whatever the session that created it used. Change it in the task's **Edit** form |
-| Output | A new private artifact, `PR report <date>`, in English, in the person's own account |
+| Output | A new private artifact per run, `PR report <date>`, in English, in the person's own account |
 
 What `/pr-report` does:
 
-1. Takes the day in Asia/Ho_Chi_Minh. A run after 23:00 or before 06:00 is a catch-up for the day that was due, and the report says so.
-2. Lists the PRs into `develop` or `main` merged that day, plus the open PRs updated that day.
+1. Takes a window in Asia/Ho_Chi_Minh: from the 17:00 before the latest 17:00 slot, until now. Reports overlap rather than leave gaps, so an evening merge or a run missed during sleep is still covered.
+2. Lists the PRs into `develop` or `main` merged in the window, plus the open PRs updated in it.
 3. For each PR, it collects:
    - the changes, grouped by area;
    - the `## Evidence` section in short;
@@ -44,6 +44,8 @@ It only reads. It makes no file edits, git writes or GitHub writes, and it treat
 2. Say yes. Claude creates `stridequest-pr-report` (daily 17:00, prompt `Run /pr-report.`).
 3. Open the task under **Scheduled**, click **Run now** once, and choose "always allow" for the read-only `gh` commands and the artifact publish.
 4. Optional: turn on **Keep computer awake** in **Settings > This computer > System**.
+
+If you use only the CLI, or don't want the task, set `STRIDEQUEST_AUTOMATIONS_HINT=0` in your shell to stop the hint. `/setup-automations` only creates a missing task. To bring an older task up to date, change its prompt to `Run /pr-report.` in its **Edit** form.
 
 Requirements:
 

@@ -28,7 +28,7 @@ bad() { fail=$((fail + 1)); echo "FAIL: $1"; }
 
 # run [VAR=value ...]: run the hook; sets $out (stdout) and $code.
 run() {
-  out=$(env -u GITHUB_ACTIONS -u CLAUDE_CODE_REMOTE PATH="$fake:$PATH" CLAUDE_CONFIG_DIR="$config" "$@" \
+  out=$(env -u GITHUB_ACTIONS -u CLAUDE_CODE_REMOTE -u STRIDEQUEST_AUTOMATIONS_HINT PATH="$fake:$PATH" CLAUDE_CONFIG_DIR="$config" "$@" \
     "$hook" <<<'{"hook_event_name":"SessionStart","source":"startup"}' 2>/dev/null)
   code=$?
 }
@@ -54,6 +54,9 @@ run CLAUDE_CODE_REMOTE=true
 [ "$code" = 0 ] && [ -z "$out" ] && ok || bad "cloud: printed '$out'"
 run FAKE_UNAME=Linux
 [ "$code" = 0 ] && [ -z "$out" ] && ok || bad "linux: printed '$out'"
+
+run STRIDEQUEST_AUTOMATIONS_HINT=0
+[ "$code" = 0 ] && [ -z "$out" ] && ok || bad "opt-out: printed '$out'"
 
 # --- only the exact value "true" skips ---
 run GITHUB_ACTIONS=1

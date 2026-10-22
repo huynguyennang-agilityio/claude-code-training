@@ -9,10 +9,10 @@ Creates the evening PR report task from [plan 016](../../../docs/plans/016-cloud
 
 ## Steps
 
-1. **Check that this is Claude Desktop.** Desktop scheduled tasks need the scheduled-tasks tools: `list_scheduled_tasks` and `create_scheduled_task`. If they are not available (for example in the CLI or a cloud session), tell the user that the task needs Claude Desktop on their Mac, point to `docs/automations.md`, and stop.
+1. **Check that this is Claude Desktop.** Desktop scheduled tasks need the scheduled-tasks tools `list_scheduled_tasks` and `create_scheduled_task`. If they are not available (for example in the CLI or a cloud session), tell the user that the task needs Claude Desktop on their Mac, point to `docs/automations.md`, and stop.
 2. **Look for the task.** Call `list_scheduled_tasks`.
    - If `stridequest-pr-report` exists and its prompt is `Run /pr-report.`, say it is already set up and stop.
-   - If it exists with another prompt (an older setup), show the user the difference and ask before changing it. Change only the prompt, with `update_scheduled_task`, and only on their yes.
+   - If it exists with another prompt (an older setup), do not change it. Show the user the current prompt next to `Run /pr-report.`, and tell them to change it in the task's **Edit** form under **Scheduled**. Then stop.
 3. **Ask the user before creating it.** Say what will be created:
    - a Desktop scheduled task, daily at 17:00 local time;
    - it runs `/pr-report` in this repo folder;
@@ -35,4 +35,4 @@ Creates the evening PR report task from [plan 016](../../../docs/plans/016-cloud
    - Optional: turn on **Keep computer awake** in **Settings > This computer > System**, so 17:00 runs are not skipped.
    - The task's permission mode can be changed in its **Edit** form.
 
-Never delete a task and never change any task other than `stridequest-pr-report`.
+Never change or delete an existing task: this skill only creates `stridequest-pr-report` when it is missing.
