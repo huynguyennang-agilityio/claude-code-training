@@ -340,6 +340,8 @@ Each CI job always reports, so it can be a required check. It runs its checks on
 
 The Claude workflows run only for an `OWNER`, `MEMBER` or `COLLABORATOR` and never for a PR from a fork; the review also skips drafts and closed PRs.
 
+Scheduled runs outside GitHub (an evening PR report on the Mac, a morning issue plan in Slack) are described in [`docs/automations.md`](docs/automations.md).
+
 ### Asking for a review
 
 - A review runs when the PR opens or is marked ready for review. New commits do not start one: comment `@claude review` after your last push.

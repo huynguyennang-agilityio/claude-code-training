@@ -157,6 +157,8 @@ CI on GitHub runs the same checks on every PR into `develop` and every push to `
 
 A macOS notification (`.claude/hooks/notify.sh`, on the `Stop` and `Notification` events in `.claude/settings.json`) tells the user when you finish or need them. It also appears for a stop that the `Stop` hook above then blocks. Set `STRIDEQUEST_NOTIFY=0` to switch it off. Its tests are in `.claude/hooks/test-notify.sh`.
 
+A `SessionStart` hook (`.claude/hooks/automations-check.sh`, on `startup` in `.claude/settings.json`) checks whether this Mac has the `stridequest-pr-report` Desktop scheduled task, the 17:00 PR report from [plan 016](docs/plans/016-cloud-routines.md). If the task is missing, the hook asks you to offer `/setup-automations`. That skill creates the task only after the user says yes, and the task runs `/pr-report` (`.claude/skills/pr-report/`), so the report itself lives in the repo. The hook only prints a hint, and does nothing in GitHub Actions, in cloud sessions or off macOS. Its tests are in `.claude/hooks/test-automations-check.sh`. See [`docs/automations.md`](docs/automations.md).
+
 Passing tests don't prove everything works: `flutter_test` doesn't show the UI matches the design, and `pytest` doesn't show the mobile-backend flow works. Also verify by ticket type:
 
 - **UI:** compare a screenshot of the running app with the design reference when the environment allows it.
