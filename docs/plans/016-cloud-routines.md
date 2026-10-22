@@ -1,7 +1,7 @@
 # Plan 016: Daily PR report and morning issue plan
 
-Status: draft
-Approved: <the user fills in the date>
+Status: approved
+Approved: 2026-10-22
 Issues: #68, #69
 
 ## Context
