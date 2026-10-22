@@ -56,11 +56,12 @@ Each of these goes against how plan 014 split `claude-review.yml`: a gate first,
 
 ## Open questions and assumptions
 
-1. **How CI scans: the user decides.** Two options:
-   - **A. The official action.** It is the least code to write. It needs a new `ANTHROPIC_API_KEY` secret, billed per token on top of the subscription. The job that holds the key must also be able to write PR comments. It can only be pinned by SHA, since it has no tags.
-   - **B. A workflow in the shape of `claude-review.yml` (recommended).** It uses `anthropics/claude-code-action` (already pinned at v1.0.244) with the existing `CLAUDE_CODE_OAUTH_TOKEN` and the same gate → read-only Claude → fixed-script post jobs. It also reads the same project rules file as the plugin. It means more YAML to own, but no new secret and no new trust model.
+1. **How CI scans: decided (the user, 2026-10-22): option B.** The scan is a workflow in the shape of `claude-review.yml`:
+   - it uses `anthropics/claude-code-action` (already pinned at v1.0.244) with the existing `CLAUDE_CODE_OAUTH_TOKEN`;
+   - it has the same gate → read-only Claude → fixed-script post jobs;
+   - it reads the same project rules file as the plugin.
 
-   The Approach below assumes **B**. If the user picks A, the `security-scan` job uses the official action pinned by SHA, the `post` job is dropped, and the risks section gains "API key in a job with write access".
+   That means more YAML to own, but no new secret and no new trust model. The official action (option A) was not chosen because it needs a separate paid `ANTHROPIC_API_KEY`, comments from the job that holds the key, and its README says it is not hardened against prompt injection.
 2. **The scan is advisory at first (assumption).** It posts one comment and the job passes, whatever it finds. It does not become a required check until a few weeks of findings show how noisy it is. Making it blocking (failing on a `high` finding) is a later plan.
 3. **When the scan runs (assumption).** It uses the same triggers as the review: PR `opened`, `ready_for_review`, `reopened`, plus a collaborator commenting `@claude security`. The gate also skips a PR whose files are all under `docs/` or are `*.md`, except `.claude/**` and `CLAUDE.md`, because those configure Claude.
 4. **The plugin is enabled for the project, not only for one person (assumption).** It is added to `enabledPlugins` in the committed `.claude/settings.json`, so every collaborator gets it after a pull. The issue checks how Claude Code asks a collaborator to install it (expected: a prompt when the folder is trusted). If project-level enabling does not install it, the README gives the command `/plugin install security-guidance@claude-plugins-official`.
@@ -112,7 +113,7 @@ The approval must cover all three.
   - `CLAUDE.md`, Phase 4 step 3 (Security): say that the plugin's findings were addressed or answered, and name the CI scan comment.
   - `README.md`: how a collaborator installs or turns the plugin off.
 
-### 2. The CI scan: `.github/workflows/claude-security-scan.yml` (issue 2, option B)
+### 2. The CI scan: `.github/workflows/claude-security-scan.yml` (issue 2)
 
 The same shape and hardening as `claude-review.yml` (plan 014, Approach 3). Only the differences are listed here:
 
@@ -191,4 +192,4 @@ Chore: the scope is above. Behaviour that must stay unchanged:
 | # | Title | Labels | Acceptance criteria | Depends on |
 | --- | --- | --- | --- | --- |
 | 1 | `chore: enable the security-guidance plugin for the project` | chore | - [ ] `.claude/settings.json` enables `security-guidance@claude-plugins-official`; existing hooks unchanged<br>- [ ] `.claude/claude-security-guidance.md` with the StrideQuest rules from Approach 1, under 8 KB<br>- [ ] `.claude/claude-security-guidance.local.md` in `.gitignore`<br>- [ ] `SECURITY_GUIDANCE_DISABLE: "1"` on the Claude steps of `claude-review.yml` and `claude.yml`<br>- [ ] `CLAUDE.md` (Phase 3 paragraph, Phase 4 step 3) and `README.md` updated<br>- [ ] Evidence for layers 1–3 on a throwaway branch, the hook tests, and an unchanged `claude-review` run, as in Verification | none |
-| 2 | `ci: advisory Claude security scan on PRs into develop` | chore | - [ ] `.github/workflows/claude-security-scan.yml` with `gate`, `scan` and `post` jobs as in Approach 2 (option B, or A if the user chose it)<br>- [ ] The scan applies `.claude/claude-security-guidance.md` from `develop`<br>- [ ] One comment per PR with the marker `<!-- claude-security-scan -->`, edited on `@claude security`<br>- [ ] `claude.yml` ignores `@claude security`<br>- [ ] The job never fails on findings (advisory)<br>- [ ] `CLAUDE.md` Phase 5 step 2 and the README CI section updated<br>- [ ] Evidence: the test PR with two planted issues, a clean PR, the re-run, a draft and a docs-only skip | 1 |
+| 2 | `ci: advisory Claude security scan on PRs into develop` | chore | - [ ] `.github/workflows/claude-security-scan.yml` with `gate`, `scan` and `post` jobs as in Approach 2, on `claude-code-action` with the existing `CLAUDE_CODE_OAUTH_TOKEN` (no new secret)<br>- [ ] The scan applies `.claude/claude-security-guidance.md` from `develop`<br>- [ ] One comment per PR with the marker `<!-- claude-security-scan -->`, edited on `@claude security`<br>- [ ] `claude.yml` ignores `@claude security`<br>- [ ] The job never fails on findings (advisory)<br>- [ ] `CLAUDE.md` Phase 5 step 2 and the README CI section updated<br>- [ ] Evidence: the test PR with two planted issues, a clean PR, the re-run, a draft and a docs-only skip | 1 |
