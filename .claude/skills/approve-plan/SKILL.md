@@ -20,14 +20,13 @@ Argument: the plan number, for example `/approve-plan 019`. Without a number, as
 ## Steps
 
 1. **Take the approval.** Keep, word for word, the user's message that approves plan `<NNN>`: an earlier "plan NNN ok" in this session if there is one, otherwise the `/approve-plan <NNN>` command itself.
-2. **Check the working tree and the plan PR.**
-   - `git status --porcelain` must be empty. The one exception is the plan file itself in the resume case below. Otherwise stop and name the files: they belong to other work and must not reach the plan PR.
-   - Find the plan file `docs/plans/<NNN>-*.md` and its PR: `gh pr list --state open --json number,headRefName,title` with a head branch `docs/plan-<NNN>-*` into `develop`.
-   - Stop if there is no open PR, or more than one, or the PR has commits from someone other than the user and Claude that the user has not mentioned.
-   - Switch to the PR branch, `git pull --ff-only`, and read the plan's `Status:`, `Approved:` and `Issues:` lines:
+2. **Check the plan PR and the working tree**, in this order:
+   - Find the plan file `docs/plans/<NNN>-*.md` and its PR: `gh pr list --state open --json number,headRefName,title` with a head branch `docs/plan-<NNN>-*` into `develop`. Stop if there is no open PR, or more than one, or the PR has commits from someone other than the user and Claude that the user has not mentioned.
+   - `git status --porcelain`. If the current branch is the PR's head branch, the plan file may be the only change (a run that stopped before committing). Anything else, or any change while on another branch, stops the run: name the files, they belong to other work and must not reach the plan PR.
+   - Switch to the PR branch if needed, `git pull --ff-only`, and read the plan's `Status:`, `Approved:` and `Issues:` lines. `Issues:` holds issue numbers only when it lists `#N` outside the template's `<...>` placeholder:
      - `Status: draft`: go on with step 3.
-     - **A run that stopped in step 4** (`Status: approved` and an `Approved: ... by the user in chat: ...` line, committed or not, but no issue numbers in `Issues:`): rewrite the `Approved:` line with today's date and the words from step 1 of this run, run the checks of step 3, then continue with step 4. Its search for existing issues picks up the ones already made.
-     - **A run that stopped at step 5** (the same lines, and issue numbers in `Issues:`): check that those issues exist and carry `Plan: docs/plans/<file>`, then go straight to step 5 to re-run the checks and merge. If a check failed because `develop` moved, bring `develop` in with `git merge origin/develop` first.
+     - **A run that stopped in step 4** (`Status: approved` and an `Approved: ... by the user in chat: ...` line, committed or not, but no issue numbers in `Issues:`): rewrite the `Approved:` line with today's date and the words from step 1 of this run, run the checks of step 3, then continue with step 4. Its check for existing issues (step 3) picks up the ones already made.
+     - **A run that stopped at step 5** (the same lines, and issue numbers in `Issues:`): check that each listed issue exists and its body has `Plan: docs/plans/<file>`; if one is missing or belongs to another plan, stop and report it. Otherwise go straight to step 5 to re-run the checks and merge. If a check failed because `develop` moved, bring `develop` in with `git merge origin/develop` first.
      - `Status: approved` without an `Approved: ... by the user in chat` line: stop. The plan was approved another way; its issues are made from `develop` (`docs/workflow/plan.md`, Phase 1 step 5).
 3. **Check, then mark it approved.** Nothing is written until both checks pass:
    - every label in the "Issues to create" table exists (`gh label list --limit 200`). If one is missing, stop and name it; don't create labels here;

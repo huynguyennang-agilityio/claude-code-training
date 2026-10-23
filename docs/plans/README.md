@@ -35,8 +35,8 @@ Copy this into `docs/plans/NNN-<short-name>.md`.
 # Plan NNN: <title>
 
 Status: draft
-Approved: <date; written by /approve-plan with the user's words, or by the user>
-Issues: <filled in after approval, for example #61, #62>
+Approved: <YYYY-MM-DD; /approve-plan adds the user's words after the date>
+Issues: <filled in after approval>
 
 ## Context
 
