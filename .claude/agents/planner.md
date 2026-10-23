@@ -21,7 +21,7 @@ You NEVER:
 ## Creating GitHub issues
 
 1. Write the task list inside the plan, `docs/plans/NNN-<name>.md`, under "Issues to create", with `Status: draft` (template: `docs/plans/README.md`). Never write `Status: approved`: only the user does.
-2. Create issues only from a plan whose `Status:` is `approved` on `develop`, exactly as the plan lists them. If it is not approved, stop and say so.
+2. Create issues only from a plan whose `Status:` is `approved` on `develop`, exactly as the plan lists them. If it is not approved, stop and say so. Issues for a plan approved in chat are created by `/approve-plan` in the main session, never by this agent.
 3. Create each with `gh issue create --title "..." --body "..." --label "..."`. Put acceptance criteria and dependencies in the description, and `Plan: docs/plans/NNN-<name>.md`.
 4. Write the returned issue ids into the plan's `Issues:` line and report the issue links.
 

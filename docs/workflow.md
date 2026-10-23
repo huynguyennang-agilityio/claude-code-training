@@ -6,7 +6,7 @@ The Mermaid blocks are the source. Exported SVG copies of the key diagrams are i
 
 ## 1. Phases and gates
 
-Each change goes through phases 1 to 6 in order, starting from an approved plan file (`docs/plans/`). Only the user can approve a plan; approving it is not authorizing a merge. Diamonds are gates. A gate that needs the user stops the work until they answer. Presentation copy: [`diagrams/phase-flow.svg`](diagrams/phase-flow.svg).
+Each change goes through phases 1 to 6 in order, starting from an approved plan file (`docs/plans/`). Only the user can approve a plan, in chat (`/approve-plan`) or on GitHub. Approving a plan lets `/approve-plan` merge that plan PR, never a PR for an issue. Diamonds are gates. A gate that needs the user stops the work until they answer. Presentation copy: [`diagrams/phase-flow.svg`](diagrams/phase-flow.svg) (out of date since `/approve-plan`, issue #90: it shows only approval on GitHub; the Mermaid block below is current).
 
 Phase 0 (project foundation: architecture, stack, layout, Claude rules, tooling) is not a step of each change. It is done once and revisited only when the foundation itself changes, through its own issue.
 
@@ -19,10 +19,13 @@ flowchart TD
     G1 -- no --> ASK1["Ask the user for it"] --> G1
     G1 -- yes --> PLAN["Write docs/plans/NNN-name.md<br/>Status: draft<br/>(open questions, approach, risks,<br/>verification, issues to create)"]
     PLAN --> PMR["Push docs/plan-NNN-name,<br/>open the plan PR"]
-    PMR --> APPR{"User sets<br/>Status: approved<br/>and merges the plan PR?"}
+    PMR --> APPR{"User approves the plan?<br/>in chat: /approve-plan NNN<br/>or on GitHub: Status: approved + merge"}
     APPR -- "no / edits needed" --> PLAN
-    APPR -- yes --> ISSUE["Create the issues exactly as the plan lists them<br/>(Plan: link in each),<br/>branch type/id-name from develop"]
-    ISSUE --> P2["Phase 2: Impact analysis,<br/>contract in docs/api"]
+    APPR -- "in chat" --> AP["/approve-plan: Status: approved with the user's words,<br/>create the issues as listed (Plan: link in each),<br/>record their numbers, merge the plan PR"]
+    APPR -- "on GitHub" --> ISSUE["Create the issues exactly as the plan lists them<br/>(Plan: link in each), numbers in a docs PR"]
+    AP --> BR["Branch type/id-name from develop"]
+    ISSUE --> BR
+    BR --> P2["Phase 2: Impact analysis,<br/>contract in docs/api"]
     P2 --> G2{"Needs something the<br/>approved plan does not cover<br/>(endpoint, schema, dependency, scope)?"}
     G2 -- yes --> PLAN
     G2 -- no --> P3
