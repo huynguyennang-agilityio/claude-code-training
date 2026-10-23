@@ -97,7 +97,7 @@ Steps:
    - gh api "repos/huynguyennang-agilityio/claude-code-training/issues?state=open&per_page=100" (drop entries that have a "pull_request" key: those are PRs)
    - gh api "repos/huynguyennang-agilityio/claude-code-training/pulls?state=open&per_page=100"
    - gh api "repos/huynguyennang-agilityio/claude-code-training/actions/runs?branch=develop&event=push&per_page=5"
-   For each open issue, read its body for "Depends on" lines (issue numbers), its labels, and its "Plan: docs/plans/..." line. An open PR links an issue with "Closes #N" or "Refs #N" in its body.
+   For each open issue, read its labels, its "Plan: docs/plans/..." line, and the issues it depends on. Those are in the body's "## Depends on" section: every "#N" on the lines under that heading, up to the next heading or the end of the body ("None." means no dependencies). Do not match only lines that start with "Depends". An open PR links an issue with "Closes #N" or "Refs #N" in its body.
 2. Order the open issues:
    1. bugs (label "bug") first;
    2. then issues that already have an open PR to finish;
