@@ -6,8 +6,26 @@ Every non-trivial change starts with a plan file here, before any issue, branch 
 - **Branch:** `docs/plan-NNN-<short-name>` from `develop`, with its own PR into `develop`. A plan needs no issue.
 - **Status:** the first line after the title is `Status: draft` or `Status: approved`. **Only the user sets `approved`**, with the date, and merges the plan PR. Claude never writes `approved`. A plan edited after approval goes back to `draft`.
 - **Issues:** Claude creates issues only from a plan that is `approved` on `develop`, exactly as the plan lists them, and writes the numbers into the `Issues:` line.
+- **Issue titles and areas:** every issue title starts with its area, `[area] type: summary` (for example `[auth] feat: sign in (mobile, mock)`), and the issue carries the matching `area:<area>` label next to its other labels. Tools filter by the label (`gh issue list --label area:auth`), not by the title. The areas are below; a new one is added here through a plan ([plan 019](019-area-autopilot.md)).
 - **Trivial changes** (a typo, a one-line fix) need no plan.
 - **Mobile features that call an endpoint** are listed as two issues, `(mobile, mock)` and `(mobile, integration)`, as in the template below. The scope, evidence and the integration gate are in [`CLAUDE.md`](../../CLAUDE.md#phase-1-plan-approval-and-issues) under "Mobile tasks: mock and integration".
+
+## Areas
+
+An area matches a backend module (`backend/app/modules/`) or a mobile feature (`mobile/lib/features/`), so the tasks of one area touch the same code.
+
+| Area | Label | Covers |
+| --- | --- | --- |
+| `auth` | `area:auth` | Sign in, sign up, sessions and tokens |
+| `challenges` | `area:challenges` | Challenges and quests |
+| `runs` | `area:runs` | Runs and workouts |
+| `medals` | `area:medals` | Medals and rewards |
+| `profile` | `area:profile` | The user's profile |
+| `home` | `area:home` | The home screen |
+| `health` | `area:health` | Apple Health and Health Connect data (`HealthRepository`), used by every workout type |
+| `infra` | `area:infra` | CI, tooling, Claude configuration, chores and docs that belong to no feature |
+
+A task that spans areas takes the area of the code it mostly changes.
 
 ## Template
 
@@ -50,9 +68,9 @@ What the ticket evidence gate in `CLAUDE.md` requires for each issue, and where 
 
 | # | Title | Labels | Acceptance criteria | Depends on |
 | --- | --- | --- | --- | --- |
-| 1 | `type: short title` | frontend | - [ ] ... | none |
-| 2 | `docs: <module> contract` | docs | - [ ] `docs/api/<module>.md` and `docs/api/examples/<module>/` | none |
-| 3 | `feat: <endpoints> (backend)` | backend | - [ ] ... `docs/api/openapi.json` updated | 2 |
-| 4 | `feat: <feature> (mobile, mock)` | frontend, mock | - [ ] `Fake<Feature>RemoteDataSource` with fixtures equal to the examples, checked in `test/contract`<br>- [ ] Screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged` | 2 |
-| 5 | `feat: <feature> (mobile, integration)` | frontend, integration | - [ ] The app against the local backend: one success case and each documented error. Integration gate: 3 is closed and its endpoints are in `openapi.json` on `develop` | 3, 4 |
+| 1 | `[area] type: short title` | frontend, area:<area> | - [ ] ... | none |
+| 2 | `[area] docs: <module> contract` | docs, area:<area> | - [ ] `docs/api/<module>.md` and `docs/api/examples/<module>/` | none |
+| 3 | `[area] feat: <endpoints> (backend)` | backend, area:<area> | - [ ] ... `docs/api/openapi.json` updated | 2 |
+| 4 | `[area] feat: <feature> (mobile, mock)` | frontend, mock, area:<area> | - [ ] `Fake<Feature>RemoteDataSource` with fixtures equal to the examples, checked in `test/contract`<br>- [ ] Screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged` | 2 |
+| 5 | `[area] feat: <feature> (mobile, integration)` | frontend, integration, area:<area> | - [ ] The app against the local backend: one success case and each documented error. Integration gate: 3 is closed and its endpoints are in `openapi.json` on `develop` | 3, 4 |
 ````

@@ -103,10 +103,11 @@ Steps:
    2. then issues that already have an open PR to finish;
    3. then issues whose "Depends on" issues are all closed;
    4. then by plan number and issue number.
+   Then group by area: keep issues with the same "area:<area>" label (the "[area]" prefix of the title) next to each other, so one area can be done in one go, without moving an issue ahead of one it depends on. An issue with no area label goes last.
    An issue is blocked when an issue it depends on is still open; check each with gh api "repos/huynguyennang-agilityio/claude-code-training/issues/<n>".
 3. Find my Slack user: call slack_read_user_profile without a user_id. Send one message with slack_send_message, channel_id = my user ID. Write it in English, in this shape:
    *StrideQuest morning plan · <weekday, date>*
-   *Today* (top 3 to 5): "#N title" as a link, then one line on why it is next.
+   *Today* (top 3 to 5), under one line per area ("[auth]"): "#N title" as a link, then one line on why it is next.
    *Blocked*: "#N", then what blocks it. Leave the section out when nothing is blocked.
    *Waiting for you*: open PRs to review or merge, with their check state if it is red. Leave it out when there are none.
    *CI on develop*: the latest backend and mobile results, with a link if one failed.
