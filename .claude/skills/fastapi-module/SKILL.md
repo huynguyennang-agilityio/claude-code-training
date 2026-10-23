@@ -13,10 +13,10 @@ Paths below are relative to `backend/` unless they start with `docs/` or `.claud
 
 ## Before you start
 
-1. Make sure the issue has its ticket evidence (sample request and response for an API ticket) and acceptance criteria (`docs/workflow/plan.md`, Phase 1).
-2. Read or write the API contract in `docs/api/<module>.md`, shaped like `docs/api/auth.md`: endpoints table, request and response bodies, and the error codes each endpoint returns. The contract comes first (`docs/workflow/plan.md`, Phase 2).
+1. Make sure the issue has its ticket evidence (sample request and response for an API ticket) and acceptance criteria (`.claude/workflow/plan.md`, Phase 1).
+2. Read or write the API contract in `docs/api/<module>.md`, shaped like `docs/api/auth.md`: endpoints table, request and response bodies, and the error codes each endpoint returns. The contract comes first (`.claude/workflow/plan.md`, Phase 2).
    Every JSON example in it is also a file under `docs/api/examples/<module>/`, marked with `<!-- example: <module>/<file>.json -->` on the line above its ```json block. Add one file per request body, success response and documented error case. `tests/unit/test_api_examples.py` fails if a block and its file differ, if a block has no marker, or if a file is unused; `tests/unit/test_error_contract.py` fails if a row of the "Error codes" table is neither implemented nor listed as pending.
-3. Stop for the user's approval before implementing if the change touches a public API or breaking contract, the database schema, auth or another security boundary, the architecture, or real data and costs (`docs/workflow/plan.md`, Phase 2, step 4). A new table is a schema change.
+3. Stop for the user's approval before implementing if the change touches a public API or breaking contract, the database schema, auth or another security boundary, the architecture, or real data and costs (`.claude/workflow/plan.md`, Phase 2, step 4). A new table is a schema change.
 4. Read the reference files listed under each step below. Copy their shape, not just the snippets here.
 
 ## Build order
@@ -351,7 +351,7 @@ pytest tests/unit
 pytest
 ```
 
-`mypy` runs in strict mode on `app/` with the Pydantic plugin (`[tool.mypy]` in `pyproject.toml`). A `# type: ignore` needs an error code and a comment saying why. Then record the verification evidence (`docs/workflow/evidence.md`) using the rows that apply:
+`mypy` runs in strict mode on `app/` with the Pydantic plugin (`[tool.mypy]` in `pyproject.toml`). A `# type: ignore` needs an error code and a comment saying why. Then record the verification evidence (`.claude/workflow/evidence.md`) using the rows that apply:
 
 - **Backend service / repository:** the `pytest` commands and their summaries.
 - **Database schema:** the Alembic round trip from step 1 and `\d <table>`, against the local docker-compose database only.

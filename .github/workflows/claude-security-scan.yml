@@ -37,9 +37,9 @@ jobs:
     steps:
       # The issue_comment payload does not say where the PR comes from, so ask GitHub.
       # Fork code must never be checked out next to the Claude token.
-      # A PR is docs-only when every file is under docs/ or ends in .md, except .claude/**,
-      # CLAUDE.md and docs/workflow/** (plan 019), which configure Claude. When GitHub lists fewer files than changedFiles,
-      # the PR is scanned.
+      # A PR is docs-only when every file is under docs/ or ends in .md, except .claude/** and
+      # CLAUDE.md, which configure Claude. When GitHub lists fewer files than changedFiles, the PR
+      # is scanned.
       - id: check
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,8 +53,7 @@ jobs:
                 (.files | length) > 0 and (.files | length) == .changedFiles and
                 all(.files[].path;
                   (startswith("docs/") or endswith(".md")) and
-                  (startswith(".claude/") | not) and . != "CLAUDE.md" and
-                  (startswith("docs/workflow/") | not));
+                  (startswith(".claude/") | not) and . != "CLAUDE.md");
               if (.state != "OPEN" or .isCrossRepository or .isDraft or .baseRefName != "develop") then
                 "ok=false\nreason=closed, fork, draft or not into develop"
               elif docs_only then

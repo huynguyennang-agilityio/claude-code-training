@@ -11,10 +11,10 @@ Paths below are relative to `mobile/` unless they start with `docs/` or `.claude
 
 ## Before you start
 
-1. Make sure the issue has its ticket evidence and acceptance criteria (`docs/workflow/plan.md`, Phase 1).
-2. Read the API contract in `docs/api/<feature>.md`. If it doesn't exist yet, the contract comes first (`docs/workflow/plan.md`, Phase 2). Its JSON examples are files under `docs/api/examples/<feature>/`; the backend tests compare their responses with the same files.
+1. Make sure the issue has its ticket evidence and acceptance criteria (`.claude/workflow/plan.md`, Phase 1).
+2. Read the API contract in `docs/api/<feature>.md`. If it doesn't exist yet, the contract comes first (`.claude/workflow/plan.md`, Phase 2). Its JSON examples are files under `docs/api/examples/<feature>/`; the backend tests compare their responses with the same files.
 3. Read the reference files listed under each step below. Copy their shape, not just the snippets here.
-4. Check which kind of issue it is (`docs/workflow/plan.md`, "Mobile tasks: mock and integration"):
+4. Check which kind of issue it is (`.claude/workflow/plan.md`, "Mobile tasks: mock and integration"):
    - **`(mobile, mock)`:** the contract (`docs/api/<feature>.md` and examples) must be on `develop`; `docs/api/openapi.json` may not have the endpoints yet. Build every layer, including the Dio remote data source, and add `Fake<Feature>RemoteDataSource` in `data/datasources/`. It returns Dart fixtures copied from the example files it needs (the app can't bundle `docs/api/examples/`, which is outside `mobile/`). Add a test in `test/contract/<feature>_examples_test.dart` that each fixture equals its example file. Run and screenshot the app with `--dart-define=API_MODE=mock`; write the Integration evidence row as `Not verified: backend not merged`.
    - **`(mobile, integration)`:** check the Integration gate first: every backend issue it depends on is closed and its endpoints are in `docs/api/openapi.json` on `develop`. If not, stop and tell the user which backend issue is still open. Then run the app against the local backend, fix any drift from the contract, and record the Integration row (one success case and each documented error). A needed contract change goes back to the plan.
 
@@ -164,7 +164,7 @@ class ChallengeDetailBloc
 - Take colors and text styles from `Theme.of(context)` (`colorScheme`, `textTheme`), and spacing and radii from `AppSpacing` / `AppRadius` (`lib/core/theme/app_tokens.dart`), e.g. `const EdgeInsets.all(AppSpacing.md)`. `test/core/theme/theme_tokens_guard_test.dart` fails on hex colors, `Color.from…`, `Colors.*` / `CupertinoColors.*` (except `Colors.transparent`), and any numeric literal in `EdgeInsets*`, `SizedBox` sizes, `Radius`/`BorderRadius*` `.circular`/`.elliptical` or `fontSize`, even `AppSpacing.md * 2` (the full list is under "Mobile styling" in CLAUDE.md). Use `EdgeInsets.zero` for no padding. If the scale lacks a value, add it to `app_tokens.dart` instead of inlining it.
 - Give each page a `static const path`, like `HomePage.path`.
 - Prefer `const` constructors and small widgets in `presentation/widgets/`. A widget used by several features goes in `lib/shared/widgets/`, which CLAUDE.md plans but nobody has created yet. Create it the first time it's needed.
-- If the ticket needs a design reference and has none, ask for it before writing UI (ticket evidence gate in `docs/workflow/plan.md`). Build a placeholder page like `sign_in_page.dart` only when the issue explicitly scopes the UI out.
+- If the ticket needs a design reference and has none, ask for it before writing UI (ticket evidence gate in `.claude/workflow/plan.md`). Build a placeholder page like `sign_in_page.dart` only when the issue explicitly scopes the UI out.
 
 ### 4. Routing
 
@@ -185,7 +185,7 @@ GoRoute(
 ```
 
 - If the page needs a signed-in user, add its path to `protectedPaths`. Never navigate on sign-in or sign-out from a widget; the router redirect does that.
-- **`protectedPaths` only matches exact, static locations.** `authRedirect` checks `protected.contains(state.matchedLocation)`, and `matchedLocation` is the concrete location (`/challenges/abc`), not the pattern. Adding `'/challenges/:id'` protects nothing: a signed-out user can still open the page. Before protecting a route with path parameters, `authRedirect` has to change. That is a security boundary, so it needs its own issue and the user's approval (`docs/workflow/plan.md`, Phase 2). Stop and say so; don't work around it in the feature.
+- **`protectedPaths` only matches exact, static locations.** `authRedirect` checks `protected.contains(state.matchedLocation)`, and `matchedLocation` is the concrete location (`/challenges/abc`), not the pattern. Adding `'/challenges/:id'` protects nothing: a signed-out user can still open the page. Before protecting a route with path parameters, `authRedirect` has to change. That is a security boundary, so it needs its own issue and the user's approval (`.claude/workflow/plan.md`, Phase 2). Stop and say so; don't work around it in the feature.
 
 ### 5. Tests
 
@@ -286,11 +286,11 @@ Commit the generated `*.freezed.dart`, `*.g.dart` and `injection.config.dart` fi
 
 1. Launch the app on a simulator or emulator: the Dart MCP `launch_app` tool (with `list_devices` to pick one), or build and use the iOS Simulator tool (`attach`, then `launch`). Set `API_BASE_URL` with `--dart-define` to the local backend, or use the fake data source.
 2. Reach each state of the screen (loading, empty, error, success) and take a screenshot of each. A fast local backend never shows the loading and error states, so simulate them: `--dart-define=SIMULATE_LATENCY_MS=2000` for loading, `--dart-define=SIMULATE_FAULT=offline` (or `timeout`, or `flaky` for every 3rd request) for the error and retry states (see the README). Check `get_runtime_errors` for exceptions and overflow warnings.
-3. Put the screenshots next to the design reference in the report (`docs/workflow/evidence.md`, "UI" row).
+3. Put the screenshots next to the design reference in the report (`.claude/workflow/evidence.md`, "UI" row).
 
 If no simulator, emulator or design reference is available, write `Not verified: <reason>` in the evidence instead of claiming the UI was checked.
 
-Then record the results as verification evidence (`docs/workflow/evidence.md`), using the "Bloc / logic" and "UI" rows.
+Then record the results as verification evidence (`.claude/workflow/evidence.md`), using the "Bloc / logic" and "UI" rows.
 
 ## Checklist before reporting done
 

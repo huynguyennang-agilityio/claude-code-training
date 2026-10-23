@@ -46,7 +46,7 @@ An expired session shows "Your session has expired. Sign in again." The banner i
 
 ## States to cover
 
-Initial, focused field, field error, banner error, submitting (button shows progress, fields disabled), password shown. Every state at both phone sizes and both text scales from the [ticket evidence gate](workflow/plan.md#ticket-evidence-gate) default (375×667 and 430×932 at 1.0 and 2.0), with `expectAccessible` and a golden test (`goldenScreen`). Figma has the two default frames only; the other states are described here, not drawn.
+Initial, focused field, field error, banner error, submitting (button shows progress, fields disabled), password shown. Every state at both phone sizes and both text scales from the [ticket evidence gate](../.claude/workflow/plan.md#ticket-evidence-gate) default (375×667 and 430×932 at 1.0 and 2.0), with `expectAccessible` and a golden test (`goldenScreen`). Figma has the two default frames only; the other states are described here, not drawn.
 
 ## Design tokens
 
