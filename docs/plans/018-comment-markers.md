@@ -2,7 +2,7 @@
 
 Status: approved
 Approved: 2026-10-23
-Issues: <filled in after approval>
+Issues: #83
 
 ## Context
 
