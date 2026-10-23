@@ -69,9 +69,9 @@ Being able to run a command is not permission to run it.
 | Set `Status: approved` on a plan | Only through `/approve-plan <NNN>`, which only the user can run: typing the command is the approval, and the skill quotes it. Otherwise the user does it |
 | Create an issue | Only from an approved plan, exactly as the plan lists it: through `/approve-plan` on the plan PR, or from a plan the user approved on `develop` |
 | Create a branch and edit files for an issue from an approved plan | Yes |
-| Commit | Only when the user asks (running `/approve-plan` counts, for the plan PR) |
-| Push, open a PR | Only when the user asks or the task explicitly includes it (running `/approve-plan` counts, for the plan PR) |
-| Merge a PR, close an issue | Only when the user explicitly authorizes that PR or issue. `/approve-plan` merges the plan PR it approves |
+| Commit | Only when the user asks. Running `/approve-plan` counts for the plan PR, and running `/run-tasks` counts for the issues it names |
+| Push, open a PR | Only when the user asks or the task explicitly includes it. `/approve-plan` and `/run-tasks` count, as for Commit |
+| Merge a PR, close an issue | Only when the user explicitly authorizes that PR or issue. `/approve-plan` merges the plan PR it approves. `/run-tasks` merges the PRs of the issues the user named in that run when every merge condition holds, never a PR with the `human-merge` label |
 | Push to `develop`/`main`, force-push, delete branches | Never |
 | Push to the `gitlab` remote | Never. The user mirrors GitLab by hand |
 
@@ -93,8 +93,8 @@ Each phase's full rules are in `.claude/workflow/`. **Read the file for a phase 
 | 3. Implement and test | [`.claude/workflow/implement.md`](.claude/workflow/implement.md) | Small steps: code, tests, lint, type checks, then verify by ticket type |
 | Evidence | [`.claude/workflow/evidence.md`](.claude/workflow/evidence.md) | No task is done without an `## Evidence` section; `Not verified: <reason>` instead of silence |
 | 4. Verification gate | [`.claude/workflow/pr-review.md`](.claude/workflow/pr-review.md) | Criteria met, full suite passes, security checked, diff in scope, evidence drafted |
-| 5. PR and review | [`.claude/workflow/pr-review.md`](.claude/workflow/pr-review.md#phase-5-pr-and-review) | PR only when the user asks, with `Closes #<id>`, `Plan:` and deviations; address review and security-scan findings |
-| 6. Merge and close | [`.claude/workflow/pr-review.md`](.claude/workflow/pr-review.md#phase-6-merge-and-close) | Merge only when the user authorizes that PR; then verify `develop`, report CI and remind the GitLab mirror |
+| 5. PR and review | [`.claude/workflow/pr-review.md`](.claude/workflow/pr-review.md#phase-5-pr-and-review) | PR only when the user asks (or `/run-tasks` names the issue), with `Closes #<id>`, `Plan:` and deviations; address review and security-scan findings |
+| 6. Merge and close | [`.claude/workflow/pr-review.md`](.claude/workflow/pr-review.md#phase-6-merge-and-close) | Merge only when the user authorizes that PR, or `/run-tasks` names its issue and every merge condition holds (never `human-merge`); then verify `develop`, report CI and remind the GitLab mirror |
 
 The rules that apply in every phase:
 
