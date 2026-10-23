@@ -254,7 +254,7 @@ Validation follows `validate_run` in `backend/app/modules/runs/validation.py`:
 - it rejects duplicate and out-of-window samples before anything is stored;
 - only accepted samples are saved and counted.
 
-The endpoint path is illustrative. Its contract still has to be written in `docs/api/runs.md` before it is built (CLAUDE.md Phase 2).
+The endpoint path is illustrative. Its contract still has to be written in `docs/api/runs.md` before it is built ([`docs/workflow/plan.md`](workflow/plan.md#phase-2-design-gate), Phase 2).
 
 ```mermaid
 sequenceDiagram

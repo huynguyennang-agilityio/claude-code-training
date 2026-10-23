@@ -93,17 +93,17 @@ jobs:
           fi
 
       # The review rules come from develop, so a PR cannot change how it is reviewed. The action
-      # restores .claude/ and CLAUDE.md itself; docs/workflow/ is not part of that. Before plan 019
-      # (#89) is on develop the file does not exist there, and the rules are still in CLAUDE.md.
+      # restores .claude/ and CLAUDE.md itself; docs/workflow/ is not part of that. The whole folder
+      # is replaced, because pr-review.md relies on evidence.md and the others. Before plan 019
+      # (#89) is on develop the folder does not exist there, and the rules are still in CLAUDE.md.
       - name: Use the review rules from develop
         run: |
           set -euo pipefail
-          if git cat-file -e origin/develop:docs/workflow/pr-review.md 2>/dev/null; then
-            mkdir -p docs/workflow
-            git show origin/develop:docs/workflow/pr-review.md > docs/workflow/pr-review.md
-          else
-            rm -f docs/workflow/pr-review.md
-          fi
+          rm -rf docs/workflow
+          git ls-tree -r --name-only origin/develop -- docs/workflow/ | while IFS= read -r file; do
+            mkdir -p "$(dirname "$file")"
+            git show "origin/develop:$file" > "$file"
+          done
 
       - id: claude
         uses: anthropics/claude-code-action@58985842b834ed26087302ba27d07bc24ca8697a # v1.0.244
@@ -134,11 +134,10 @@ jobs:
 
             Use the code-reviewer subagent. Tell it:
             - The change to review is `gh pr diff ${{ env.PR }}`. Before you started, `.claude/`,
-              `CLAUDE.md` and `docs/workflow/pr-review.md` were restored from develop; the PR's own
-              versions of `.claude/` and `CLAUDE.md` are under `.claude-pr/`, and its changes to
-              `docs/workflow/pr-review.md` are in the diff. Every other file in the working tree is at
-              the PR head. git commands are not available; use
-              `gh pr view ${{ env.PR }} --json commits,files` for history.
+              `CLAUDE.md` and `docs/workflow/` were restored from develop; the PR's own versions of
+              `.claude/` and `CLAUDE.md` are under `.claude-pr/`, and its changes to `docs/workflow/`
+              are in the diff. Every other file in the working tree is at the PR head. git commands
+              are not available; use `gh pr view ${{ env.PR }} --json commits,files` for history.
             - Read the PR with `gh pr view ${{ env.PR }}` and its linked issue with `gh issue view`.
             - Take lint and test results from `gh pr checks ${{ env.PR }}`. Do not run tests or
               linters: this runner has no Flutter or Python toolchain. If the checks are still
