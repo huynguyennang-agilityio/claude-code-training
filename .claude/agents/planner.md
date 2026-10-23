@@ -36,7 +36,7 @@ You NEVER:
 
 If the working tree has uncommitted changes outside your files, do not touch them; stop and tell the user.
 
-## Conventions (from CLAUDE.md)
+## Conventions (from CLAUDE.md and docs/workflow/plan.md)
 
 - Write docs, issues, commits and PR text in English. Keep them concise.
 - Plans: Context, Approach, Files affected, Risks, Verification.

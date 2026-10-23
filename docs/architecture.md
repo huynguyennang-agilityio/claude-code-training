@@ -403,4 +403,4 @@ flowchart LR
 | Backend unit | `pytest` with the anyio plugin (`@pytest.mark.anyio`), `AsyncMock` | Service rules and raised error codes, with no database. |
 | Backend integration | `pytest`, `httpx.AsyncClient`, PostgreSQL from `docker compose` | Request, response and error contract against a real database. |
 
-UI tests don't prove the screen matches the design, and backend tests don't prove the app-to-API flow works. See the verification rules in [`CLAUDE.md`](../CLAUDE.md).
+UI tests don't prove the screen matches the design, and backend tests don't prove the app-to-API flow works. See the verification rules in [`docs/workflow/implement.md`](workflow/implement.md#verify-by-ticket-type) and [`docs/workflow/evidence.md`](workflow/evidence.md).

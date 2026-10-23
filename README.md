@@ -342,7 +342,7 @@ The plugin is turned off in the Claude GitHub workflows (`SECURITY_GUIDANCE_DISA
 
 `develop` is the default branch and collects finished work. `main` holds released code and is updated only by merging `develop` into it. Both branches are protected, so changes land only through pull requests.
 
-The full workflow, with its gates, is in [`CLAUDE.md`](CLAUDE.md#workflow) and drawn in [`docs/workflow.md`](docs/workflow.md).
+The full workflow, with its gates, is in [`CLAUDE.md`](CLAUDE.md#workflow), the rules of each phase in [`docs/workflow/`](docs/workflow/), and the flow is drawn in [`docs/workflow.md`](docs/workflow.md).
 
 ## CI and Claude on GitHub
 
