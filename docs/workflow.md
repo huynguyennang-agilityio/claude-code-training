@@ -113,6 +113,26 @@ flowchart LR
     GATE -- yes --> INT["(mobile, integration)<br/>app against the local backend"]
 ```
 
-## 5. Permissions
+## 5. Two confirmations: `/approve-plan` and `/run-tasks`
+
+The user confirms two things and Claude does the rest ([plan 019](plans/019-area-autopilot.md)). `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR. `/run-tasks <issues>` takes the named issues to merge, one after another, and DMs the user on Slack after each merge. A PR whose issue or PR has the `human-merge` label always waits for the user. The steps are in [`.claude/skills/approve-plan/`](../.claude/skills/approve-plan/SKILL.md) and [`.claude/skills/run-tasks/`](../.claude/skills/run-tasks/SKILL.md).
+
+```mermaid
+flowchart TD
+    A["User: /run-tasks #a #b"] --> O["Order by Depends on, then area;<br/>DM the order"]
+    O --> C["Clean state: branch from origin/develop"]
+    C --> I["Subagent implements (Phase 3);<br/>Claude checks Phase 4, adds the PROGRESS line"]
+    I --> P["PR, size check, CI, claude-review"]
+    P --> F{"Merge conditions hold?<br/>(checks green, review approves,<br/>evidence, no human-merge)"}
+    F -- "findings (2 rounds at most)" --> P
+    F -- "human-merge, or still failing" --> S["Stop this issue, DM the user"]
+    F -- yes --> M["Merge, verify develop, DM"]
+    M --> N{"More issues?"}
+    S --> N
+    N -- yes --> C
+    N -- no --> E["Refresh the knowledge graph,<br/>final DM with proposed decisions"]
+```
+
+## 6. Permissions
 
 The permission rules (what Claude may write, commit, push, create or merge, and that only the user approves a plan) stay as the table in [`CLAUDE.md`](../CLAUDE.md#git-and-github-permissions). They are not drawn as a diagram, so there is only one place to change them.
