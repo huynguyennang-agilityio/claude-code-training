@@ -342,7 +342,7 @@ The plugin is turned off in the Claude GitHub workflows (`SECURITY_GUIDANCE_DISA
 
 `develop` is the default branch and collects finished work. `main` holds released code and is updated only by merging `develop` into it. Both branches are protected, so changes land only through pull requests.
 
-The full workflow, with its gates, is in [`CLAUDE.md`](CLAUDE.md#workflow) and drawn in [`docs/workflow.md`](docs/workflow.md).
+The full workflow, with its gates, is in [`CLAUDE.md`](CLAUDE.md#workflow), the rules of each phase in [`docs/workflow/`](docs/workflow/), and the flow is drawn in [`docs/workflow.md`](docs/workflow.md).
 
 ## CI and Claude on GitHub
 
@@ -354,7 +354,7 @@ Three kinds of workflow run on GitHub. The design and its reasons are in [plan 0
 | `mobile-ci.yml` (job `mobile`) | the same | `flutter analyze` and `flutter test` without the golden tests, on Linux |
 | `mobile-ci.yml` (job `goldens`) | the same | `flutter test --tags golden` on `macos-15`; on failure, the diff images are the run's `golden-failures` artifact |
 | `claude-review.yml` | a PR into `develop` is opened, marked ready for review or reopened; a collaborator comments `@claude review` on a PR | Claude reviews the PR with the `code-reviewer` agent and posts one comment, edited on later runs |
-| `claude-security-scan.yml` | the same PR events, except PRs that change only `docs/` or `*.md` files (`.claude/**` and `CLAUDE.md` are scanned); a collaborator comments `@claude security` on a PR | Claude scans the diff for security issues against `.claude/claude-security-guidance.md` from `develop` and posts one comment, edited on later runs. Advisory: it never fails on findings |
+| `claude-security-scan.yml` | the same PR events, except PRs that change only `docs/` or `*.md` files (`.claude/**`, `CLAUDE.md` and `docs/workflow/**` are scanned); a collaborator comments `@claude security` on a PR | Claude scans the diff for security issues against `.claude/claude-security-guidance.md` from `develop` and posts one comment, edited on later runs. Advisory: it never fails on findings |
 | `claude.yml` | a collaborator mentions `@claude` in an issue, an issue comment or a PR review | Claude answers as `claude[bot]`, and may push a `claude/...` branch and open a PR into `develop` |
 
 Each CI job always reports, so it can be a required check. It runs its checks only when its folder (`backend/` or `mobile/`), `docs/api/` or its own workflow file changed, and otherwise passes in seconds. The golden tests run on macOS because the baselines in `goldens/ci/` are made on an Apple Silicon Mac, and Linux renders tens to hundreds of edge pixels differently (0.01–0.02% per image) ([plan 015](docs/plans/015-linux-goldens.md)). Update a baseline on an Apple Silicon Mac with `flutter test --update-goldens --tags golden`.

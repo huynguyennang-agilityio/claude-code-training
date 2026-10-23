@@ -254,7 +254,7 @@ Validation follows `validate_run` in `backend/app/modules/runs/validation.py`:
 - it rejects duplicate and out-of-window samples before anything is stored;
 - only accepted samples are saved and counted.
 
-The endpoint path is illustrative. Its contract still has to be written in `docs/api/runs.md` before it is built (CLAUDE.md Phase 2).
+The endpoint path is illustrative. Its contract still has to be written in `docs/api/runs.md` before it is built ([`docs/workflow/plan.md`](workflow/plan.md#phase-2-design-gate), Phase 2).
 
 ```mermaid
 sequenceDiagram
@@ -403,4 +403,4 @@ flowchart LR
 | Backend unit | `pytest` with the anyio plugin (`@pytest.mark.anyio`), `AsyncMock` | Service rules and raised error codes, with no database. |
 | Backend integration | `pytest`, `httpx.AsyncClient`, PostgreSQL from `docker compose` | Request, response and error contract against a real database. |
 
-UI tests don't prove the screen matches the design, and backend tests don't prove the app-to-API flow works. See the verification rules in [`CLAUDE.md`](../CLAUDE.md).
+UI tests don't prove the screen matches the design, and backend tests don't prove the app-to-API flow works. See the verification rules in [`docs/workflow/implement.md`](workflow/implement.md#verify-by-ticket-type) and [`docs/workflow/evidence.md`](workflow/evidence.md).

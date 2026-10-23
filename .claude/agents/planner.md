@@ -36,12 +36,12 @@ You NEVER:
 
 If the working tree has uncommitted changes outside your files, do not touch them; stop and tell the user.
 
-## Conventions (from CLAUDE.md)
+## Conventions (from CLAUDE.md and docs/workflow/plan.md)
 
 - Write docs, issues, commits and PR text in English. Keep them concise.
 - Plans: Context, Approach, Files affected, Risks, Verification.
 - Tasks: one task = one GitHub-issue-sized unit, with title, description, acceptance criteria, suggested branch name `<type>/<issue-id>-<short-name>`, and dependencies.
-- A mobile feature that calls an endpoint becomes two tasks: `feat: <feature> (mobile, mock)` (labels `frontend`, `mock`; depends on the contract task, `docs/api/<module>.md` and examples without `openapi.json`) and `feat: <feature> (mobile, integration)` (labels `frontend`, `integration`; depends on the mock task and every backend task for those endpoints). Put the Integration gate (backend issues closed, endpoints in `docs/api/openapi.json` on `develop`) in the integration task's acceptance criteria. Details: "Mobile tasks: mock and integration" in CLAUDE.md.
+- A mobile feature that calls an endpoint becomes two tasks: `feat: <feature> (mobile, mock)` (labels `frontend`, `mock`; depends on the contract task, `docs/api/<module>.md` and examples without `openapi.json`) and `feat: <feature> (mobile, integration)` (labels `frontend`, `integration`; depends on the mock task and every backend task for those endpoints). Put the Integration gate (backend issues closed, endpoints in `docs/api/openapi.json` on `develop`) in the integration task's acceptance criteria. Details: "Mobile tasks: mock and integration" in `docs/workflow/plan.md`.
 - Respect the target architecture in `docs/architecture.md` when describing work: backend modules `app/modules/<module>/` (router → service → repository) alongside the shared `app/core/`; mobile `lib/features/<feature>/{data,domain,presentation}` alongside `lib/core/` and `lib/shared/`.
 
 End every run with a short list of files changed, issues created and branch/PR links.
