@@ -88,7 +88,7 @@ Each phase's full rules are in `docs/workflow/`. **Read the file for a phase bef
 | Phase | Read first | Gate |
 | --- | --- | --- |
 | 0. Project foundation | — | Set up once and updated when it changes: architecture, tech stack, repo layout, Claude rules (this file) and local tooling (Docker Compose, linters, formatters, test runners) |
-| 1. Plan, approval and issues | [`docs/workflow/plan.md`](docs/workflow/plan.md) | No code, issue or branch before the plan is `approved` on `develop`; ticket evidence present; issues created exactly as the plan lists them |
+| 1. Plan, approval and issues | [`docs/workflow/plan.md`](docs/workflow/plan.md) | No code, issue or issue branch before the plan is `approved` on `develop` (the plan's own `docs/plan-NNN-<short-name>` branch comes first); ticket evidence present; issues created exactly as the plan lists them |
 | 2. Design gate | [`docs/workflow/plan.md`](docs/workflow/plan.md#phase-2-design-gate) | Contract in `docs/api/`; anything the plan does not cover goes back to Phase 1 |
 | 3. Implement and test | [`docs/workflow/implement.md`](docs/workflow/implement.md) | Small steps: code, tests, lint, type checks, then verify by ticket type |
 | Evidence | [`docs/workflow/evidence.md`](docs/workflow/evidence.md) | No task is done without an `## Evidence` section; `Not verified: <reason>` instead of silence |
