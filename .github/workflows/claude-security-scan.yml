@@ -202,9 +202,10 @@ jobs:
           RESULT: ${{ needs.scan.outputs.result }}
         run: |
           set -euo pipefail
-          # Drop any copy of the marker from the report, so only the one this script appends
-          # identifies the comment.
-          REPORT=$(printf '%s' "$RESULT" | jq -r '.report // empty | gsub("<!-- claude-security-scan -->"; "")' 2>/dev/null || true)
+          # Every "<!--" in the report becomes "< !--", so the report can neither carry this or
+          # the review's marker nor hide text; only the marker appended below is a real HTML
+          # comment (plan 018).
+          REPORT=$(printf '%s' "$RESULT" | jq -r '.report // empty | gsub("<!--"; "< !--")' 2>/dev/null || true)
           HIGH=$(printf '%s' "$RESULT" | jq -r '.high | select(type == "number") | floor' 2>/dev/null || true)
           if [ -z "$REPORT" ] || [ -z "$HIGH" ]; then
             echo "The report is empty or has no high count; nothing posted." >&2
