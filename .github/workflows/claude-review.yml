@@ -172,20 +172,23 @@ jobs:
       # The review arrives through an environment variable and is never interpolated into
       # the script. GitHub drops a job output that contains a masked secret, so such a review
       # arrives empty and this job fails instead of posting it.
+      # This workflow and claude-security-scan.yml post as the same user, so only a comment
+      # that ends with this workflow's marker is its own. Every "<!--" in the review becomes
+      # "< !--", so the review can neither carry a marker nor hide text (plan 018).
       - env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number || github.event.issue.number }}
           RESULT: ${{ needs.review.outputs.result }}
         run: |
           set -euo pipefail
-          REVIEW=$(printf '%s' "$RESULT" | jq -r '.review // empty' 2>/dev/null || true)
+          REVIEW=$(printf '%s' "$RESULT" | jq -r '.review // empty | gsub("<!--"; "< !--")' 2>/dev/null || true)
           if [ -z "$REVIEW" ]; then
             echo "The review is empty; nothing posted." >&2
             exit 1
           fi
           body=$(printf '%s\n\n<!-- claude-review -->\n' "$REVIEW")
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
-            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- claude-review -->"))) | .id' |
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | test("<!-- claude-review -->\\s*$"))) | .id' |
             awk 'NR==1')
           if [ -n "$id" ]; then
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" >/dev/null
