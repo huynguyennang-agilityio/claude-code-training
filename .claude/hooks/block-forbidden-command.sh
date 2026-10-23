@@ -13,16 +13,24 @@
 #   gh pr edit / gh issue edit --remove-label naming human-merge (any case, in a list too)
 #   gh label delete human-merge, gh label edit human-merge --name
 #   gh repo edit --delete-branch-on-merge
+#   gh api: DELETE on git/refs/heads/<branch>; any write to git/refs/heads/develop or main;
+#     DELETE on issues/<n>/labels/human-merge; DELETE or PUT on issues/<n>/labels; PATCH on
+#     issues/<n> or pulls/<n> with a labels field; DELETE or PATCH on labels/human-merge;
+#     PATCH on the repository with delete_branch_on_merge; GraphQL deleteRef, updateRefs,
+#     removeLabelsFromLabelable, clearLabelsFromLabelable, deleteLabel, updateLabel
 # human-merge is the label that makes /run-tasks stop for the user (plan 021).
 #
 # Best effort, not a security boundary: the command text is split on ; & | ( ) ` and
-# newlines (not inside quotes), and `sh -c` / `bash -c` / `eval` strings are scanned too.
+# newlines (not inside quotes). Then each $(...) and `...` inside double quotes, and, when
+# the command has `sh -c` / `bash -c` / `eval`, every quoted string, is split and checked
+# the same way, up to three levels deep.
 # Known gaps: a command built through a variable or a script file; a bare `git push` after
 # a `checkout`, `switch` or `cd` in the same command (the branch is read before they run);
-# exotic refs such as `develop^{}`; `git update-ref -d`; a gh alias or extension; `gh api`
-# and `curl` calls to the GitHub API. Known nuisance: when the command contains `bash -c`
-# or `eval`, any quoted string that starts with `git push ... main` (or a blocked gh
-# command) is blocked too.
+# exotic refs such as `develop^{}`; `git update-ref -d`; a gh alias or extension;
+# `gh api --input <file>` and `@file` fields (the body is in a file); GraphQL that removes
+# a label by ID through another mutation; `curl` calls to the GitHub API. Known nuisance:
+# when the command contains `bash -c` or `eval`, any quoted string that reads as a blocked
+# command is blocked too.
 # Needs jq and perl; without them the hook warns and allows the command.
 # Tests: .claude/hooks/test-block-forbidden-command.sh
 set -o pipefail
@@ -217,10 +225,85 @@ check_gh_repo_edit() {
   done
 }
 
+# gh api: the REST and GraphQL calls that delete a branch, move develop or main, turn on
+# branch deletion at merge, or remove, replace, rename or delete the human-merge label.
+# A call that replaces every label is blocked even when it keeps human-merge: the hook
+# cannot see the issue's labels, and `gh pr edit --add-label` does the same safely.
+check_gh_api() {
+  local arg pending="" method="" endpoint="" body=false fields=() field key repo='repos/[^/]+/[^/]+'
+  for arg in "$@"; do
+    if [ -n "$pending" ]; then
+      case "$pending" in
+        method) method=$arg ;;
+        field) fields+=("$arg") ;;
+      esac
+      pending=""
+      continue
+    fi
+    case "$arg" in
+      -X | --method) pending=method ;;
+      --method=*) method=${arg#*=} ;;
+      -X?*) method=${arg#-X} ;;
+      -f | -F | --field | --raw-field) pending=field body=true ;;
+      --field=* | --raw-field=*) fields+=("${arg#*=}") body=true ;;
+      -f?* | -F?*) fields+=("${arg:2}") body=true ;;
+      --input) pending=skip body=true ;;
+      --input=*) body=true ;;
+      -H | --header | -q | --jq | -t | --template | -p | --preview | --hostname | --cache) pending=skip ;;
+      -*) ;;
+      *) [ -z "$endpoint" ] && endpoint=$arg ;;
+    esac
+  done
+
+  # gh sends GET, or POST once a field or --input gives the request a body.
+  if [ -z "$method" ]; then
+    if $body; then method=POST; else method=GET; fi
+  fi
+  method=$(tr '[:lower:]' '[:upper:]' <<<"$method")
+  endpoint=$(lower "$endpoint")
+  endpoint=${endpoint#https://api.github.com}
+  endpoint=${endpoint#/}
+  endpoint=${endpoint%%\?*}
+
+  if [ "$endpoint" = graphql ]; then
+    case "$*" in
+      *deleteRef* | *updateRefs* | *removeLabelsFromLabelable* | *clearLabelsFromLabelable* | *deleteLabel* | *updateLabel*)
+        block "deleting a branch or removing a label through gh api graphql"
+        ;;
+    esac
+    return
+  fi
+
+  local branch_ref="^$repo/git/refs/heads/" protected="^$repo/git/refs/heads/(develop|main)\$"
+  local issue_labels="^$repo/issues/[0-9]+/labels\$" one_label="^$repo/issues/[0-9]+/labels/human-merge\$"
+  local issue="^$repo/(issues|pulls)/[0-9]+\$" label="^$repo/labels/human-merge\$" repo_only="^$repo\$"
+
+  [[ $method = DELETE && $endpoint =~ $branch_ref ]] && block "deleting a branch (gh api)"
+  [[ $method != GET && $endpoint =~ $protected ]] && block "moving develop or main (gh api)"
+  [[ $method = DELETE && $endpoint =~ $one_label ]] && block "removing the human-merge label (gh api)"
+  [[ ($method = DELETE || $method = PUT) && $endpoint =~ $issue_labels ]] &&
+    block "removing or replacing every label of an issue (gh api)"
+  [[ ($method = DELETE || $method = PATCH) && $endpoint =~ $label ]] &&
+    block "deleting or renaming the human-merge label (gh api)"
+  for field in "${fields[@]}"; do
+    key=$(lower "${field%%=*}")
+    [[ $method = PATCH && $endpoint =~ $issue && ($key = labels || $key = 'labels[]') ]] &&
+      block "replacing every label of an issue (gh api)"
+    [[ $method = PATCH && $endpoint =~ $repo_only && $key = delete_branch_on_merge ]] &&
+      ! is_false "${field#*=}" && block "turning on branch deletion at merge (gh api)"
+  done
+  return 0
+}
+
 # check_gh <args after gh>: the first two words that are not flags (or a -R value) name the
 # command; gh accepts -R before or after `pr`. The rest goes to the command's check.
 check_gh() {
   local args=("$@") i=0 n=$# words=() rest=() cmd sub
+  # gh api has one command word; its first argument is the endpoint.
+  if [ "${1:-}" = api ]; then
+    check_gh_api "${@:2}"
+    return
+  fi
   while [ "$i" -lt "$n" ]; do
     case "${args[$i]}" in
       -R | --repo)
@@ -294,12 +377,46 @@ analyze_fragment() {
   esac
 }
 
-# scan <perl program> <command text>: split into simple commands and check each one.
+# shellcheck disable=SC2016  # the perl programs are meant to be literal
+# Split a command text into simple commands. Inside quotes, ; & | ( ) ` and newlines become
+# spaces and spaces become \x01, so a commit message that mentions `git push -f`, or
+# `-c user.name="A B"`, stays one argument. Outside quotes they split commands.
+split_commands='s/("(?:\\.|[^"\\])*"|\x27[^\x27]*\x27)/(my $q = $1) =~ tr{;&|\n()`}{       }; $q =~ s{[ \t]}{\x01}g; $q/ge;
+  s/&&|\|\||[;|&\n()`]/\n/g'
+
+# shellcheck disable=SC2016
+# The command texts a shell runs from inside quotes, one per line (newlines as \x02): each
+# $(...) and `...` inside double quotes and, with SCAN_ALL set (`bash -c "..."`,
+# `eval "..."`), the whole content of every quoted string, one level of escapes removed.
+quoted_commands='while (/"((?:\\.|[^"\\])*)"|\x27([^\x27]*)\x27/g) {
+    my @out;
+    if (defined $1) {
+      (my $s = $1) =~ s/\\(["\\\$`])/$1/g;
+      push @out, $s if $ENV{SCAN_ALL};
+      while ($s =~ /\$(\((?:[^()]++|(?-1))*\))/g) { push @out, substr($1, 1, -1) }
+      while ($s =~ /`([^`]*)`/g) { push @out, $1 }
+    } elsif ($ENV{SCAN_ALL}) {
+      push @out, $2;
+    }
+    for (@out) { s/\n/\x02/g; print "$_\n" }
+  }'
+
+# scan <command text> <depth>: check each simple command, then the command texts inside
+# its quotes with the same quote-aware split, so a quoted value inside `bash -c "..."`
+# does not hide the flags after it.
 scan() {
-  local frags frag
-  frags=$(perl -0pe "$1" <<<"$2") || return 0
+  local frags frag all=""
+  frags=$(perl -0pe "$split_commands" <<<"$1") || return 0
   while IFS= read -r frag; do
     analyze_fragment "$frag"
+  done <<<"$frags"
+
+  [ "$2" -lt 3 ] || return 0
+  grep -Eq '(sh|bash|zsh|dash)[[:space:]]+-[a-zA-Z]*c|(^|[^[:alnum:]_])eval[[:space:]]' <<<"$1" && all=1
+  frags=$(SCAN_ALL=$all perl -0ne "$quoted_commands" <<<"$1") || return 0
+  [ -n "$frags" ] || return 0
+  while IFS= read -r frag; do
+    scan "${frag//$'\x02'/$'\n'}" $(($2 + 1))
   done <<<"$frags"
 }
 
@@ -315,20 +432,9 @@ command_text=$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null) || 
 [ -n "$command_text" ] || exit 0
 
 # A heredoc with a quoted delimiter (<<'EOF') is plain text, never run, so drop its body.
-# shellcheck disable=SC2016  # the perl programs are meant to be literal
+# shellcheck disable=SC2016
 command_text=$(perl -0pe 's/<<-?[ \t]*(["\x27])(\w+)\1([^\n]*)\n.*?\n[ \t]*\2[ \t]*(?=\n|$)/<<$1$2$1$3/gs' <<<"$command_text") || exit 0
 
-# shellcheck disable=SC2016
-# Pass 1: inside quotes, ; & | and newlines become spaces and spaces become \x01, so a
-# commit message that mentions `git push -f`, or `-c user.name="A B"`, stays one argument.
-# Outside quotes ; & | and friends split commands.
-scan 's/("(?:\\.|[^"\\])*"|\x27[^\x27]*\x27)/(my $q = $1) =~ tr{;&|\n}{    }; $q =~ s{[ \t]}{\x01}g; $q/ge;
-     s/&&|\|\||[;|&\n()`]/\n/g' "$command_text"
-
-# shellcheck disable=SC2016
-# Pass 2: a shell string (`bash -c "..."`, `eval "..."`) runs its content, so look inside quotes.
-if grep -Eq '(sh|bash|zsh|dash)[[:space:]]+-[a-zA-Z]*c|(^|[^[:alnum:]_])eval[[:space:]]' <<<"$command_text"; then
-  scan 's/["\x27]/\n/g; s/&&|\|\||[;|&\n()`]/\n/g' "$command_text"
-fi
+scan "$command_text" 0
 
 exit 0
