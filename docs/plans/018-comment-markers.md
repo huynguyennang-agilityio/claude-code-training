@@ -1,7 +1,7 @@
 # Plan 018: One comment per Claude workflow, without overwrites
 
-Status: draft
-Approved: <the user fills in the date>
+Status: approved
+Approved: 2026-10-23
 Issues: <filled in after approval>
 
 ## Context
