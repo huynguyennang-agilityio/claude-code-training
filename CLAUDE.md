@@ -47,7 +47,7 @@ backend/tests/{unit,integration}/                    pytest tests
 
 ## Workflow
 
-Every change goes through the phases below in order. Don't skip a gate. When a gate needs the user's approval, stop and ask. The full rules of each phase are in `.claude/workflow/` (see [Phases](#phases)). The phases, branching and review flow are drawn in [`docs/workflow.md`](docs/workflow.md). If `.claude/workflow/` or the diagrams disagree with this file, this file wins. The Claude workflows on GitHub read `.claude/` (with `.claude/workflow/`) and `CLAUDE.md` from `develop`, so a PR cannot change the rules its own runs follow.
+Every change goes through the phases below in order. Don't skip a gate. When a gate needs the user's approval, stop and ask. The full rules of each phase are in `.claude/workflow/` (see [Phases](#phases)). The phases, branching and review flow are drawn in [`docs/workflow.md`](docs/workflow.md). If `.claude/workflow/` or the diagrams disagree with this file, this file wins. The Claude workflows on GitHub read `.claude/` (with `.claude/workflow/`) and `CLAUDE.md` from the PR's base branch (`develop`, or `main` for a release PR), so a PR cannot change the rules its own runs follow.
 
 General rules:
 
