@@ -213,6 +213,55 @@ allowed on-feature 'git commit -m "block gh pr edit --remove-label human-merge"'
 allowed on-feature $'gh pr create --body "$(cat <<\'EOF\'\nNever run gh pr merge 5 --delete-branch\nor gh pr edit 5 --remove-label human-merge\nEOF\n)"'
 allowed on-feature 'gh api repos/o/r/pulls/5/files --paginate'
 
+# --- nested quotes and parentheses inside quotes (review of #109) ---
+blocked on-feature "bash -c \"gh pr merge 5 --merge -t 'Release' -d\""
+blocked on-feature "bash -c \"gh pr edit 5 --remove-label 'human-merge'\""
+blocked on-feature "sh -c 'gh pr edit 5 --remove-label \"bug, human-merge\"'"
+blocked on-feature "bash -c \"git -c user.name='A B' push origin main\""
+blocked on-feature 'gh pr merge 5 -t "fix (x)" -d'
+blocked on-feature 'gh pr close 5 -c "done (for now)" --delete-branch'
+# shellcheck disable=SC2016  # the $( ) and backticks must reach the hook literally
+blocked on-feature 'gh pr create --body "$(git push origin main)"'
+# shellcheck disable=SC2016
+blocked on-feature 'echo "`git push origin main`"'
+allowed on-feature 'gh pr create --body "see (gh pr merge -d)"'
+allowed on-feature 'git commit -m "fix: block (git push origin main)"'
+# shellcheck disable=SC2016
+allowed on-feature "echo '\$(git push origin main)'"
+allowed on-feature 'gh pr merge 5 --delete-branch=0'
+allowed on-feature 'gh pr merge 5 --delete-branch=f'
+blocked on-feature 'gh pr close 5 -c x -d'
+
+# --- gh api ---
+blocked on-feature 'gh api -X DELETE repos/o/r/git/refs/heads/feat/x'
+blocked on-feature 'gh api repos/o/r/git/refs/heads/x -X DELETE'
+blocked on-feature 'gh api -XDELETE /repos/o/r/git/refs/heads/x'
+blocked on-feature 'gh api --method=delete https://api.github.com/repos/o/r/git/refs/heads/x'
+blocked on-feature 'gh api -X PATCH repos/o/r/git/refs/heads/main -f sha=abc -F force=true'
+blocked on-feature 'gh api -X DELETE repos/o/r/issues/5/labels/human-merge'
+blocked on-feature 'gh api -XDELETE /repos/{owner}/{repo}/issues/5/labels/Human-Merge'
+blocked on-feature 'gh api -X DELETE repos/o/r/issues/5/labels'
+blocked on-feature "gh api --method put repos/o/r/issues/5/labels -f 'labels[]=bug'"
+blocked on-feature "gh api -X PATCH repos/o/r/issues/5 -f 'labels[]=bug'"
+blocked on-feature 'gh api -X PATCH repos/o/r/pulls/5 --field labels=bug'
+blocked on-feature 'gh api -X DELETE repos/o/r/labels/human-merge'
+blocked on-feature 'gh api -X PATCH repos/o/r/labels/human-merge -f new_name=ok'
+blocked on-feature 'gh api -X PATCH repos/o/r -F delete_branch_on_merge=true'
+blocked on-feature "gh api graphql -f query='mutation { deleteRef(input: {refId: \"x\"}) { clientMutationId } }'"
+blocked on-feature "gh api graphql -f query='mutation { removeLabelsFromLabelable(input: {labelableId: \"x\", labelIds: [\"y\"]}) { clientMutationId } }'"
+blocked on-feature 'eval "gh api -X DELETE repos/o/r/git/refs/heads/x"'
+blocked on-feature "bash -c \"gh api -X DELETE 'repos/o/r/issues/5/labels/human-merge'\""
+allowed on-feature "gh api repos/o/r/issues/5/comments --jq '.[].body'"
+allowed on-feature "gh api -X POST repos/o/r/issues/5/labels -f 'labels[]=human-merge'"
+allowed on-feature "gh api repos/o/r/issues/5/labels -f 'labels[]=human-merge'"
+allowed on-feature 'gh api -X DELETE repos/o/r/issues/comments/9'
+allowed on-feature 'gh api -X DELETE repos/o/r/issues/5/labels/bug'
+allowed on-feature 'gh api -X PATCH repos/o/r/issues/5 -f title=x'
+allowed on-feature 'gh api -X PATCH repos/o/r -F delete_branch_on_merge=false'
+allowed on-feature 'gh api repos/o/r/git/refs/heads/main'
+allowed on-feature "gh api graphql -f query='query { viewer { login } }'"
+allowed on-feature 'gh api -X DELETE repos/o/r/git/refs/tags/v1'
+
 # --- input the hook cannot use is allowed ---
 for raw in '' 'not json' '{}' '{"tool_input":{}}'; do
   if "$hook" <<<"$raw" >/dev/null 2>&1; then
