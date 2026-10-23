@@ -1,8 +1,8 @@
 # Plan 020: Read the workflow procedures from develop in every Claude workflow
 
-Status: draft
-Approved: <the user fills in the date>
-Issues: <filled in after approval>
+Status: approved
+Approved: 2026-10-23, by the user in chat: "/approve-plan 020", then "chưa hiểu bạn hãy làm luôn cho tôi"
+Issues: #99, #100
 
 ## Context
 
@@ -110,5 +110,5 @@ Both issues are chores. Required: scope and the behaviour that must stay unchang
 
 | # | Title | Labels | Acceptance criteria | Depends on |
 | --- | --- | --- | --- | --- |
-| 1 | `[infra] chore: copy the workflow procedures to .claude/workflow` | chore, area:infra | - [ ] `.claude/workflow/{plan,implement,evidence,pr-review}.md` exist and differ from `docs/workflow/` only in relative links, which all resolve<br>- [ ] Nothing references `.claude/workflow/` yet; `docs/workflow/` is unchanged | none |
-| 2 | `[infra] chore: read the workflow procedures from .claude/workflow and drop docs/workflow` | chore, area:infra | - [ ] Every reference listed in the plan's Approach points to `.claude/workflow/`; `git grep 'docs/workflow/'` outside `docs/plans/0*` is empty<br>- [ ] `.claude/workflow/` matches `docs/workflow/` (apart from links) before `docs/workflow/` is removed<br>- [ ] `claude-review.yml` has no restore step for the procedures and its prompt names `.claude/workflow/pr-review.md` and `.claude-pr/`; `code-reviewer.md` says the same<br>- [ ] `claude-security-scan.yml` has no `docs/workflow/` clause<br>- [ ] `CLAUDE.md` says Claude workflows on GitHub read `.claude/` and `CLAUDE.md` from `develop`; `README.md` notes that an action upgrade must keep `.claude` in the action's restore list<br>- [ ] `claude.yml` is unchanged<br>- [ ] Evidence: the review and scan of this PR; the end-to-end `@claude` check after merge, or `Not verified: <reason>` | 1 |
+| #99 | `[infra] chore: copy the workflow procedures to .claude/workflow` | chore, area:infra | - [ ] `.claude/workflow/{plan,implement,evidence,pr-review}.md` exist and differ from `docs/workflow/` only in relative links, which all resolve<br>- [ ] Nothing references `.claude/workflow/` yet; `docs/workflow/` is unchanged | none |
+| #100 | `[infra] chore: read the workflow procedures from .claude/workflow and drop docs/workflow` | chore, area:infra | - [ ] Every reference listed in the plan's Approach points to `.claude/workflow/`; `git grep 'docs/workflow/'` outside `docs/plans/0*` is empty<br>- [ ] `.claude/workflow/` matches `docs/workflow/` (apart from links) before `docs/workflow/` is removed<br>- [ ] `claude-review.yml` has no restore step for the procedures and its prompt names `.claude/workflow/pr-review.md` and `.claude-pr/`; `code-reviewer.md` says the same<br>- [ ] `claude-security-scan.yml` has no `docs/workflow/` clause<br>- [ ] `CLAUDE.md` says Claude workflows on GitHub read `.claude/` and `CLAUDE.md` from `develop`; `README.md` notes that an action upgrade must keep `.claude` in the action's restore list<br>- [ ] `claude.yml` is unchanged<br>- [ ] Evidence: the review and scan of this PR; the end-to-end `@claude` check after merge, or `Not verified: <reason>` | #99 |
