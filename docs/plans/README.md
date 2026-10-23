@@ -1,6 +1,6 @@
 # Plans
 
-Every non-trivial change starts with a plan file here, before any issue, branch or code. The flow is in [`docs/workflow/plan.md`](../workflow/plan.md#phase-1-plan-approval-and-issues) and drawn in [`../workflow.md`](../workflow.md).
+Every non-trivial change starts with a plan file here, before any issue, branch or code. The flow is in [`.claude/workflow/plan.md`](../../.claude/workflow/plan.md#phase-1-plan-approval-and-issues) and drawn in [`../workflow.md`](../workflow.md).
 
 - **Name:** `docs/plans/NNN-<short-name>.md`, where `NNN` is the next number (`001`, `002`, ...).
 - **Branch:** `docs/plan-NNN-<short-name>` from `develop`, with its own PR into `develop`. A plan needs no issue.
@@ -8,7 +8,7 @@ Every non-trivial change starts with a plan file here, before any issue, branch 
 - **Issues:** Claude creates issues only from an approved plan, exactly as the plan lists them, and writes the numbers into the `Issues:` line and the "Depends on" column. Through `/approve-plan` this happens in the plan PR itself, so one PR covers the plan, its approval and its issue numbers. A plan approved on GitHub gets its issues once it is on `develop`, with a separate docs PR for the numbers.
 - **Issue titles and areas:** every issue title starts with its area, `[area] type: summary` (for example `[auth] feat: sign in (mobile, mock)`), and the issue carries the matching `area:<area>` label next to its other labels. Tools filter by the label (`gh issue list --label area:auth`), not by the title. The areas are below; a new one is added here through a plan ([plan 019](019-area-autopilot.md)).
 - **Trivial changes** (a typo, a one-line fix) need no plan.
-- **Mobile features that call an endpoint** are listed as two issues, `(mobile, mock)` and `(mobile, integration)`, as in the template below. The scope, evidence and the integration gate are in [`docs/workflow/plan.md`](../workflow/plan.md#mobile-tasks-mock-and-integration).
+- **Mobile features that call an endpoint** are listed as two issues, `(mobile, mock)` and `(mobile, integration)`, as in the template below. The scope, evidence and the integration gate are in [`.claude/workflow/plan.md`](../../.claude/workflow/plan.md#mobile-tasks-mock-and-integration).
 
 ## Areas
 
@@ -62,7 +62,7 @@ How each acceptance criterion will be checked (commands, requests, screens, devi
 
 ## Ticket evidence
 
-What the ticket evidence gate in `docs/workflow/plan.md` requires for each issue, and where it is (design link, sample request and response, reproduction steps).
+What the ticket evidence gate in `.claude/workflow/plan.md` requires for each issue, and where it is (design link, sample request and response, reproduction steps).
 
 ## Issues to create
 

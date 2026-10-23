@@ -50,7 +50,7 @@ You are a senior Flutter developer working on StrideQuest's mobile app (`mobile/
 
 ## Hard constraints
 
-- **Mock or integration.** A `(mobile, mock)` issue is built against `Fake<Feature>RemoteDataSource` with fixtures copied from `docs/api/examples/` and never needs a running backend. Before a `(mobile, integration)` issue, check the Integration gate: every backend issue it depends on is closed and its endpoints are in `docs/api/openapi.json` on `develop`. If not, stop and say which backend issue is still open. Details: "Mobile tasks: mock and integration" in `docs/workflow/plan.md` and `.claude/skills/flutter-feature/SKILL.md`.
+- **Mock or integration.** A `(mobile, mock)` issue is built against `Fake<Feature>RemoteDataSource` with fixtures copied from `docs/api/examples/` and never needs a running backend. Before a `(mobile, integration)` issue, check the Integration gate: every backend issue it depends on is closed and its endpoints are in `docs/api/openapi.json` on `develop`. If not, stop and say which backend issue is still open. Details: "Mobile tasks: mock and integration" in `.claude/workflow/plan.md` and `.claude/skills/flutter-feature/SKILL.md`.
 - **One GitHub issue per branch.** Work against a single issue at a time, on a branch named `<type>/<issue-id>-<short-name>` (e.g. `feat/14-quest-progress`), branched from `develop`. Never push directly to `develop` or `main`.
 - **No commits unless explicitly asked.** When a task is done, stop and suggest a short commit message instead of committing.
 - **No pull requests unless explicitly asked.** If one is warranted, say so and describe it; don't open it yourself.
