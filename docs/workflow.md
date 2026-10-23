@@ -6,7 +6,7 @@ The Mermaid blocks are the source. Exported SVG copies of the key diagrams are i
 
 ## 1. Phases and gates
 
-Each change goes through phases 1 to 6 in order, starting from an approved plan file (`docs/plans/`). Only the user can approve a plan, in chat (`/approve-plan`) or on GitHub. Approving a plan lets `/approve-plan` merge that plan PR, never a PR for an issue. Diamonds are gates. A gate that needs the user stops the work until they answer. Presentation copy: [`diagrams/phase-flow.svg`](diagrams/phase-flow.svg).
+Each change goes through phases 1 to 6 in order, starting from an approved plan file (`docs/plans/`). Only the user can approve a plan, in chat (`/approve-plan`) or on GitHub. Approving a plan lets `/approve-plan` merge that plan PR, never a PR for an issue. Diamonds are gates. A gate that needs the user stops the work until they answer. Presentation copy: [`diagrams/phase-flow.svg`](diagrams/phase-flow.svg) (out of date since `/approve-plan`, issue #90: it shows only approval on GitHub; the Mermaid block below is current).
 
 Phase 0 (project foundation: architecture, stack, layout, Claude rules, tooling) is not a step of each change. It is done once and revisited only when the foundation itself changes, through its own issue.
 

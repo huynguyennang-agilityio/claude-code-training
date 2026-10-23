@@ -19,18 +19,19 @@ Argument: the plan number, for example `/approve-plan 019`. Without a number, as
 
 ## Steps
 
-1. **Check the approval.** Find the user's message that approves plan `<NNN>` and keep it word for word. If the number in the command does not match an open plan PR, stop and ask.
-2. **Check the plan PR.**
+1. **Take the approval.** Keep, word for word, the user's message that approves plan `<NNN>`: an earlier "plan NNN ok" in this session if there is one, otherwise the `/approve-plan <NNN>` command itself.
+2. **Check the working tree and the plan PR.**
+   - `git status --porcelain` must be empty. The one exception is the plan file itself in the resume case below. Otherwise stop and name the files: they belong to other work and must not reach the plan PR.
    - Find the plan file `docs/plans/<NNN>-*.md` and its PR: `gh pr list --state open --json number,headRefName,title` with a head branch `docs/plan-<NNN>-*` into `develop`.
    - Stop if there is no open PR, or more than one, or the PR has commits from someone other than the user and Claude that the user has not mentioned.
    - Switch to the PR branch, `git pull --ff-only`, and read the plan's `Status:`, `Approved:` and `Issues:` lines:
      - `Status: draft`: go on with step 3.
-     - **A run that stopped in step 4** (`Status: approved` and an `Approved: ... by the user in chat: ...` line, committed or not, but no issue numbers in `Issues:`): keep the approval lines as they are, run the checks of step 3, then continue with step 4. Its search for existing issues picks up the ones already made.
+     - **A run that stopped in step 4** (`Status: approved` and an `Approved: ... by the user in chat: ...` line, committed or not, but no issue numbers in `Issues:`): rewrite the `Approved:` line with today's date and the words from step 1 of this run, run the checks of step 3, then continue with step 4. Its search for existing issues picks up the ones already made.
      - **A run that stopped at step 5** (the same lines, and issue numbers in `Issues:`): check that those issues exist and carry `Plan: docs/plans/<file>`, then go straight to step 5 to re-run the checks and merge. If a check failed because `develop` moved, bring `develop` in with `git merge origin/develop` first.
      - `Status: approved` without an `Approved: ... by the user in chat` line: stop. The plan was approved another way; its issues are made from `develop` (`docs/workflow/plan.md`, Phase 1 step 5).
 3. **Check, then mark it approved.** Nothing is written until both checks pass:
    - every label in the "Issues to create" table exists (`gh label list --limit 200`). If one is missing, stop and name it; don't create labels here;
-   - issues already made from this plan (`gh issue list --state all --search "\"Plan: docs/plans/<file>\" in:body"`) match their rows in the table. Note them for reuse; stop if one differs from the table.
+   - issues already made from this plan match their rows in the table. List them with `gh issue list --state all --limit 300 --json number,title,labels,body` and keep those whose body has the line `Plan: docs/plans/<file>` (not `--search`: GitHub's search index can lag behind issues created a moment ago). Note them for reuse; stop if one differs from the table.
 
    Then, for a `draft` plan, set the two lines, keeping the rest of the file as it is:
    ```text
@@ -55,8 +56,9 @@ Argument: the plan number, for example `/approve-plan 019`. Without a number, as
      ```
 5. **Record and merge.**
    - Write the issue numbers into `Issues:` (`#61, #62, ...`) and replace the row numbers in the "Depends on" column with the issue numbers.
-   - Commit on the plan branch (`docs: approve plan <NNN> and record its issues`), push, and wait for the required checks (`gh pr checks <n> --watch`).
-   - Merge with `gh pr merge <n> --merge`, never `--delete-branch`. If a required check fails or the merge is refused, stop and report: the issues exist and the plan branch has the approval, and running `/approve-plan <NNN>` again resumes at this step.
+   - Stage only the plan file (`git add docs/plans/<file>`), commit on the plan branch (`docs: approve plan <NNN> and record its issues`), push, and wait for the required checks (`gh pr checks <n> --watch`).
+   - Check that `gh pr diff <n> --name-only` lists only `docs/plans/<file>`. If it lists anything else, stop: the plan PR is merged without a human review, so it must hold nothing but the plan.
+   - Merge with `gh pr merge <n> --merge`, never `--delete-branch`. If a required check fails or the merge is refused, stop and report: the issues exist and the plan branch has the approval, running `/approve-plan <NNN>` again resumes at this step, and **no work on those issues may start until the plan PR has merged**.
 6. **Verify and report** (Phase 6 in [`docs/workflow/pr-review.md`](../../../docs/workflow/pr-review.md#phase-6-merge-and-close)):
    - the PR shows as merged into `develop`, and the plan on `develop` has the approval and the issue numbers;
    - the CI runs for the merge commit (`gh run list --branch develop --event push`); say so if one failed or did not run;
