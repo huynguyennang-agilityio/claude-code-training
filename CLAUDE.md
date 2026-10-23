@@ -69,8 +69,8 @@ Being able to run a command is not permission to run it.
 | Set `Status: approved` on a plan | Only through `/approve-plan <NNN>`, right after the user approves that plan in their own chat message, quoting their words. Otherwise the user does it |
 | Create an issue | Only from an approved plan, exactly as the plan lists it: through `/approve-plan` on the plan PR, or from a plan the user approved on `develop` |
 | Create a branch and edit files for an issue from an approved plan | Yes |
-| Commit | Only when the user asks |
-| Push, open a PR | Only when the user asks or the task explicitly includes it |
+| Commit | Only when the user asks (running `/approve-plan` counts, for the plan PR) |
+| Push, open a PR | Only when the user asks or the task explicitly includes it (running `/approve-plan` counts, for the plan PR) |
 | Merge a PR, close an issue | Only when the user explicitly authorizes that PR or issue. `/approve-plan` merges the plan PR it approves |
 | Push to `develop`/`main`, force-push, delete branches | Never |
 | Push to the `gitlab` remote | Never. The user mirrors GitLab by hand |

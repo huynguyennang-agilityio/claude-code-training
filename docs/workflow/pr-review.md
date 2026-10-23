@@ -24,7 +24,7 @@ Before opening a PR, confirm:
 ## Phase 6: Merge and close
 
 1. The user approves the PR.
-2. Claude merges only after the user explicitly authorizes merging that PR. Approving a plan, or an earlier "go ahead", is not that authorization.
+2. Claude merges only after the user explicitly authorizes merging that PR. Approving a plan, or an earlier "go ahead", is not that authorization. The one exception is the plan PR itself: `/approve-plan <NNN>`, run by the user, merges the plan PR it approves. Approving a plan never authorizes merging a PR for one of its issues.
 3. Verify `develop` after the merge:
    - the PR shows as merged into `develop`;
    - the merge commit and diff on `develop` contain the change;
