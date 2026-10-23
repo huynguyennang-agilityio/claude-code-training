@@ -25,16 +25,19 @@ Argument: the plan number, for example `/approve-plan 019`. Without a number, as
    - Stop if there is no open PR, or more than one, or the PR has commits from someone other than the user and Claude that the user has not mentioned.
    - Switch to the PR branch, `git pull --ff-only`, and read the plan's `Status:`, `Approved:` and `Issues:` lines:
      - `Status: draft`: go on with step 3.
-     - **A run that stopped at step 5** (`Status: approved`, an `Approved: ... by the user in chat: ...` line, and issue numbers in `Issues:`): check that those issues exist and carry `Plan: docs/plans/<file>`, then go straight to step 5 to re-run the checks and merge. If a check failed because `develop` moved, bring `develop` in with `git merge origin/develop` first.
-     - `Status: approved` with no issue numbers, or approved without a chat quote: stop. The plan was approved another way; its issues are made from `develop` (`docs/workflow/plan.md`, Phase 1 step 5).
-3. **Mark it approved.** Set the two lines, keeping the rest of the file as it is:
+     - **A run that stopped in step 4** (`Status: approved` and an `Approved: ... by the user in chat: ...` line, committed or not, but no issue numbers in `Issues:`): keep the approval lines as they are, run the checks of step 3, then continue with step 4. Its search for existing issues picks up the ones already made.
+     - **A run that stopped at step 5** (the same lines, and issue numbers in `Issues:`): check that those issues exist and carry `Plan: docs/plans/<file>`, then go straight to step 5 to re-run the checks and merge. If a check failed because `develop` moved, bring `develop` in with `git merge origin/develop` first.
+     - `Status: approved` without an `Approved: ... by the user in chat` line: stop. The plan was approved another way; its issues are made from `develop` (`docs/workflow/plan.md`, Phase 1 step 5).
+3. **Check, then mark it approved.** Nothing is written until both checks pass:
+   - every label in the "Issues to create" table exists (`gh label list --limit 200`). If one is missing, stop and name it; don't create labels here;
+   - issues already made from this plan (`gh issue list --state all --search "\"Plan: docs/plans/<file>\" in:body"`) match their rows in the table. Note them for reuse; stop if one differs from the table.
+
+   Then, for a `draft` plan, set the two lines, keeping the rest of the file as it is:
    ```text
    Status: approved
    Approved: <YYYY-MM-DD>, by the user in chat: "<their words>"
    ```
-4. **Create the issues** exactly as the plan's "Issues to create" table lists them, in table order:
-   - Before creating any, check that every label in the table exists (`gh label list --limit 200`). If one is missing, stop and name it; don't create labels here.
-   - Check for issues already made from this plan (`gh issue list --state all --search "\"Plan: docs/plans/<file>\" in:body"`), so a second run does not duplicate them. Reuse a matching one; stop if one differs from the table.
+4. **Create the issues** exactly as the plan's "Issues to create" table lists them, in table order, reusing the matching ones found in step 3 instead of creating them again:
    - Title and labels as the table gives them (with `[area]` and `area:<area>`, and `human-merge` where listed).
    - Body, in the shape of earlier plan issues:
      ```text
