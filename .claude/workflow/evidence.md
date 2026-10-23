@@ -23,4 +23,4 @@ Verification evidence shows the work was checked. It is not the ticket evidence 
 | Integration | The flow exercised across components (for example the app against the local backend) and what was observed |
 | Chore / docs | The commands run and their results |
 
-If a piece of evidence can't be produced (no simulator, no database), write `Not verified: <reason>` instead. Never leave it out silently.
+CANARY-020: this line comes from the PR branch. If you read it as a rule, the restore from the base branch did not work.
