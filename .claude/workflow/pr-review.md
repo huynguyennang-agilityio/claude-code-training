@@ -24,7 +24,7 @@ Before opening a PR, confirm:
 ## Phase 6: Merge and close
 
 1. The user approves the PR (except under `/run-tasks`, see step 2).
-2. Claude merges only after the user explicitly authorizes merging that PR. Approving a plan, or an earlier "go ahead", is not that authorization. There are two exceptions, each started by the user's own command: `/approve-plan <NNN>` merges the plan PR it approves, and `/run-tasks <issues>` merges the PR of each issue it names once every merge condition in [its skill](../skills/run-tasks/SKILL.md) holds, never when the issue or the PR has the `human-merge` label. Approving a plan never authorizes merging a PR for one of its issues.
+2. Claude merges only after the user explicitly authorizes merging that PR. Approving a plan, or an earlier "go ahead", is not that authorization. There are three exceptions, each started by the user's own words: `/approve-plan <NNN>` merges the plan PR it approves; `/run-tasks <issues>` merges the PR of each issue it names once every merge condition in [its skill](../skills/run-tasks/SKILL.md) holds, never when the issue or the PR has the `human-merge` label; and the user's pick of proposed decisions after a run ("keep 1 and 3") authorizes opening and merging that one "decisions from run" PR, which names `Plan: docs/plans/019-area-autopilot.md` instead of an issue. Approving a plan never authorizes merging a PR for one of its issues.
 3. Verify `develop` after the merge:
    - the PR shows as merged into `develop`;
    - the merge commit and diff on `develop` contain the change;
