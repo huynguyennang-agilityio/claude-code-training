@@ -361,7 +361,7 @@ Each CI job always reports, so it can be a required check. It runs its checks on
 
 The Claude workflows run only for an `OWNER`, `MEMBER` or `COLLABORATOR` and never for a PR from a fork; the review and the security scan also skip drafts and closed PRs.
 
-Before Claude starts, `claude-code-action` restores `.claude/` and `CLAUDE.md` from `develop` (`SENSITIVE_PATHS` in its `src/github/operations/restore-config.ts`), so every Claude workflow follows `develop`'s rules in `.claude/workflow/`, never a PR's ([plan 020](docs/plans/020-protect-workflow-rules.md)). A PR that upgrades the action must check that `.claude` and `CLAUDE.md` are still in that list.
+Before Claude starts, `claude-code-action` restores `.claude/` and `CLAUDE.md` from the PR's base branch (`develop`, or `main` for a release PR; `SENSITIVE_PATHS` in its `src/github/operations/restore-config.ts`), so every Claude workflow follows the base branch's rules in `.claude/workflow/`, never the PR's ([plan 020](docs/plans/020-protect-workflow-rules.md)). A PR that upgrades the action must check that `.claude` and `CLAUDE.md` are still in that list.
 
 Scheduled runs outside GitHub (an evening PR report on the Mac, a morning issue plan in Slack) are described in [`docs/automations.md`](docs/automations.md).
 

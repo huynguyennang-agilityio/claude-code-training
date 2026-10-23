@@ -2,7 +2,7 @@
 
 Read this before you open a PR, review one, or merge one. It holds the full rules of Phases 4 to 6 and how to review a pull request. [`CLAUDE.md`](../../CLAUDE.md#workflow) keeps the gates in short form and the permission table; if this file and `CLAUDE.md` disagree, `CLAUDE.md` wins.
 
-Every Claude workflow on GitHub reads `.claude/workflow/` from `develop`, never from the PR it runs on: the action restores `.claude/` and `CLAUDE.md` from the base branch before Claude starts ([plan 020](../../docs/plans/020-protect-workflow-rules.md)).
+Every Claude workflow on GitHub reads `.claude/workflow/` from the PR's base branch (`develop`, or `main` for a release PR), never from the PR it runs on: the action restores `.claude/` and `CLAUDE.md` from the base branch before Claude starts ([plan 020](../../docs/plans/020-protect-workflow-rules.md)).
 
 ## Phase 4: Verification gate
 
