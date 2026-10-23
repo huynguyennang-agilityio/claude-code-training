@@ -1,7 +1,7 @@
 # Plan 019: Area-grouped tasks that run to merge after two confirmations
 
-Status: draft
-Approved: <the user fills in the date>
+Status: Approved
+Approved: 2026-10-23
 Issues: <filled in after approval>
 
 ## Context
