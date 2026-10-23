@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Claude Code `PreToolUse` hook for the Bash tool: refuse the git commands that CLAUDE.md
-# ("Git and GitHub permissions") says Claude never runs. Exit 2 blocks the command and
-# shows Claude the reason.
+# ("Git and GitHub permissions") says Claude never runs, and their gh forms. Exit 2 blocks
+# the command and shows Claude the reason.
 #
 # Blocked:
 #   git push to develop or main (also a bare `git push` while one of them is checked out)
@@ -9,14 +9,20 @@
 #   git push --delete / -d / :refspec / --mirror / --all / --prune
 #   git branch -d / -D / --delete
 #   git push to the gitlab remote (the user mirrors GitLab by hand)
+#   gh pr merge / gh pr close with --delete-branch / -d (also in a cluster such as -sd)
+#   gh pr edit / gh issue edit --remove-label naming human-merge (any case, in a list too)
+#   gh label delete human-merge, gh label edit human-merge --name
+#   gh repo edit --delete-branch-on-merge
+# human-merge is the label that makes /run-tasks stop for the user (plan 021).
 #
 # Best effort, not a security boundary: the command text is split on ; & | ( ) ` and
 # newlines (not inside quotes), and `sh -c` / `bash -c` / `eval` strings are scanned too.
 # Known gaps: a command built through a variable or a script file; a bare `git push` after
 # a `checkout`, `switch` or `cd` in the same command (the branch is read before they run);
-# exotic refs such as `develop^{}`; `git update-ref -d`. Known nuisance: when the command
-# contains `bash -c` or `eval`, any quoted string that starts with `git push ... main` is
-# blocked too.
+# exotic refs such as `develop^{}`; `git update-ref -d`; a gh alias or extension; `gh api`
+# and `curl` calls to the GitHub API. Known nuisance: when the command contains `bash -c`
+# or `eval`, any quoted string that starts with `git push ... main` (or a blocked gh
+# command) is blocked too.
 # Needs jq and perl; without them the hook warns and allows the command.
 # Tests: .claude/hooks/test-block-forbidden-command.sh
 set -o pipefail
@@ -96,7 +102,153 @@ check_branch() {
   done
 }
 
-# analyze_fragment <one simple command>: only `git push` and `git branch` are checked.
+# --- gh ---
+# Bash 3.2 (macOS) has no ${var,,}.
+lower() { tr '[:upper:]' '[:lower:]' <<<"$1"; }
+
+# is_false <bool flag value>: the values gh (pflag) reads as false.
+is_false() {
+  case $(lower "$1") in
+    false | f | 0) return 0 ;;
+  esac
+  return 1
+}
+
+# names_human_merge <label list>: a comma list, with \x01 for the spaces inside quotes.
+names_human_merge() {
+  local list=${1//$'\x01'/ } label labels
+  IFS=, read -r -a labels <<<"$list"
+  for label in "${labels[@]}"; do
+    label=${label#"${label%%[! ]*}"}
+    label=${label%"${label##*[! ]}"}
+    [ "$(lower "$label")" = human-merge ] && return 0
+  done
+  return 1
+}
+
+# gh pr merge / gh pr close: --delete-branch, -d, -d inside a short-flag cluster.
+check_gh_delete_branch() {
+  local arg pending=false flags=true chars c j
+  for arg in "$@"; do
+    if $pending; then
+      pending=false
+      continue
+    fi
+    $flags || continue
+    case "$arg" in
+      --) flags=false ;;
+      --delete-branch) block "deleting a branch (gh pr $sub --delete-branch)" ;;
+      --delete-branch=*) is_false "${arg#*=}" || block "deleting a branch (gh pr $sub --delete-branch)" ;;
+      --subject | --body | --body-file | --author-email | --match-head-commit | --comment | --repo) pending=true ;;
+      --*) ;;
+      -?*)
+        # A value-taking letter ends the cluster: in -td the d is the subject.
+        chars=${arg#-}
+        for ((j = 0; j < ${#chars}; j++)); do
+          c=${chars:$j:1}
+          case "$c" in
+            d) block "deleting a branch (gh pr $sub -d)" ;;
+            t | b | F | A | c | R)
+              [ $((j + 1)) -eq ${#chars} ] && pending=true
+              break
+              ;;
+          esac
+        done
+        ;;
+    esac
+  done
+}
+
+# gh pr edit / gh issue edit: --remove-label naming human-merge.
+check_gh_remove_label() {
+  local arg pending="" flags=true
+  for arg in "$@"; do
+    if [ -n "$pending" ]; then
+      [ "$pending" = label ] && names_human_merge "$arg" && block "removing the human-merge label"
+      pending=""
+      continue
+    fi
+    $flags || continue
+    case "$arg" in
+      --) flags=false ;;
+      --remove-label) pending=label ;;
+      --remove-label=*) names_human_merge "${arg#*=}" && block "removing the human-merge label" ;;
+      --*=*) ;;
+      --title | --body | --body-file | --base | --add-label | --add-assignee | --remove-assignee | \
+        --add-reviewer | --remove-reviewer | --add-project | --remove-project | --milestone | --repo)
+        pending=skip
+        ;;
+      --*) ;;
+      -t | -b | -F | -B | -m | -R) pending=skip ;;
+    esac
+  done
+}
+
+# gh label delete human-merge; gh label edit human-merge --name (a rename).
+check_gh_label() {
+  local action=$1 arg pending=false name="" rename=false
+  shift
+  for arg in "$@"; do
+    if $pending; then
+      pending=false
+      continue
+    fi
+    case "$arg" in
+      --name | -n) rename=true pending=true ;;
+      --name=* | -n?*) rename=true ;;
+      --color | --description | --repo | -c | -d | -R) pending=true ;;
+      -*) ;;
+      *) [ -z "$name" ] && name=$arg ;;
+    esac
+  done
+  names_human_merge "$name" || return
+  [ "$action" = delete ] && block "deleting the human-merge label"
+  $rename && block "renaming the human-merge label"
+}
+
+# gh repo edit --delete-branch-on-merge: GitHub would delete the head branch of every merged PR.
+check_gh_repo_edit() {
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --delete-branch-on-merge) block "turning on branch deletion at merge" ;;
+      --delete-branch-on-merge=*) is_false "${arg#*=}" || block "turning on branch deletion at merge" ;;
+    esac
+  done
+}
+
+# check_gh <args after gh>: the first two words that are not flags (or a -R value) name the
+# command; gh accepts -R before or after `pr`. The rest goes to the command's check.
+check_gh() {
+  local args=("$@") i=0 n=$# words=() rest=() cmd sub
+  while [ "$i" -lt "$n" ]; do
+    case "${args[$i]}" in
+      -R | --repo)
+        [ ${#words[@]} -lt 2 ] || rest+=("${args[$i]}" "${args[$((i + 1))]:-}")
+        i=$((i + 2))
+        continue
+        ;;
+      -*) rest+=("${args[$i]}") ;;
+      *)
+        if [ ${#words[@]} -lt 2 ]; then words+=("${args[$i]}"); else rest+=("${args[$i]}"); fi
+        ;;
+    esac
+    i=$((i + 1))
+  done
+  [ ${#words[@]} -eq 2 ] || return
+  cmd="${words[0]} ${words[1]}"
+  sub=${words[1]}
+
+  case "$cmd" in
+    "pr merge" | "pr close") check_gh_delete_branch "${rest[@]}" ;;
+    "pr edit" | "issue edit") check_gh_remove_label "${rest[@]}" ;;
+    "label delete" | "label edit") check_gh_label "${words[1]}" "${rest[@]}" ;;
+    "repo edit") check_gh_repo_edit "${rest[@]}" ;;
+  esac
+}
+
+# analyze_fragment <one simple command>: `git push`, `git branch` and the gh commands above
+# are checked.
 analyze_fragment() {
   local frag=$1 toks=() i=0 n dir="" sub
   frag=${frag//\"/}
@@ -111,6 +263,10 @@ analyze_fragment() {
     esac
   done
   [ "$i" -ge "$n" ] && return
+  if [ "${toks[$i]##*/}" = gh ]; then
+    check_gh "${toks[@]:$((i + 1))}"
+    return
+  fi
   [ "${toks[$i]##*/}" = git ] || return
   i=$((i + 1))
 
