@@ -18,13 +18,13 @@ Before opening a PR, confirm:
 
 1. When the user asks (running `/run-tasks` with the issue counts), push the branch and open a PR into `develop` using `.github/pull_request_template.md`, link the issue with `Closes #<id>`, and name the plan (`Plan: docs/plans/NNN-<short-name>.md`). Say where the work deviates from the plan, or write "No deviations".
 2. The `claude-review.yml` workflow reviews each PR into `develop` when it opens, is marked ready for review or is reopened, and again when a collaborator comments `@claude review`. It runs the `code-reviewer` subagent, following [Reviewing pull requests](#reviewing-pull-requests), and posts one comment that later runs edit. New commits do not start a review: comment `@claude review` after the last push. Claude runs the `code-reviewer` subagent locally only when the user asks (for example before pushing), or when the workflow did not run: a PR from a fork, a draft, a missing secret, a failed workflow, or a PR into another branch. Each subagent's model is set in the `model:` line of `.claude/agents/<name>.md`; a hard task can override it for one call. Next to it, `claude-security-scan.yml` scans the same PRs for security issues against `.claude/claude-security-guidance.md` from `develop` ([plan 017](../../docs/plans/017-security-guidance-and-scan.md)). It skips docs-only PRs, posts its own single comment, and is advisory: it never fails on findings. Comment `@claude security` to scan again after the last push.
-3. The user reviews the PR.
+3. The user reviews the PR (under `/run-tasks`, `claude-review` and the merge conditions in its skill stand in for this, except for `human-merge`).
 4. Address the review comments, and fix or answer in the PR every high-severity finding in the `claude-security-scan` comment. Then repeat Phases 3 and 4.
 
 ## Phase 6: Merge and close
 
-1. The user approves the PR.
-2. Claude merges only after the user explicitly authorizes merging that PR. Approving a plan, or an earlier "go ahead", is not that authorization. There are two exceptions, each started by the user's own command: `/approve-plan <NNN>` merges the plan PR it approves, and `/run-tasks <issues>` merges the PR of each issue it names once every merge condition in [its skill](../skills/run-tasks/SKILL.md) holds, never a PR with the `human-merge` label. Approving a plan never authorizes merging a PR for one of its issues.
+1. The user approves the PR (except under `/run-tasks`, see step 2).
+2. Claude merges only after the user explicitly authorizes merging that PR. Approving a plan, or an earlier "go ahead", is not that authorization. There are two exceptions, each started by the user's own command: `/approve-plan <NNN>` merges the plan PR it approves, and `/run-tasks <issues>` merges the PR of each issue it names once every merge condition in [its skill](../skills/run-tasks/SKILL.md) holds, never when the issue or the PR has the `human-merge` label. Approving a plan never authorizes merging a PR for one of its issues.
 3. Verify `develop` after the merge:
    - the PR shows as merged into `develop`;
    - the merge commit and diff on `develop` contain the change;

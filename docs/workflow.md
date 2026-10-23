@@ -115,7 +115,7 @@ flowchart LR
 
 ## 5. Two confirmations: `/approve-plan` and `/run-tasks`
 
-The user confirms two things and Claude does the rest ([plan 019](plans/019-area-autopilot.md)). `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR. `/run-tasks <issues>` takes the named issues to merge, one after another, and DMs the user on Slack after each merge. A PR with the `human-merge` label always waits for the user. The steps are in [`.claude/skills/approve-plan/`](../.claude/skills/approve-plan/SKILL.md) and [`.claude/skills/run-tasks/`](../.claude/skills/run-tasks/SKILL.md).
+The user confirms two things and Claude does the rest ([plan 019](plans/019-area-autopilot.md)). `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR. `/run-tasks <issues>` takes the named issues to merge, one after another, and DMs the user on Slack after each merge. A PR whose issue or PR has the `human-merge` label always waits for the user. The steps are in [`.claude/skills/approve-plan/`](../.claude/skills/approve-plan/SKILL.md) and [`.claude/skills/run-tasks/`](../.claude/skills/run-tasks/SKILL.md).
 
 ```mermaid
 flowchart TD
