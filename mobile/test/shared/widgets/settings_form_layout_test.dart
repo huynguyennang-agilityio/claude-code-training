@@ -70,7 +70,10 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  double visibleBottom() => smallPhone.height - _keyboardHeight;
+  double visibleBottom(Size size) => size.height - _keyboardHeight;
+
+  double appBarBottom(WidgetTester tester) =>
+      tester.getRect(find.byType(AppBar)).bottom;
 
   testWidgets('shows the title, a back button, the fields and Save', (
     tester,
@@ -97,74 +100,79 @@ void main() {
     }
   }
 
-  for (final textScale in [1.0, 2.0]) {
-    group('with the keyboard open at text x$textScale', () {
-      testWidgets('does not overflow', (tester) async {
-        await pumpForm(tester, textScale: textScale);
-        await openKeyboard(tester);
+  for (final size in [smallPhone, largePhone]) {
+    for (final textScale in [1.0, 2.0]) {
+      group('with the keyboard open on $size at text x$textScale', () {
+        testWidgets('does not overflow', (tester) async {
+          await pumpForm(tester, size: size, textScale: textScale);
+          await openKeyboard(tester);
 
-        expectNoLayoutException(tester);
+          expectNoLayoutException(tester);
+        });
+
+        testWidgets('keeps the focused last field and its error visible', (
+          tester,
+        ) async {
+          await pumpForm(tester, size: size, textScale: textScale);
+          await openKeyboard(tester);
+
+          nodes.last.requestFocus();
+          await tester.pumpAndSettle();
+
+          expect(nodes.last.hasFocus, isTrue);
+          final field = tester.getRect(find.byKey(_lastField));
+          final error = tester.getRect(find.text('Last field error'));
+          expect(field.top, greaterThanOrEqualTo(appBarBottom(tester)));
+          expect(field.bottom, lessThanOrEqualTo(visibleBottom(size)));
+          expect(error.bottom, lessThanOrEqualTo(visibleBottom(size)));
+          expectNoLayoutException(tester);
+        });
+
+        testWidgets('lets the user scroll Save above the keyboard', (
+          tester,
+        ) async {
+          await pumpForm(tester, size: size, textScale: textScale);
+          await openKeyboard(tester);
+
+          await tester.ensureVisible(find.byKey(_save));
+          await tester.pumpAndSettle();
+
+          final save = tester.getRect(find.byKey(_save));
+          expect(save.bottom, lessThanOrEqualTo(visibleBottom(size)));
+          expect(save.top, greaterThanOrEqualTo(appBarBottom(tester)));
+        });
+
+        testWidgets('dragging the form closes the keyboard', (tester) async {
+          await pumpForm(tester, size: size, textScale: textScale);
+          await openKeyboard(tester);
+          nodes.first.requestFocus();
+          await tester.pumpAndSettle();
+          expect(nodes.first.hasFocus, isTrue);
+
+          await tester.drag(
+            find.byType(CustomScrollView),
+            const Offset(0, -80),
+          );
+          await tester.pumpAndSettle();
+
+          expect(nodes.first.hasFocus, isFalse);
+        });
+
+        testWidgets('tapping outside a field closes the keyboard', (
+          tester,
+        ) async {
+          await pumpForm(tester, size: size, textScale: textScale);
+          await openKeyboard(tester);
+          nodes.first.requestFocus();
+          await tester.pumpAndSettle();
+          expect(nodes.first.hasFocus, isTrue);
+
+          await tester.tapAt(const Offset(2, 200));
+          await tester.pumpAndSettle();
+
+          expect(nodes.first.hasFocus, isFalse);
+        });
       });
-
-      testWidgets('keeps the focused last field and its error visible', (
-        tester,
-      ) async {
-        await pumpForm(tester, textScale: textScale);
-        await openKeyboard(tester);
-
-        nodes.last.requestFocus();
-        await tester.pumpAndSettle();
-
-        expect(nodes.last.hasFocus, isTrue);
-        final field = tester.getRect(find.byKey(_lastField));
-        final error = tester.getRect(find.text('Last field error'));
-        expect(field.top, greaterThanOrEqualTo(0));
-        expect(field.bottom, lessThanOrEqualTo(visibleBottom()));
-        expect(error.bottom, lessThanOrEqualTo(visibleBottom()));
-        expectNoLayoutException(tester);
-      });
-
-      testWidgets('lets the user scroll Save above the keyboard', (
-        tester,
-      ) async {
-        await pumpForm(tester, textScale: textScale);
-        await openKeyboard(tester);
-
-        await tester.ensureVisible(find.byKey(_save));
-        await tester.pumpAndSettle();
-
-        final save = tester.getRect(find.byKey(_save));
-        expect(save.bottom, lessThanOrEqualTo(visibleBottom()));
-        expect(save.top, greaterThanOrEqualTo(0));
-      });
-
-      testWidgets('dragging the form closes the keyboard', (tester) async {
-        await pumpForm(tester, textScale: textScale);
-        await openKeyboard(tester);
-        nodes.first.requestFocus();
-        await tester.pumpAndSettle();
-        expect(nodes.first.hasFocus, isTrue);
-
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -80));
-        await tester.pumpAndSettle();
-
-        expect(nodes.first.hasFocus, isFalse);
-      });
-
-      testWidgets('tapping outside a field closes the keyboard', (
-        tester,
-      ) async {
-        await pumpForm(tester, textScale: textScale);
-        await openKeyboard(tester);
-        nodes.first.requestFocus();
-        await tester.pumpAndSettle();
-        expect(nodes.first.hasFocus, isTrue);
-
-        await tester.tapAt(const Offset(2, 200));
-        await tester.pumpAndSettle();
-
-        expect(nodes.first.hasFocus, isFalse);
-      });
-    });
+    }
   }
 }

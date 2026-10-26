@@ -88,10 +88,10 @@ class ProfilePage extends StatelessWidget {
         .toList();
     if (words.isEmpty) {
       final email = user.email.trim();
-      return email.isEmpty ? '' : email.substring(0, 1).toUpperCase();
+      return email.isEmpty ? '' : email.characters.first.toUpperCase();
     }
-    final first = words.first.substring(0, 1);
-    final last = words.length > 1 ? words.last.substring(0, 1) : '';
+    final first = words.first.characters.first;
+    final last = words.length > 1 ? words.last.characters.first : '';
     return '$first$last'.toUpperCase();
   }
 }

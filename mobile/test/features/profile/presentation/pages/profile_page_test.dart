@@ -8,6 +8,7 @@ import 'package:stridequest/core/router/app_router.dart';
 import 'package:stridequest/core/theme/app_theme.dart';
 import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:stridequest/features/home/presentation/pages/home_shell.dart';
 import 'package:stridequest/features/profile/presentation/pages/profile_page.dart';
 
 import '../../../../helpers/expect_accessible.dart';
@@ -21,14 +22,24 @@ final _user = AuthUser(
   createdAt: DateTime.utc(2026, 10, 13, 9, 55),
 );
 
-/// The Profile tab with the real account routes above it, as in the app.
+/// The Profile tab inside a shell with the tab bar, with the real account
+/// routes above the shell, as in the app.
 Widget _routerApp(MockAuthBloc bloc) {
   final router = GoRouter(
     initialLocation: ProfilePage.path,
     routes: [
-      GoRoute(
-        path: ProfilePage.path,
-        builder: (context, state) => const ProfilePage(),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, shell) => HomeShell(navigationShell: shell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: ProfilePage.path,
+                builder: (context, state) => const ProfilePage(),
+              ),
+            ],
+          ),
+        ],
       ),
       ...appRoutes.whereType<GoRoute>().where(
         (r) => r.path.startsWith('/profile/'),
@@ -96,6 +107,22 @@ void main() {
     expect(find.text('L'), findsOneWidget);
   });
 
+  testWidgets('an emoji first letter is kept whole', (tester) async {
+    await pumpProfile(
+      tester,
+      state: AuthAuthenticated(
+        AuthUser(
+          id: 'u',
+          email: 'a@example.com',
+          displayName: '🏃 Lan',
+          createdAt: DateTime.utc(2026),
+        ),
+      ),
+    );
+
+    expect(find.text('🏃L'), findsOneWidget);
+  });
+
   testWidgets('a blank name falls back to the email letter', (tester) async {
     await pumpProfile(
       tester,
@@ -142,15 +169,18 @@ void main() {
         await tester.pumpWidget(_routerApp(bloc));
         await tester.pumpAndSettle();
 
+        expect(find.byType(NavigationBar), findsOneWidget);
         await tester.tap(find.widgetWithText(ListTile, row));
         await tester.pumpAndSettle();
 
+        expect(find.byType(NavigationBar), findsNothing);
         expect(find.text('Coming soon'), findsOneWidget);
         expect(find.widgetWithText(AppBar, row), findsOneWidget);
 
         await tester.tap(find.byType(BackButton));
         await tester.pumpAndSettle();
 
+        expect(find.byType(NavigationBar), findsOneWidget);
         expect(find.text('Coming soon'), findsNothing);
         expect(find.text('Sign out'), findsOneWidget);
       });
