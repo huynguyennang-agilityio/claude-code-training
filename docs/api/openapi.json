@@ -1236,6 +1236,7 @@
           "country": {
             "anyOf": [
               {
+                "pattern": "^[A-Z]{2}$",
                 "type": "string"
               },
               {
@@ -1247,6 +1248,9 @@
           "first_name": {
             "anyOf": [
               {
+                "maxLength": 50,
+                "minLength": 1,
+                "pattern": "^[^\\x00-\\x1f\\x7f]*$",
                 "type": "string"
               },
               {
@@ -1268,10 +1272,10 @@
           "height_cm": {
             "anyOf": [
               {
+                "maximum": 272.0,
+                "minimum": 50.0,
+                "multipleOf": 0.1,
                 "type": "number"
-              },
-              {
-                "type": "string"
               },
               {
                 "type": "null"
@@ -1282,6 +1286,9 @@
           "last_name": {
             "anyOf": [
               {
+                "maxLength": 50,
+                "minLength": 1,
+                "pattern": "^[^\\x00-\\x1f\\x7f]*$",
                 "type": "string"
               },
               {
@@ -1293,6 +1300,9 @@
           "state": {
             "anyOf": [
               {
+                "maxLength": 100,
+                "minLength": 1,
+                "pattern": "^[^\\x00-\\x1f\\x7f]*$",
                 "type": "string"
               },
               {
@@ -1307,10 +1317,10 @@
           "weight_kg": {
             "anyOf": [
               {
+                "maximum": 400.0,
+                "minimum": 20.0,
+                "multipleOf": 0.1,
                 "type": "number"
-              },
-              {
-                "type": "string"
               },
               {
                 "type": "null"

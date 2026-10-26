@@ -86,7 +86,18 @@ def test_a_birthday_may_be_today_in_utc_but_not_tomorrow() -> None:
     ]
 
 
-@pytest.mark.parametrize("value", ["24/06/1991", "not a date", 19910624, "1991-06-24T10:00:00"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "24/06/1991",
+        "not a date",
+        19910624,
+        "1991-06-24T10:00:00",
+        "1991-06-24T00:00:00",
+        "677721600",
+        "1991-02-30",
+    ],
+)
 def test_a_birthday_must_be_an_iso_date(value: object) -> None:
     assert list(failing_fields(body(birthday=value))) == ["birthday"]
 
@@ -143,3 +154,27 @@ def test_every_broken_field_is_reported_at_once() -> None:
     fields = failing_fields(body(country="us", height_cm=300, first_name=" "))
 
     assert set(fields) == {"country", "height_cm", "first_name"}
+
+
+def test_the_openapi_document_states_the_real_rules() -> None:
+    properties = ProfileWrite.model_json_schema()["properties"]
+
+    assert properties["height_cm"] == {
+        "anyOf": [
+            {"type": "number", "minimum": 50.0, "maximum": 272.0, "multipleOf": 0.1},
+            {"type": "null"},
+        ],
+        "title": "Height Cm",
+    }
+    assert properties["weight_kg"]["anyOf"][0]["maximum"] == 400.0
+    assert {"type": "string", "pattern": "^[A-Z]{2}$"} in properties["country"]["anyOf"]
+    assert {"type": "string", "format": "date"} in properties["birthday"]["anyOf"]
+    first = next(item for item in properties["first_name"]["anyOf"] if item["type"] == "string")
+    assert (first["minLength"], first["maxLength"], "pattern" in first) == (1, 50, True)
+    state = next(item for item in properties["state"]["anyOf"] if item["type"] == "string")
+    assert state["maxLength"] == 100
+
+
+@pytest.mark.parametrize("value", [50.30000000000001, 99.99999999999999, 180.3])
+def test_float_noise_is_not_a_second_decimal(value: float) -> None:
+    assert ProfileWrite.model_validate(body(height_cm=value)).height_cm is not None
