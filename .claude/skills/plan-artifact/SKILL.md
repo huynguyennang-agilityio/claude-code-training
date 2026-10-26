@@ -13,8 +13,10 @@ The rules of Phase 1 are in [`.claude/workflow/plan.md`](../../workflow/plan.md)
 
 Write the plan the old way (a file on a `docs/plan-NNN-<name>` branch with its own PR, `.claude/workflow/plan.md`) when:
 
-- the session has no Artifact tool (for example `@claude` on GitHub, or the planner subagent);
+- the session has no Artifact tool (for example `@claude` on GitHub);
 - the plan already exists as an open plan PR (a plan written before this skill, like plan 022): keep editing that file.
+
+The planner subagent has no Artifact tool either, but it does **not** use the old way for a new plan: it returns the draft text to the main session, which publishes it with this skill (`.claude/agents/planner.md`).
 
 ## Before you write
 

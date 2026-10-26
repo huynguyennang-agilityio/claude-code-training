@@ -19,9 +19,11 @@ flowchart TD
     G1 -- no --> ASK1["Ask the user for it"] --> G1
     G1 -- yes --> PLAN["Draft the plan as a Vietnamese artifact<br/>(plan-artifact skill), Status: draft<br/>(open questions, approach, risks, verification,<br/>task breakdown, issues to create)<br/>no file, branch, PR or issue yet"]
     PLAN --> APPR{"User approves the plan?<br/>in chat: /approve-plan NNN<br/>(old-flow plan PR: also on GitHub)"}
+    G1 -. "old flow: no Artifact tool,<br/>or a plan already open as a PR" .-> OLD["Write docs/plans/NNN-name.md<br/>Status: draft, push docs/plan-NNN-name,<br/>open the plan PR"]
+    OLD -.-> APPR
     APPR -- "no / edits needed" --> PLAN
     APPR -- "in chat" --> AP["/approve-plan: write docs/plans/NNN-name.md in English<br/>(Status: approved, the user's words, Draft: link),<br/>push docs/plan-NNN-name, open the plan PR,<br/>create the issues as listed, merge the plan PR"]
-    APPR -- "on GitHub" --> ISSUE["Create the issues exactly as the plan lists them<br/>(Plan: link in each), numbers in a docs PR"]
+    APPR -- "on GitHub<br/>(old-flow plan PR only)" --> ISSUE["Create the issues exactly as the plan lists them<br/>(Plan: link in each), numbers in a docs PR"]
     AP --> BR["Branch type/id-name from develop"]
     ISSUE --> BR
     BR --> P2["Phase 2: Impact analysis,<br/>contract in docs/api"]
