@@ -1,6 +1,6 @@
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from app.modules.profile.models import Gender, UnitSystem
 
@@ -13,7 +13,9 @@ class ProfileRead(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     birthday: date | None = None
-    country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
+    # No format check on read: the table has none, so a stored value must never turn
+    # into a 500. `PUT` (#122) validates `^[A-Z]{2}$` on write.
+    country: str | None = None
     state: str | None = None
     gender: Gender | None = None
     unit_system: UnitSystem = UnitSystem.METRIC
