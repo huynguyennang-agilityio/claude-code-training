@@ -13,7 +13,6 @@ The rules of Phase 1 are in [`.claude/workflow/plan.md`](../../workflow/plan.md)
 
 Write the plan the old way (a file on a `docs/plan-NNN-<name>` branch with its own PR, `.claude/workflow/plan.md`) when:
 
-- **Transition, until #115 merges:** `/approve-plan` cannot read an artifact yet (its step 2 stops without an open plan PR). Until `.claude/skills/approve-plan/SKILL.md` on `develop` has an artifact path, show the draft as an artifact for review if the user wants, but write the plan file, push its branch and open its PR the old way before asking for `/approve-plan`. #115 removes this line;
 - the session has no Artifact tool (for example `@claude` on GitHub);
 - the plan already exists as an open plan PR (a plan written before this skill, like plan 022): keep editing that file.
 
@@ -30,8 +29,8 @@ The planner subagent has no Artifact tool either, but it does **not** use the ol
 - **Language:** Vietnamese, because `CLAUDE.md` says to explain things to the user in Vietnamese. Keep in English, unchanged, everything that will be copied into code or GitHub: file paths, code names, routes, error codes, labels, branch names, and the **issue titles** (`[area] type: ...`).
 - **Title:** `Plan NNN: <title>` as the page heading, and a short `<title>` such as `Plan NNN <short name>`.
 - **Header:** a `Status: draft` badge, the area labels, the number of tasks, and the links it rests on (Figma nodes, issues, earlier plans).
-- **Sections, in the template's order:** context (with "Decided by the user" when the user has answered questions), open questions and assumptions (numbered, so the user can answer "change 3"), approach, the changes the approval must cover (Phase 2 risk categories), risks, verification, ticket evidence, task breakdown, issues to create.
-- **Task breakdown** with the [`task-breakdown`](../task-breakdown/SKILL.md) skill: per task Yêu cầu (Requirements), Làm gì (Steps) and Checklist, one backend endpoint per task, the order line. The checklist items are written so they translate one to one; the "Issues to create" table holds the English titles, labels and dependencies.
+- **Sections, in the template's order,** each heading in Vietnamese with the template's English section name next to it (for example "Rủi ro (Risks)"), so `/approve-plan` maps each one to its section. The draft is the whole plan, not a summary of a file: `/approve-plan` stops on a page that calls itself a summary or lacks a section. The sections: context (with "Decided by the user" when the user has answered questions), open questions and assumptions (numbered, so the user can answer "change 3"), approach, the changes the approval must cover (Phase 2 risk categories), risks, verification, ticket evidence, task breakdown, issues to create.
+- **Task breakdown** with the [`task-breakdown`](../task-breakdown/SKILL.md) skill: per task Yêu cầu (Requirements), Làm gì (Steps) and Checklist, one backend endpoint per task, the order line. The checklist items are written so they translate one to one, with the same detail the English file needs (routes, error codes, file paths in full). The **"Issues to create" table is required**: one row per task with the English title, labels, the acceptance criteria (the task's checklist) and dependencies.
 - **Design:** show the design it follows. For Figma, embed the frame screenshots (as `data:` images; the artifact cannot load remote images) with a link to each node.
 - **Next step,** at the end: "Nếu đồng ý, chạy `/approve-plan NNN`", and that changes go through chat.
 
