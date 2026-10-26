@@ -41,7 +41,7 @@ Never put in it: secrets, tokens, passwords, connection strings, real user data,
 - Follow the Artifact tool's page rules (the `artifact-design` guidance it loads): a plain, readable page; both themes; phone width.
 - Publish once, give the user the link, and **stop**. Create no branch, file, commit, PR or issue.
 - For each change the user asks for, edit the same file and publish to the **same link** (a new version). Say in one line what changed.
-- Don't republish between asking for approval and the user's `/approve-plan`. `/approve-plan` takes the version that is live when it runs and stops when the artifact changed after the user's last message about it.
+- Don't republish between asking for approval and the user's `/approve-plan`. `/approve-plan` takes the version that is live when it runs and stops when it is newer than the version you last showed the user (with its link or a "what changed" line) before the command. Republishing in reply to the user's change request, and saying what changed, is fine.
 - Keep the artifact's source file in the session's scratchpad. `/approve-plan` reads the published version, not the file.
 
 ## After approval
