@@ -54,6 +54,7 @@ ROUTE_ACCESS: dict[tuple[str, str], Access] = {
     ("POST", "/api/v1/auth/refresh"): "public",
     ("POST", "/api/v1/auth/signout"): "public",
     ("GET", "/api/v1/users/me"): "user",
+    ("GET", "/api/v1/users/me/profile"): "user",
     ("GET", "/api/v1/runs"): "user",
     ("POST", "/api/v1/runs/steps"): "user",
     ("PUT", "/api/v1/runs/daily-activity"): "user",

@@ -971,6 +971,16 @@
         "title": "FieldError",
         "type": "object"
       },
+      "Gender": {
+        "enum": [
+          "female",
+          "male",
+          "non_binary",
+          "prefer_not_to_say"
+        ],
+        "title": "Gender",
+        "type": "string"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -1107,6 +1117,106 @@
           "next_cursor"
         ],
         "title": "MyChallengePage",
+        "type": "object"
+      },
+      "ProfileRead": {
+        "description": "The caller's profile. A user who never saved one reads as all `null` and `metric`.",
+        "properties": {
+          "birthday": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthday"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "first_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name"
+          },
+          "gender": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Gender"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "last_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "unit_system": {
+            "$ref": "#/components/schemas/UnitSystem",
+            "default": "metric"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          }
+        },
+        "title": "ProfileRead",
         "type": "object"
       },
       "ProgressRead": {
@@ -1380,6 +1490,14 @@
         ],
         "title": "TokenPair",
         "type": "object"
+      },
+      "UnitSystem": {
+        "enum": [
+          "imperial",
+          "metric"
+        ],
+        "title": "UnitSystem",
+        "type": "string"
       },
       "UploadedImageRead": {
         "properties": {
@@ -3168,6 +3286,42 @@
         "summary": "Read Me",
         "tags": [
           "users"
+        ]
+      }
+    },
+    "/api/v1/users/me/profile": {
+      "get": {
+        "operationId": "get_profile_api_v1_users_me_profile_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read the caller's profile",
+        "tags": [
+          "profile"
         ]
       }
     }

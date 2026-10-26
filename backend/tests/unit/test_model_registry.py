@@ -34,4 +34,5 @@ def test_app_import_registers_and_configures_every_model() -> None:
         "Run",
         "StepSample",
         "User",
+        "UserProfile",
     ]
