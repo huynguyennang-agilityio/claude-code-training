@@ -40,7 +40,7 @@ If the working tree has uncommitted changes outside your files, do not touch the
 
 - Write docs, issues, commits and PR text in English. Keep them concise.
 - Plans: Context, Approach, Files affected, Risks, Verification.
-- Tasks: one task = one GitHub-issue-sized unit, with title, description, acceptance criteria, suggested branch name `<type>/<issue-id>-<short-name>`, and dependencies.
+- Tasks: follow the `task-breakdown` skill (`.claude/skills/task-breakdown/SKILL.md`): one task = one issue, with Requirements, Steps and a Checklist, one backend endpoint per task, an order line, and the "Issues to create" acceptance criteria equal to each task's checklist. The branch for an issue is `<type>/<issue-id>-<short-name>`.
 - A mobile feature that calls an endpoint becomes two tasks: `feat: <feature> (mobile, mock)` (labels `frontend`, `mock`; depends on the contract task, `docs/api/<module>.md` and examples without `openapi.json`) and `feat: <feature> (mobile, integration)` (labels `frontend`, `integration`; depends on the mock task and every backend task for those endpoints). Put the Integration gate (backend issues closed, endpoints in `docs/api/openapi.json` on `develop`) in the integration task's acceptance criteria. Details: "Mobile tasks: mock and integration" in `.claude/workflow/plan.md`.
 - Respect the target architecture in `docs/architecture.md` when describing work: backend modules `app/modules/<module>/` (router → service → repository) alongside the shared `app/core/`; mobile `lib/features/<feature>/{data,domain,presentation}` alongside `lib/core/` and `lib/shared/`.
 
