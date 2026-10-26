@@ -29,7 +29,12 @@ def marked_blocks() -> list[tuple[Path, str, str]]:
 
 
 def test_contract_docs_exist() -> None:
-    assert [doc.name for doc in doc_files()] == ["auth.md", "challenges.md", "runs.md"]
+    assert [doc.name for doc in doc_files()] == [
+        "auth.md",
+        "challenges.md",
+        "profile.md",
+        "runs.md",
+    ]
     assert example_files()
 
 

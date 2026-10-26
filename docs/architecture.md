@@ -19,6 +19,7 @@ flowchart LR
         CH["challenges"]
         RUNS["runs"]
         MED["medals"]
+        PROF["profile"]
     end
     API --- API_MODULES
 ```
@@ -160,6 +161,7 @@ backend/
 │   │   ├── challenges/        # Same files
 │   │   ├── runs/              # Same files, plus validation.py (validate_run)
 │   │   ├── medals/            # Same files
+│   │   ├── profile/           # Same files (user_profiles: optional personal details)
 │   │   └── models.py          # Imports every module's models for Base.metadata
 │   ├── api/
 │   │   └── v1/
@@ -190,23 +192,25 @@ Adding a new cross-module relationship needs the user's approval.
 
 The ORM cascade on `Challenge.medals` (`all, delete-orphan`) is not a write path: medals are created and changed only through `medals.service`, so don't assign or clear `challenge.medal`. Deleting a challenge may still remove its medal through that cascade, because the `medals.challenge_id` foreign key already has `ON DELETE CASCADE`.
 
-Presentation copy: [`diagrams/backend-modules.svg`](diagrams/backend-modules.svg).
+Presentation copy: [`diagrams/backend-modules.svg`](diagrams/backend-modules.svg) (out of date since plan 024: it does not show the `profile` module; the Mermaid block above is current).
 
 ```mermaid
 flowchart TB
     MAIN["main.py"] --> V1["api/v1/router"]
-    V1 --> AR["auth.router"] & CR["challenges.router"] & RR["runs.router"] & MR["medals.router"]
+    V1 --> AR["auth.router"] & CR["challenges.router"] & RR["runs.router"] & MR["medals.router"] & PR["profile.router"]
     AR --> AS["auth.service"]
     CR --> CS["challenges.service"]
     RR --> RS["runs.service"]
     MR --> MS["medals.service"]
+    PR --> PS["profile.service"]
     RS -->|"validate against rules"| CS
     RS -->|"award medal"| MS
     AS --> ARP["auth.repository"]
     CS --> CRP["challenges.repository"]
     RS --> RRP["runs.repository"]
     MS --> MRP["medals.repository"]
-    ARP & CRP & RRP & MRP --> DB[("PostgreSQL")]
+    PS --> PRP["profile.repository"]
+    ARP & CRP & RRP & MRP & PRP --> DB[("PostgreSQL")]
     MS --> STORE["core.storage"]
     subgraph CORE["core"]
         CFG["config"]

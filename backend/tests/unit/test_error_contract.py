@@ -3,7 +3,8 @@
 The table drives the test: a new row must be added to `IMPLEMENTED` here (with a way to
 trigger it without a database) or to `AUTH_MODULE_ERROR_CODES`, whose codes
 `tests/integration/test_auth_api.py` triggers through the real endpoints, so a documented
-code can't be forgotten.
+code can't be forgotten. A code documented before its route exists goes in
+`DOCUMENTED_NOT_YET_SERVED_ERROR_CODES`, which is empty again once the route serves it.
 """
 
 from collections.abc import AsyncIterator
@@ -18,7 +19,13 @@ from pydantic import BaseModel, Field, field_validator
 from app.core.errors import ErrorResponse
 from app.main import create_app
 from app.modules.auth.service import ForbiddenError
-from tests.api_docs import API_DOCS_DIR, AUTH_MODULE_ERROR_CODES, error_codes, load_example
+from tests.api_docs import (
+    API_DOCS_DIR,
+    AUTH_MODULE_ERROR_CODES,
+    DOCUMENTED_NOT_YET_SERVED_ERROR_CODES,
+    error_codes,
+    load_example,
+)
 
 # code -> (method, path, status). The routes under /test are added by `app_under_test`.
 IMPLEMENTED: dict[str, tuple[str, str, int]] = {
@@ -86,8 +93,24 @@ async def trigger(client: AsyncClient, code: str) -> Response:
 def test_every_documented_code_is_tested_here_or_in_the_auth_api_tests() -> None:
     documented = error_codes(API_DOCS_DIR / "auth.md")
 
-    assert sorted(documented) == sorted(set(IMPLEMENTED) | AUTH_MODULE_ERROR_CODES)
+    served = set(IMPLEMENTED) | AUTH_MODULE_ERROR_CODES | DOCUMENTED_NOT_YET_SERVED_ERROR_CODES
+    assert sorted(documented) == sorted(served)
     assert not set(IMPLEMENTED) & AUTH_MODULE_ERROR_CODES
+    assert not DOCUMENTED_NOT_YET_SERVED_ERROR_CODES & (set(IMPLEMENTED) | AUTH_MODULE_ERROR_CODES)
+
+
+def test_codes_not_yet_served_have_no_route_yet() -> None:
+    """`DOCUMENTED_NOT_YET_SERVED_ERROR_CODES` is only for codes whose routes don't exist yet.
+
+    Once the email and password routes are added (#123, #124), this fails until
+    `incorrect_password` moves into `AUTH_MODULE_ERROR_CODES` and the set is emptied.
+    """
+    if not DOCUMENTED_NOT_YET_SERVED_ERROR_CODES:
+        return
+    paths = {getattr(route, "path", "") for route in create_app().routes}
+
+    assert "/api/v1/users/me/email" not in paths
+    assert "/api/v1/users/me/password" not in paths
 
 
 @pytest.mark.anyio

@@ -1,0 +1,11 @@
+{
+  "first_name": null,
+  "last_name": null,
+  "birthday": null,
+  "country": null,
+  "state": null,
+  "gender": null,
+  "unit_system": "metric",
+  "height_cm": null,
+  "weight_kg": null
+}

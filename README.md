@@ -29,7 +29,7 @@ The first version focuses on one complete user journey rather than many features
 
 ## Architecture
 
-StrideQuest is a modular monolith: one FastAPI app split into the modules `auth`, `challenges`, `runs` and `medals`, which share one PostgreSQL database. The Flutter app is organised by the same features.
+StrideQuest is a modular monolith: one FastAPI app split into the modules `auth`, `challenges`, `runs`, `medals` and `profile`, which share one PostgreSQL database. The Flutter app is organised by the same features.
 
 ![StrideQuest system context](docs/diagrams/system-context.svg)
 
