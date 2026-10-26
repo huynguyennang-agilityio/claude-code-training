@@ -17,16 +17,16 @@ Both routes are for any signed-in user (the `user` level). A user only reads and
 
 ## Field rules
 
-Every field is optional and can be `null`. The app should check these on the form before calling the API. The backend checks them again.
+Every field except `unit_system` is optional and can be `null`. The app should check these on the form before calling the API. The backend checks them again.
 
 | Field | Rule |
 | --- | --- |
 | `first_name`, `last_name` | 1 to 50 characters after trimming spaces, or `null`. |
-| `birthday` | An ISO 8601 date (`YYYY-MM-DD`) after 1900-01-01 and not in the future, or `null`. No minimum age. |
+| `birthday` | An ISO 8601 date (`YYYY-MM-DD`) after 1900-01-01 (that day itself is a `422`) and not after today in UTC, or `null`. No minimum age. |
 | `country` | An ISO 3166-1 alpha-2 code matching `^[A-Z]{2}$`, or `null`. The backend checks only the format and keeps no country list; the app ships the list. |
 | `state` | Free text of at most 100 characters after trimming, or `null`. |
 | `gender` | `female`, `male`, `non_binary` or `prefer_not_to_say`, or `null`. |
-| `unit_system` | `imperial` or `metric`. Default `metric`. A display preference only: `height_cm` and `weight_kg` are always metric. |
+| `unit_system` | `imperial` or `metric`, never `null` (`null` is a `422`). Default `metric` when the field is left out. A display preference only: `height_cm` and `weight_kg` are always metric. |
 | `height_cm` | A number from 50.0 to 272.0 with at most one decimal, or `null`. |
 | `weight_kg` | A number from 20.0 to 400.0 with at most one decimal, or `null`. |
 

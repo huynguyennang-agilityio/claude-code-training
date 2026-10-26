@@ -192,7 +192,7 @@ Adding a new cross-module relationship needs the user's approval.
 
 The ORM cascade on `Challenge.medals` (`all, delete-orphan`) is not a write path: medals are created and changed only through `medals.service`, so don't assign or clear `challenge.medal`. Deleting a challenge may still remove its medal through that cascade, because the `medals.challenge_id` foreign key already has `ON DELETE CASCADE`.
 
-Presentation copy: [`diagrams/backend-modules.svg`](diagrams/backend-modules.svg).
+Presentation copy: [`diagrams/backend-modules.svg`](diagrams/backend-modules.svg) (out of date since plan 024: it does not show the `profile` module; the Mermaid block above is current).
 
 ```mermaid
 flowchart TB

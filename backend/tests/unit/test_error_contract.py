@@ -3,7 +3,8 @@
 The table drives the test: a new row must be added to `IMPLEMENTED` here (with a way to
 trigger it without a database) or to `AUTH_MODULE_ERROR_CODES`, whose codes
 `tests/integration/test_auth_api.py` triggers through the real endpoints, so a documented
-code can't be forgotten.
+code can't be forgotten. A code documented before its route exists goes in
+`DOCUMENTED_NOT_YET_SERVED_ERROR_CODES`, which is empty again once the route serves it.
 """
 
 from collections.abc import AsyncIterator
@@ -95,6 +96,7 @@ def test_every_documented_code_is_tested_here_or_in_the_auth_api_tests() -> None
     served = set(IMPLEMENTED) | AUTH_MODULE_ERROR_CODES | DOCUMENTED_NOT_YET_SERVED_ERROR_CODES
     assert sorted(documented) == sorted(served)
     assert not set(IMPLEMENTED) & AUTH_MODULE_ERROR_CODES
+    assert not DOCUMENTED_NOT_YET_SERVED_ERROR_CODES & (set(IMPLEMENTED) | AUTH_MODULE_ERROR_CODES)
 
 
 @pytest.mark.anyio

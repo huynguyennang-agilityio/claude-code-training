@@ -140,7 +140,7 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 | HTTP | `code` | When |
 | --- | --- | --- |
 | 422 | `validation_error` | The body is missing a field or breaks a field rule. See `fields`. |
-| 409 | `email_taken` | Sign up with an email that already has an account. |
+| 409 | `email_taken` | Sign up, or change the email, with an email that already has an account. |
 | 401 | `invalid_credentials` | Sign in with a wrong email or a wrong password. Both cases return the same code on purpose. |
 | 401 | `invalid_refresh_token` | Refresh with a token that is unknown, expired or already revoked. |
 | 401 | `not_authenticated` | A protected route was called without an `Authorization` header, whatever dependency guards it. |
@@ -250,6 +250,8 @@ Request:
 
 `new_email` follows the `email` rule and is stored lowercase. The change applies at once: there is no verification email (see "Out of scope for the MVP").
 
+Order of checks: the body's field rules first (`422`), then the current password (`403`, `429`), and only with the right password the checks that need the database: the same email, compared after lowercasing (`422`), and an email that another account has (`409`). So a wrong password never reveals whether an email is registered.
+
 Responses:
 
 - `200 OK` with the updated `User`. Sessions are not revoked: the tokens in use stay valid, since the password does not change.
@@ -267,11 +269,11 @@ Responses:
 ```
 
 - `409 email_taken` when another account has that email, including when two requests race and the database unique constraint fails.
-- `422 validation_error` when `new_email` breaks the rule or equals the current email.
+- `422 validation_error` when `new_email` breaks the rule, or equals the current email after lowercasing (`Runner@Example.com` against `runner@example.com` is a `422`).
 - `429 rate_limited` with a `Retry-After` header.
 - `401 not_authenticated`, `401 invalid_token`, `401 token_expired`.
 
-A wrong `current_password` is recorded as a failed sign-in for the rate limit of `POST /api/v1/auth/signin` (by the user's email and by IP), so these routes cannot be used to guess the password. Once the limit is reached, the route answers `429` even with the right password.
+A wrong `current_password` is recorded as a failed sign-in for the rate limit of `POST /api/v1/auth/signin` (by the user's email and by IP), so these routes cannot be used to guess the password. Once the limit is reached, the route answers `429` even with the right password. The count is kept for the email the user had when the attempt was made; a successful email or password change clears it, as a successful sign-in does.
 
 ## `PUT /api/v1/users/me/password`
 
@@ -287,7 +289,7 @@ Request:
 }
 ```
 
-`new_password` follows the `password` rule and must differ from `current_password`.
+`new_password` follows the `password` rule and must differ from `current_password`. Both are body rules, checked before the current password (`422` first, then `403` or `429`).
 
 Responses:
 
