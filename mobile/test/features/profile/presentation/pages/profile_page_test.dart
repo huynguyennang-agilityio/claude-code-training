@@ -2,7 +2,10 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:stridequest/core/router/app_router.dart';
+import 'package:stridequest/core/theme/app_theme.dart';
 import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/profile/presentation/pages/profile_page.dart';
@@ -17,6 +20,26 @@ final _user = AuthUser(
   displayName: 'Lan Runner',
   createdAt: DateTime.utc(2026, 10, 13, 9, 55),
 );
+
+/// The Profile tab with the real account routes above it, as in the app.
+Widget _routerApp(MockAuthBloc bloc) {
+  final router = GoRouter(
+    initialLocation: ProfilePage.path,
+    routes: [
+      GoRoute(
+        path: ProfilePage.path,
+        builder: (context, state) => const ProfilePage(),
+      ),
+      ...appRoutes.whereType<GoRoute>().where(
+        (r) => r.path.startsWith('/profile/'),
+      ),
+    ],
+  );
+  return BlocProvider<AuthBloc>.value(
+    value: bloc,
+    child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
+  );
+}
 
 void main() {
   late MockAuthBloc bloc;
@@ -43,12 +66,50 @@ void main() {
     );
   }
 
-  testWidgets('shows who is signed in', (tester) async {
+  testWidgets('shows the initials, the three rows and Sign out', (
+    tester,
+  ) async {
     await pumpProfile(tester);
 
-    expect(find.text('Profile'), findsOneWidget);
-    expect(find.text('Lan Runner'), findsOneWidget);
-    expect(find.text('runner@example.com'), findsOneWidget);
+    expect(find.text('LR'), findsOneWidget);
+    expect(find.text('Change Avatar'), findsNothing);
+    for (final row in ['Profile', 'Email', 'Password']) {
+      expect(find.widgetWithText(ListTile, row), findsOneWidget);
+    }
+    expect(find.byIcon(Icons.chevron_right), findsNWidgets(3));
+    expect(find.text('Sign out'), findsOneWidget);
+  });
+
+  testWidgets('a one-word name gives one initial', (tester) async {
+    await pumpProfile(
+      tester,
+      state: AuthAuthenticated(
+        AuthUser(
+          id: 'u',
+          email: 'a@example.com',
+          displayName: 'lan',
+          createdAt: DateTime.utc(2026),
+        ),
+      ),
+    );
+
+    expect(find.text('L'), findsOneWidget);
+  });
+
+  testWidgets('a blank name falls back to the email letter', (tester) async {
+    await pumpProfile(
+      tester,
+      state: AuthAuthenticated(
+        AuthUser(
+          id: 'u',
+          email: 'runner@example.com',
+          displayName: '  ',
+          createdAt: DateTime.utc(2026),
+        ),
+      ),
+    );
+
+    expect(find.text('R'), findsOneWidget);
   });
 
   testWidgets('Sign out sends the event', (tester) async {
@@ -59,13 +120,48 @@ void main() {
     verify(() => bloc.add(const AuthSignOutRequested())).called(1);
   });
 
-  testWidgets('shows no account details when nobody is signed in', (
-    tester,
-  ) async {
+  testWidgets('shows no initials when nobody is signed in', (tester) async {
     await pumpProfile(tester, state: const AuthUnauthenticated());
 
-    expect(find.text('Lan Runner'), findsNothing);
+    expect(find.text('LR'), findsNothing);
     expect(find.text('Sign out'), findsOneWidget);
+  });
+
+  group('navigation', () {
+    for (final (row, path) in [
+      ('Profile', '/profile/info'),
+      ('Email', '/profile/email'),
+      ('Password', '/profile/password'),
+    ]) {
+      testWidgets('$row opens $path and back returns', (tester) async {
+        whenListen(
+          bloc,
+          const Stream<AuthState>.empty(),
+          initialState: AuthAuthenticated(_user),
+        );
+        await tester.pumpWidget(_routerApp(bloc));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.widgetWithText(ListTile, row));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Coming soon'), findsOneWidget);
+        expect(find.widgetWithText(AppBar, row), findsOneWidget);
+
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Coming soon'), findsNothing);
+        expect(find.text('Sign out'), findsOneWidget);
+      });
+    }
+
+    test('the new paths need sign in', () {
+      expect(
+        protectedPaths,
+        containsAll(['/profile/info', '/profile/email', '/profile/password']),
+      );
+    });
   });
 
   group('layout and accessibility', () {

@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/bloc/sign_in_bloc.dart';
 import '../../features/auth/presentation/bloc/sign_up_bloc.dart';
+import '../../features/auth/presentation/pages/change_email_page.dart';
+import '../../features/auth/presentation/pages/change_password_page.dart';
 import '../../features/auth/presentation/pages/sign_in_page.dart';
 import '../../features/auth/presentation/pages/sign_up_page.dart';
 import '../../features/challenges/presentation/bloc/challenge_detail_bloc.dart';
@@ -13,6 +15,7 @@ import '../../features/challenges/presentation/pages/challenge_detail_page.dart'
 import '../../features/challenges/presentation/pages/challenges_page.dart';
 import '../../features/home/presentation/pages/home_shell.dart';
 import '../../features/medals/presentation/pages/medals_page.dart';
+import '../../features/profile/presentation/pages/profile_info_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/runs/presentation/bloc/health_gate_bloc.dart';
 import '../../features/runs/presentation/pages/active_challenges_page.dart';
@@ -32,6 +35,9 @@ const protectedPaths = <String>{
   ActiveChallengesPage.path,
   MedalsPage.path,
   ProfilePage.path,
+  ProfileInfoPage.path,
+  ChangeEmailPage.path,
+  ChangePasswordPage.path,
 };
 
 final appRoutes = <RouteBase>[
@@ -100,6 +106,20 @@ final appRoutes = <RouteBase>[
         child: ChallengeDetailPage(challengeId: id ?? 0),
       );
     },
+  ),
+  // The account screens have no tab bar either, so they sit above the shell
+  // like the detail (the app has no navigator keys to target instead).
+  GoRoute(
+    path: ProfileInfoPage.path,
+    builder: (context, state) => const ProfileInfoPage(),
+  ),
+  GoRoute(
+    path: ChangeEmailPage.path,
+    builder: (context, state) => const ChangeEmailPage(),
+  ),
+  GoRoute(
+    path: ChangePasswordPage.path,
+    builder: (context, state) => const ChangePasswordPage(),
   ),
   GoRoute(
     path: SignInPage.path,
