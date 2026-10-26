@@ -9,7 +9,7 @@ from app.modules.profile.service import ProfileService
 
 
 def get_profile_service(session: Annotated[AsyncSession, Depends(get_session)]) -> ProfileService:
-    return ProfileService(ProfileRepository(session))
+    return ProfileService(session, ProfileRepository(session))
 
 
 ProfileServiceDep = Annotated[ProfileService, Depends(get_profile_service)]

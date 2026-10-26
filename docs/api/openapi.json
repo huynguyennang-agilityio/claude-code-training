@@ -1218,6 +1218,121 @@
         "title": "ProfileRead",
         "type": "object"
       },
+      "ProfileWrite": {
+        "description": "The body of `PUT`: the whole profile. All nine keys are required, so a client that forgets\none gets a `422` instead of wiping a stored value. `null` clears a value, except for\n`unit_system`, which is never `null`.",
+        "properties": {
+          "birthday": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthday"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "first_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name"
+          },
+          "gender": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Gender"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "last_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "unit_system": {
+            "$ref": "#/components/schemas/UnitSystem"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "birthday",
+          "country",
+          "state",
+          "gender",
+          "unit_system",
+          "height_cm",
+          "weight_kg"
+        ],
+        "title": "ProfileWrite",
+        "type": "object"
+      },
       "ProgressRead": {
         "description": "How far the caller is in a challenge. `tracked` is false for a type whose progress the\napp does not count yet (swim and cycle): its `current_value` stays 0.",
         "properties": {
@@ -3319,6 +3434,71 @@
           }
         ],
         "summary": "Read the caller's profile",
+        "tags": [
+          "profile"
+        ]
+      },
+      "put": {
+        "description": "Send all nine fields; a field sent as `null` clears its value. The first save creates the profile.",
+        "operationId": "put_profile_api_v1_users_me_profile_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request body can't be read (`http_error`)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request is invalid (`validation_error`)."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Replace the caller's profile",
         "tags": [
           "profile"
         ]
