@@ -159,6 +159,22 @@ void main() {
           expect(nodes.first.hasFocus, isFalse);
         });
 
+        testWidgets(
+          'dragging down at the top of the form closes the keyboard',
+          (tester) async {
+            await pumpForm(tester, size: size, textScale: textScale);
+            await openKeyboard(tester);
+            nodes.first.requestFocus();
+            await tester.pumpAndSettle();
+            expect(nodes.first.hasFocus, isTrue);
+
+            await tester.dragFrom(const Offset(200, 300), const Offset(0, 120));
+            await tester.pumpAndSettle();
+
+            expect(nodes.first.hasFocus, isFalse);
+          },
+        );
+
         testWidgets('tapping outside a field closes the keyboard', (
           tester,
         ) async {

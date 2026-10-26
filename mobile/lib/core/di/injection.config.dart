@@ -42,6 +42,14 @@ import 'package:stridequest/features/challenges/presentation/bloc/challenge_deta
     as _i530;
 import 'package:stridequest/features/challenges/presentation/bloc/challenges_bloc.dart'
     as _i909;
+import 'package:stridequest/features/profile/data/datasources/profile_remote_data_source.dart'
+    as _i286;
+import 'package:stridequest/features/profile/data/repositories/profile_repository_impl.dart'
+    as _i146;
+import 'package:stridequest/features/profile/domain/repositories/profile_repository.dart'
+    as _i166;
+import 'package:stridequest/features/profile/presentation/bloc/profile_info_bloc.dart'
+    as _i376;
 import 'package:stridequest/features/runs/data/datasources/health_data_source.dart'
     as _i645;
 import 'package:stridequest/features/runs/data/datasources/health_prompt_store.dart'
@@ -92,6 +100,10 @@ extension GetItInjectableX on _i174.GetIt {
       () => mockApiModule.fakeAuthRemoteDataSource,
       registerFor: {_mock},
     );
+    gh.lazySingleton<_i286.ProfileRemoteDataSource>(
+      () => mockApiModule.fakeProfileRemoteDataSource,
+      registerFor: {_mock},
+    );
     gh.lazySingleton<_i851.AuthLocalDataSource>(
       () => _i851.SecureAuthLocalDataSource(gh<_i558.FlutterSecureStorage>()),
     );
@@ -139,6 +151,12 @@ extension GetItInjectableX on _i174.GetIt {
       () => networkModule.authenticatedDio(gh<_i713.AuthTokenHandler>()),
       instanceName: 'authenticatedDio',
     );
+    gh.lazySingleton<_i286.ProfileRemoteDataSource>(
+      () => _i286.DioProfileRemoteDataSource(
+        gh<_i361.Dio>(instanceName: 'authenticatedDio'),
+      ),
+      registerFor: {_real},
+    );
     gh.lazySingleton<_i860.RunsRemoteDataSource>(
       () => _i860.DioRunsRemoteDataSource(
         gh<_i361.Dio>(instanceName: 'authenticatedDio'),
@@ -151,6 +169,9 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i216.DioChallengeRemoteDataSource(
         gh<_i361.Dio>(instanceName: 'authenticatedDio'),
       ),
+    );
+    gh.lazySingleton<_i166.ProfileRepository>(
+      () => _i146.ProfileRepositoryImpl(gh<_i286.ProfileRemoteDataSource>()),
     );
     gh.lazySingleton<_i756.ChallengeRepository>(
       () =>
@@ -170,6 +191,9 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i203.HealthRepository>(),
         gh<_i137.RunsRepository>(),
       ),
+    );
+    gh.factory<_i376.ProfileInfoBloc>(
+      () => _i376.ProfileInfoBloc(gh<_i166.ProfileRepository>()),
     );
     gh.factory<_i951.ActivityBloc>(
       () => _i951.ActivityBloc(gh<_i1029.SyncActivity>()),

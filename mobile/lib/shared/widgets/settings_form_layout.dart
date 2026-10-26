@@ -14,7 +14,8 @@ import '../../core/theme/app_tokens.dart';
 ///   under the keyboard;
 /// - a field that gains focus is scrolled into view with its error line (the
 ///   text field does this itself; [scrollPadding] leaves room below it);
-/// - dragging the form or tapping outside a field closes the keyboard.
+/// - dragging the form (up, or down at its top) or tapping outside a field
+///   closes the keyboard.
 ///
 /// Next/Done focus moves and pickers are wired in the forms themselves.
 class SettingsFormLayout extends StatelessWidget {
@@ -71,26 +72,35 @@ class SettingsFormLayout extends StatelessWidget {
               constraints: const BoxConstraints(
                 maxWidth: AppSizes.formMaxWidth,
               ),
-              child: CustomScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                slivers: [
-                  SliverPadding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    sliver: SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          ...children,
-                          const SizedBox(height: AppSpacing.lg),
-                          const Spacer(),
-                          ...actions,
-                        ],
+              // `onDrag` does not close the keyboard when a drag only pulls
+              // the content down at its top (Android: nothing moves), so a
+              // finger that starts dragging the content closes it here.
+              child: NotificationListener<ScrollStartNotification>(
+                onNotification: (notification) {
+                  if (notification.dragDetails != null) _closeKeyboard();
+                  return false;
+                },
+                child: CustomScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      sliver: SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ...children,
+                            const SizedBox(height: AppSpacing.lg),
+                            const Spacer(),
+                            ...actions,
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

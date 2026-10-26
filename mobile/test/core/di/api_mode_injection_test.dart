@@ -10,6 +10,10 @@ import 'package:stridequest/features/auth/presentation/bloc/sign_up_bloc.dart';
 import 'package:stridequest/features/challenges/data/datasources/challenge_remote_data_source.dart';
 import 'package:stridequest/features/challenges/domain/repositories/challenge_repository.dart';
 import 'package:stridequest/features/challenges/presentation/bloc/challenges_bloc.dart';
+import 'package:stridequest/features/profile/data/datasources/fake_profile_remote_data_source.dart';
+import 'package:stridequest/features/profile/data/datasources/profile_remote_data_source.dart';
+import 'package:stridequest/features/profile/domain/repositories/profile_repository.dart';
+import 'package:stridequest/features/profile/presentation/bloc/profile_info_bloc.dart';
 import 'package:stridequest/features/runs/data/datasources/runs_remote_data_source.dart';
 import 'package:stridequest/features/runs/domain/repositories/health_repository.dart';
 import 'package:stridequest/features/runs/domain/repositories/runs_repository.dart';
@@ -26,6 +30,7 @@ void main() {
         expect(getIt<ChallengeRepository>(), isNotNull);
         expect(getIt<RunsRepository>(), isNotNull);
         expect(getIt<HealthRepository>(), isNotNull);
+        expect(getIt<ProfileRepository>(), isNotNull);
       });
 
       test('the blocs the routes ask for resolve', () {
@@ -34,6 +39,7 @@ void main() {
         expect(getIt<SignUpBloc>(), isNotNull);
         expect(getIt<ChallengesBloc>(), isNotNull);
         expect(getIt<MyChallengesBloc>(), isNotNull);
+        expect(getIt<ProfileInfoBloc>(), isNotNull);
       });
 
       test('challenges and runs use their real data sources', () {
@@ -58,5 +64,22 @@ void main() {
     addTearDown(getIt.reset);
 
     expect(getIt<AuthRemoteDataSource>(), isA<FakeAuthRemoteDataSource>());
+  });
+
+  test('real mode reads the profile through the API', () {
+    configureDependencies(mode: ApiMode.real);
+    addTearDown(getIt.reset);
+
+    expect(getIt<ProfileRemoteDataSource>(), isA<DioProfileRemoteDataSource>());
+  });
+
+  test('mock mode reads the profile from the fake', () {
+    configureDependencies(mode: ApiMode.mock);
+    addTearDown(getIt.reset);
+
+    expect(
+      getIt<ProfileRemoteDataSource>(),
+      isA<FakeProfileRemoteDataSource>(),
+    );
   });
 }

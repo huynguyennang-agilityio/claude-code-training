@@ -2,6 +2,8 @@ import 'package:injectable/injectable.dart';
 
 import '../../features/auth/data/datasources/auth_remote_data_source.dart';
 import '../../features/auth/data/datasources/fake_auth_remote_data_source.dart';
+import '../../features/profile/data/datasources/fake_profile_remote_data_source.dart';
+import '../../features/profile/data/datasources/profile_remote_data_source.dart';
 import '../config/app_config.dart';
 import 'api_environments.dart';
 
@@ -17,4 +19,9 @@ abstract class MockApiModule {
   @lazySingleton
   AuthRemoteDataSource get fakeAuthRemoteDataSource =>
       FakeAuthRemoteDataSource(latency: AppConfig.networkSimulation.latency);
+
+  @mockApi
+  @lazySingleton
+  ProfileRemoteDataSource get fakeProfileRemoteDataSource =>
+      FakeProfileRemoteDataSource(latency: AppConfig.networkSimulation.latency);
 }
