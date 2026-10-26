@@ -124,20 +124,297 @@ New error code: `403 incorrect_password`, "the current password is wrong". It is
 
 ## Ticket evidence
 
-- Feature-with-UI issues: the Figma frames in Context, the states and sizes under Verification, and the deviations from the design in "Decided by the user" and assumptions 10 to 12.
-- Backend issues: the sample requests and responses in `docs/api/profile.md` and `docs/api/auth.md` (issue 1), and the hurl output.
-- No bug issues.
+- Feature-with-UI tasks: the Figma frames in Context, the states and sizes under Verification, and the deviations from the design in "Decided by the user" and assumptions 10 to 12.
+- Backend tasks: the sample requests and responses in `docs/api/profile.md` and `docs/api/auth.md` (task 1), and the hurl output.
+- No bug tasks.
+
+## Task breakdown
+
+One task is one issue. **Each backend endpoint is its own task.** Every task has the same parts:
+
+- **Requirements:** what must be true when it is done, and the rules it must follow.
+- **Steps:** what to do, in order, with the files it touches.
+- **Checklist:** the items to tick before the PR. They are the acceptance criteria in "Issues to create", word for word; `/approve-plan` copies them from the table into the issue.
+
+Every task also follows the build loop in `CLAUDE.md` (lint and type checks after each step) and writes an `## Evidence` section (`.claude/workflow/evidence.md`) in its PR. Backend tasks follow the `fastapi-module` skill; mobile tasks follow the `flutter-feature` skill.
+
+Order: 1 and 6 can start at once. 2 → 3, and 4 → 5, after 1. 7, 8 and 9 run in parallel after 1 and 6. Each integration task (10, 11, 12) waits for its backend tasks to be closed and in `openapi.json` on `develop`.
+
+### Task 1: `[profile] docs: profile, email and password contract`
+
+**Requirements**
+
+- The contract is complete enough for the backend tasks and the mobile mock tasks to start without asking: every field rule, response and error code in "Approach".
+- Examples are valid JSON and match the schemas the backend will serve.
+
+**Steps**
+
+1. Write `docs/api/profile.md`: the `Profile` shape, field rules (assumptions 2 to 6), `GET` and `PUT /api/v1/users/me/profile` with their responses and errors.
+2. Add examples under `docs/api/examples/profile/`: `profile.json`, `profile_empty.json`, `profile_put_request.json`, `error_validation.json`.
+3. In `docs/api/auth.md`, add `PUT /api/v1/users/me/email` and `PUT /api/v1/users/me/password`, the error code `403 incorrect_password`, the rate-limit rule (assumption 9) and the token revocation (assumption 7).
+4. Add their examples under `docs/api/examples/auth/`: `change_email_request.json`, `change_password_request.json`, `error_incorrect_password.json`.
+5. List the `profile` module in `docs/architecture.md` and `CLAUDE.md`.
+6. Run the contract example tests.
+
+**Checklist**
+
+- [ ] `docs/api/profile.md` and `docs/api/examples/profile/` describe `GET` and `PUT /api/v1/users/me/profile`, the field rules and errors
+- [ ] `docs/api/auth.md` and `docs/api/examples/auth/` describe `PUT /api/v1/users/me/email` and `PUT /api/v1/users/me/password`, `incorrect_password`, the rate limit and the token revocation
+- [ ] `docs/architecture.md` and `CLAUDE.md` list the `profile` module
+- [ ] The contract example tests pass
+
+### Task 2: `[profile] feat: GET /users/me/profile (backend)`
+
+**Requirements**
+
+- A new module `profile` with the layers router → service → repository; it does not import the `auth` repository or models.
+- The table `user_profiles` exists, created by one migration that only adds the table.
+- A user with no row gets an empty profile (`null` fields, `unit_system` `metric`), not a `404`.
+
+**Steps**
+
+1. Create `backend/app/modules/profile/` (`models.py`, `schemas.py`, `repository.py`, `service.py`, `deps.py`, `router.py`); import the model in `app/modules/models.py`.
+2. Model `UserProfile` and an Alembic migration for `user_profiles` with the columns and checks in "Approach"; run up, down, up.
+3. `ProfileRepository.get(user_id)`, `ProfileService.get(user_id)` returning the empty profile when there is no row, `ProfileRead` schema.
+4. `GET /api/v1/users/me/profile` in the router, mounted in `app/api/v1/router.py`, declared `user` in `ROUTE_ACCESS`.
+5. Unit tests for the service (row and no row), integration tests for the route (own profile, empty profile, `401` without a token).
+6. Update `docs/api/openapi.json`; run the contract and snapshot tests; add `backend/hurl/profile.hurl` for `GET`.
+
+**Checklist**
+
+- [ ] Module `profile` and `GET /api/v1/users/me/profile` as in the contract; the route is `user` in `ROUTE_ACCESS`
+- [ ] Migration adds `user_profiles` (cascade on user delete, checks); up, down, up verified with `\d user_profiles`
+- [ ] A user with no row gets the empty profile; another user's row never appears
+- [ ] Unit and integration tests, auth sweep, contract and OpenAPI snapshot tests, `pytest -m fuzz`, `backend/hurl/profile.hurl` and its output; `docs/api/openapi.json` updated
+- [ ] `ruff`, `mypy` and the full `pytest` pass
+
+### Task 3: `[profile] feat: PUT /users/me/profile (backend)`
+
+**Requirements**
+
+- `PUT` replaces the whole profile (assumption 6) and is an upsert: the first save creates the row.
+- Every field rule of the contract is checked by the Pydantic schema and answered with `422 validation_error` and its `fields`.
+- The repository only flushes; the service commits. Request bodies are never logged.
+
+**Steps**
+
+1. `ProfileWrite` schema with the field rules: names 1 to 50 characters after trimming, birthday after 1900-01-01 and not in the future, `country` `^[A-Z]{2}$`, `state` up to 100, `gender` and `unit_system` enums, height and weight ranges with one decimal.
+2. `ProfileRepository.upsert(user_id, data)` (`INSERT ... ON CONFLICT (user_id) DO UPDATE`), then `flush`.
+3. `ProfileService.replace(user_id, data)` sets `updated_at` and commits.
+4. `PUT /api/v1/users/me/profile` answering `200` with `ProfileRead`; `user` in `ROUTE_ACCESS`.
+5. Unit tests for each field rule; integration tests for create, replace, clearing a field with `null`, and one user never changing another's row.
+6. Update `docs/api/openapi.json`; extend `profile.hurl`; run the fuzz tests.
+
+**Checklist**
+
+- [ ] `PUT /api/v1/users/me/profile` as in the contract; the route is `user` in `ROUTE_ACCESS`
+- [ ] The first save creates the row, the next ones replace it; a `null` field clears the value
+- [ ] Each field rule answers `422 validation_error` with its field; a user never changes another's profile; bodies are never logged
+- [ ] Unit and integration tests, auth sweep, contract and OpenAPI snapshot tests, `pytest -m fuzz`, `backend/hurl/profile.hurl` extended and its output; `docs/api/openapi.json` updated
+- [ ] `ruff`, `mypy` and the full `pytest` pass
+
+### Task 4: `[auth] feat: PUT /users/me/email (backend)`
+
+**Requirements**
+
+- The current password is checked with the existing hasher. A wrong one answers `403 incorrect_password` and is recorded as a failed sign-in, so the existing limit (by email and by IP) answers `429 rate_limited` with `Retry-After`.
+- The new email is lowercased, must differ from the current one (`422`), and must be free (`409 email_taken`, also when the unique constraint fails in a race).
+- Sessions are not revoked (assumption 8). No password or token is logged.
+
+**Steps**
+
+1. `IncorrectPasswordError` (`DomainError`, `403`, `incorrect_password`) in the `auth` module, mapped by the global handler.
+2. A private `AuthService._verify_current_password(user, password, ip, now)` that enforces the rate limit, checks the hash and records a failed attempt on a wrong one. Task 5 reuses it.
+3. `ChangeEmailRequest` schema; `AuthService.change_email(...)`; repository method to update the email and flush.
+4. `PUT /api/v1/users/me/email` answering `200` with `UserRead`; `user` in `ROUTE_ACCESS`.
+5. Unit tests: success, wrong password (attempt recorded), rate limited, same email, taken email. Integration tests: success then sign in with the new email; race on the unique constraint.
+6. Update `docs/api/openapi.json`; extend `backend/hurl/auth.hurl`; run the fuzz tests.
+
+**Checklist**
+
+- [ ] `PUT /api/v1/users/me/email` as in the contract; the route is `user` in `ROUTE_ACCESS`
+- [ ] A wrong current password answers `403 incorrect_password`, records a failed attempt and counts toward `429 rate_limited`
+- [ ] Same email answers `422`; a taken email answers `409 email_taken`, also on the unique-constraint race; sign-in works with the new email
+- [ ] Unit and integration tests, auth sweep, contract and OpenAPI snapshot tests, `pytest -m fuzz`, `backend/hurl/auth.hurl` extended and its output; `docs/api/openapi.json` updated
+- [ ] `ruff`, `mypy` and the full `pytest` pass
+
+### Task 5: `[auth] feat: PUT /users/me/password (backend)`
+
+**Requirements**
+
+- The current password is checked with `_verify_current_password` from task 4 (same `403` and `429`).
+- The new password follows the contract rule and differs from the current one (`422`).
+- Every refresh token of the user is revoked, and the response is a new `TokenPair` for this device. No password or token is logged.
+
+**Steps**
+
+1. `ChangePasswordRequest` schema with the password rule.
+2. `AuthService.change_password(...)`: verify, re-hash, revoke all the user's refresh tokens (a repository method that sets `revoked_at` and flushes), issue a new pair, commit.
+3. `PUT /api/v1/users/me/password` answering `200` with `TokenPair`; `user` in `ROUTE_ACCESS`.
+4. Unit tests: success, wrong password, rate limited, rule broken, same password. Integration tests: an old refresh token fails after the change, the new pair works, sign in works with the new password only.
+5. Update `docs/api/openapi.json`; extend `auth.hurl`; run the fuzz tests.
+
+**Checklist**
+
+- [ ] `PUT /api/v1/users/me/password` as in the contract; the route is `user` in `ROUTE_ACCESS`
+- [ ] A wrong current password answers `403 incorrect_password` and counts toward `429 rate_limited`; a broken rule or the same password answers `422`
+- [ ] Every refresh token of the user is revoked and a new pair is returned; an old refresh token then fails; sign-in works with the new password only
+- [ ] Unit and integration tests, auth sweep, contract and OpenAPI snapshot tests, `pytest -m fuzz`, `backend/hurl/auth.hurl` extended and its output; `docs/api/openapi.json` updated
+- [ ] `ruff`, `mypy` and the full `pytest` pass
+
+### Task 6: `[profile] feat: Profile tab and settings form layout (mobile)`
+
+**Requirements**
+
+- The Profile tab matches Figma `1:64`, with initials instead of a photo and no Change Avatar (decided by the user), and Sign out under the list (assumption 11).
+- The three sub-routes exist and are pushed on the root navigator, so they cover the tab bar.
+- `SettingsFormLayout` gives tasks 7, 8 and 9 the keyboard handling of the Approach, so they do not depend on each other.
+
+**Steps**
+
+1. Rebuild `features/profile/presentation/pages/profile_page.dart`: initials avatar, the rounded list (Profile, Email, Password) with dividers and chevrons, Sign out.
+2. Add `/profile/info`, `/profile/email`, `/profile/password` in `core/router/app_router.dart` with `parentNavigatorKey` and placeholder pages with a back button.
+3. Write `lib/shared/widgets/settings_form_layout.dart`: app bar with back, scrolling body that resizes for the keyboard, focused field and its error scrolled into view, Save at the bottom of the content, `keyboardDismissBehavior: onDrag`, tap outside to close the keyboard.
+4. Page and golden tests for the Profile tab; keyboard tests for the layout on a sample form (inset of 300, both sizes, text scales 1.0 and 2.0); navigation tests for the three routes.
+
+**Checklist**
+
+- [ ] The Profile tab as in Figma `1:64`: initials avatar, no Change Avatar, the Profile, Email and Password rows, Sign out below
+- [ ] Routes `/profile/info`, `/profile/email`, `/profile/password` on the root navigator with a back button (placeholder pages until tasks 7 to 9)
+- [ ] `SettingsFormLayout` in `lib/shared/widgets/` with the keyboard handling of the Approach, with keyboard page tests on a sample form as in Verification
+- [ ] Page and golden tests at both phone sizes and text scales; `flutter analyze` and `flutter test` pass
+
+### Task 7: `[profile] feat: profile info (mobile, mock)`
+
+**Requirements**
+
+- The form matches Figma `1:100`, inside `SettingsFormLayout`.
+- `domain/` stays pure Dart. Units only change the display; values stay metric (assumption 5).
+- Works without a backend through `FakeProfileRemoteDataSource` (`API_MODE=mock`).
+
+**Steps**
+
+1. `domain`: `Profile` entity, `UnitSystem` and `Gender` enums, `ProfileRepository` interface, failures.
+2. `data`: `ProfileModel` (`freezed` + `json_serializable`, regenerate and commit), `ProfileRemoteDataSource` (Dio) against the contract, `FakeProfileRemoteDataSource` with fixtures equal to the examples, `ProfileRepositoryImpl`; DI registration.
+3. Unit conversions (cm ↔ ft/in, kg ↔ lbs) as pure functions with tests.
+4. `ProfileInfoBloc` (`registerFactory`, created in the route's `BlocProvider`): load, edit, toggle units, save.
+5. `ProfileInfoPage`: fields with Next and Done, Birthday date picker, searchable Country list, Gender bottom sheet, Units switch; pickers close the keyboard first; loading, error, saving, save error and saved states.
+6. Bloc, repository, page, golden and keyboard tests; contract test for the fixtures; screenshot with `API_MODE=mock`.
+
+**Checklist**
+
+- [ ] The form as in Figma `1:100`, with the pickers, the Units switch and conversions
+- [ ] `ProfileRepository`, `ProfileRemoteDataSource` against the contract, `FakeProfileRemoteDataSource` with fixtures equal to the examples, checked in `test/contract`
+- [ ] `ProfileInfoBloc` with loading, error, form, saving, save error and saved states; bloc, page, golden and conversion tests at both phone sizes and text scales
+- [ ] Uses `SettingsFormLayout`: the keyboard never covers a field, its error or Save; Next and Done; tap outside and drag close it; each picker closes it first. Keyboard page tests as in Verification, and a Simulator screenshot with the keyboard open
+- [ ] Screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged`
+
+### Task 8: `[auth] feat: change email (mobile, mock)`
+
+**Requirements**
+
+- The screen matches Figma `1:163`, plus Current Password (decided by the user), with StrideQuest copy.
+- `ChangeEmailBloc` never touches `AuthBloc`; the repository announces the new user on `userUpdated` and `AuthBloc` listens.
+
+**Steps**
+
+1. `AuthRepository.changeEmail` and the `userUpdated` stream; remote data source method and fake with fixtures equal to the examples.
+2. `AuthBloc` listens to `userUpdated` and replaces the user in `AuthAuthenticated`.
+3. `ChangeEmailBloc` and `ChangeEmailPage` in `features/auth/presentation`, inside `SettingsFormLayout`: Save enabled only for a changed, valid email and a password; errors under the right field or as a banner.
+4. Bloc, repository, page, golden and keyboard tests; screenshot with `API_MODE=mock`.
+
+**Checklist**
+
+- [ ] The Email screen as in Figma `1:163` plus Current Password; Save enabled only for a changed, valid email and a password; StrideQuest copy
+- [ ] `ChangeEmailBloc`; `AuthRepository.changeEmail` and the `userUpdated` stream; `AuthBloc` shows the new email
+- [ ] `incorrect_password`, `email_taken`, `rate_limited` and field errors shown; fake data source fixtures equal to the examples
+- [ ] Uses `SettingsFormLayout`: the keyboard never covers a field, its error or Save; Next and Done; tap outside closes it. Keyboard page tests as in Verification, and a Simulator screenshot with the keyboard open
+- [ ] Bloc, repository, page and golden tests at both phone sizes and text scales; screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged`
+
+### Task 9: `[auth] feat: change password (mobile, mock)`
+
+**Requirements**
+
+- The screen matches Figma `1:137`, without Forgot Password? (assumption 10) and with the contract's rule as the hint.
+- The new token pair is stored before the bloc reports success, so the next request uses it.
+
+**Steps**
+
+1. `AuthRepository.changePassword` storing the new pair in secure storage; remote data source method and fake with fixtures equal to the examples.
+2. `ChangePasswordBloc` and `ChangePasswordPage` in `features/auth/presentation`, inside `SettingsFormLayout`: Current, New, Confirm (must match), show/hide toggles, Next and Done.
+3. Bloc, repository (pair stored), page, golden and keyboard tests; screenshot with `API_MODE=mock`.
+
+**Checklist**
+
+- [ ] The Password screen as in Figma `1:137`, without Forgot Password?, with the contract's rule as the hint, matching confirmation and show/hide toggles
+- [ ] `ChangePasswordBloc`; `AuthRepository.changePassword` stores the new token pair
+- [ ] `incorrect_password`, `rate_limited` and field errors shown; fake data source fixtures equal to the examples
+- [ ] Uses `SettingsFormLayout`: the keyboard never covers a field, its error or Save; Next and Done; tap outside closes it. Keyboard page tests as in Verification, and a Simulator screenshot with the keyboard open
+- [ ] Bloc, repository, page and golden tests at both phone sizes and text scales; screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged`
+
+### Task 10: `[profile] feat: profile info (mobile, integration)`
+
+**Requirements**
+
+- Integration gate: tasks 2 and 3 are closed and their endpoints are in `docs/api/openapi.json` on `develop`. Otherwise stop and name the open task.
+
+**Steps**
+
+1. Run the app against the local backend; fix any drift from the contract in the data source.
+2. Check error mapping for each documented error; add remote data source tests for them.
+3. Fill the Integration row of the evidence.
+
+**Checklist**
+
+- [ ] The app against the local backend: load an empty profile, save every field, reopen and see them, in both unit systems; each documented error shown. Integration gate: 2 and 3 are closed and their endpoints are in `openapi.json` on `develop`
+
+### Task 11: `[auth] feat: change email (mobile, integration)`
+
+**Requirements**
+
+- Integration gate: task 4 is closed and its endpoint is in `docs/api/openapi.json` on `develop`.
+
+**Steps**
+
+1. Run the app against the local backend; change the email; sign out and sign in with the new one.
+2. Trigger `incorrect_password`, `email_taken` and `rate_limited`; check the messages; add remote data source tests.
+3. Fill the Integration row of the evidence.
+
+**Checklist**
+
+- [ ] The app against the local backend: change the email and sign in with it; `incorrect_password`, `email_taken`, `rate_limited` and a field error shown. Integration gate: 4 is closed and its endpoint is in `openapi.json` on `develop`
+
+### Task 12: `[auth] feat: change password (mobile, integration)`
+
+**Requirements**
+
+- Integration gate: task 5 is closed and its endpoint is in `docs/api/openapi.json` on `develop`.
+
+**Steps**
+
+1. Run the app against the local backend; change the password; keep using the app (the new pair works); sign out and sign in with the new password.
+2. Trigger `incorrect_password`, `rate_limited` and a rule error; add remote data source tests.
+3. Fill the Integration row of the evidence.
+
+**Checklist**
+
+- [ ] The app against the local backend: change the password, keep working on this device, sign in with the new password; `incorrect_password`, `rate_limited` and a field error shown. Integration gate: 5 is closed and its endpoint is in `openapi.json` on `develop`
 
 ## Issues to create
+
+The acceptance criteria are each task's checklist above.
 
 | # | Title | Labels | Acceptance criteria | Depends on |
 | --- | --- | --- | --- | --- |
 | 1 | `[profile] docs: profile, email and password contract` | docs, area:profile | - [ ] `docs/api/profile.md` and `docs/api/examples/profile/` describe `GET` and `PUT /api/v1/users/me/profile`, the field rules and errors<br>- [ ] `docs/api/auth.md` and `docs/api/examples/auth/` describe `PUT /api/v1/users/me/email` and `PUT /api/v1/users/me/password`, `incorrect_password`, the rate limit and the token revocation<br>- [ ] `docs/architecture.md` and `CLAUDE.md` list the `profile` module<br>- [ ] The contract example tests pass | none |
-| 2 | `[profile] feat: profile API (backend)` | backend, area:profile | - [ ] Module `profile` with `GET` and `PUT /api/v1/users/me/profile` as in the contract; routes `user` in `ROUTE_ACCESS`<br>- [ ] Migration adds `user_profiles` (cascade on user delete, checks); up, down, up verified with `\d user_profiles`<br>- [ ] A user never reads or changes another's profile; bodies are never logged<br>- [ ] Unit and integration tests, contract and OpenAPI snapshot tests, `pytest -m fuzz`, `backend/hurl/profile.hurl` and its output; `docs/api/openapi.json` updated<br>- [ ] `ruff`, `mypy` and the full `pytest` pass | 1 |
-| 3 | `[auth] feat: change email and password API (backend)` | backend, area:auth, human-merge | - [ ] `PUT /api/v1/users/me/email` and `PUT /api/v1/users/me/password` as in the contract<br>- [ ] A wrong current password answers `403 incorrect_password`, records a failed attempt and counts toward `429 rate_limited`<br>- [ ] A password change revokes every refresh token of the user and returns a new pair; an old refresh token then fails<br>- [ ] Unit and integration tests, auth sweep, contract and OpenAPI snapshot tests, `pytest -m fuzz`, `backend/hurl/auth.hurl` extended and its output; `docs/api/openapi.json` updated<br>- [ ] `ruff`, `mypy` and the full `pytest` pass | 1 |
-| 4 | `[profile] feat: Profile tab with account settings list (mobile)` | frontend, area:profile | - [ ] The Profile tab as in Figma `1:64`: initials avatar, no Change Avatar, the Profile, Email and Password rows, Sign out below<br>- [ ] Routes `/profile/info`, `/profile/email`, `/profile/password` on the root navigator with a back button (placeholder pages until issues 5 to 7)<br>- [ ] `SettingsFormLayout` in `lib/shared/widgets/` with the keyboard handling of the Approach (resize, scroll the focused field and its error into view, Save reachable, tap outside and drag close the keyboard), with keyboard page tests on a sample form as in Verification<br>- [ ] Page and golden tests at both phone sizes and text scales; `flutter analyze` and `flutter test` pass | none |
-| 5 | `[profile] feat: profile info (mobile, mock)` | frontend, mock, area:profile | - [ ] The form as in Figma `1:100`, with the pickers, the Units switch and conversions<br>- [ ] `ProfileRepository`, `ProfileRemoteDataSource` against the contract, `FakeProfileRemoteDataSource` with fixtures equal to the examples, checked in `test/contract`<br>- [ ] `ProfileInfoBloc` with loading, error, form, saving, save error and saved states; bloc, page, golden and conversion tests at both phone sizes and text scales<br>- [ ] Uses `SettingsFormLayout`: the keyboard never covers a field, its error or Save; Next and Done; tap outside and drag close it; each picker closes it first. Keyboard page tests as in Verification, and a Simulator screenshot with the keyboard open<br>- [ ] Screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged` | 1, 4 |
-| 6 | `[auth] feat: change email (mobile, mock)` | frontend, mock, area:auth, human-merge | - [ ] The Email screen as in Figma `1:163` plus Current Password; Save enabled only for a changed, valid email and a password; StrideQuest copy<br>- [ ] `ChangeEmailBloc`; `AuthRepository.changeEmail` and the `userUpdated` stream; `AuthBloc` shows the new email<br>- [ ] `incorrect_password`, `email_taken`, `rate_limited` and field errors shown; fake data source fixtures equal to the examples<br>- [ ] Uses `SettingsFormLayout`: the keyboard never covers a field, its error or Save; Next and Done; tap outside closes it. Keyboard page tests as in Verification, and a Simulator screenshot with the keyboard open<br>- [ ] Bloc, repository, page and golden tests at both phone sizes and text scales; screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged` | 1, 4 |
-| 7 | `[auth] feat: change password (mobile, mock)` | frontend, mock, area:auth, human-merge | - [ ] The Password screen as in Figma `1:137`, without Forgot Password?, with the contract's rule as the hint, matching confirmation and show/hide toggles<br>- [ ] `ChangePasswordBloc`; `AuthRepository.changePassword` stores the new token pair<br>- [ ] `incorrect_password`, `rate_limited` and field errors shown; fake data source fixtures equal to the examples<br>- [ ] Uses `SettingsFormLayout`: the keyboard never covers a field, its error or Save; Next and Done; tap outside closes it. Keyboard page tests as in Verification, and a Simulator screenshot with the keyboard open<br>- [ ] Bloc, repository, page and golden tests at both phone sizes and text scales; screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged` | 1, 4 |
-| 8 | `[profile] feat: profile info (mobile, integration)` | frontend, integration, area:profile | - [ ] The app against the local backend: load an empty profile, save every field, reopen and see them, in both unit systems; each documented error shown. Integration gate: 2 is closed and its endpoints are in `openapi.json` on `develop` | 2, 5 |
-| 9 | `[auth] feat: change email and password (mobile, integration)` | frontend, integration, area:auth, human-merge | - [ ] The app against the local backend: change the email and sign in with it; change the password, keep working on this device, sign in with the new password; each documented error shown. Integration gate: 3 is closed and its endpoints are in `openapi.json` on `develop` | 3, 6, 7 |
+| 2 | `[profile] feat: GET /users/me/profile (backend)` | backend, area:profile | - [ ] Module `profile` and `GET /api/v1/users/me/profile` as in the contract; the route is `user` in `ROUTE_ACCESS`<br>- [ ] Migration adds `user_profiles` (cascade on user delete, checks); up, down, up verified with `\d user_profiles`<br>- [ ] A user with no row gets the empty profile; another user's row never appears<br>- [ ] Unit and integration tests, auth sweep, contract and OpenAPI snapshot tests, `pytest -m fuzz`, `backend/hurl/profile.hurl` and its output; `docs/api/openapi.json` updated<br>- [ ] `ruff`, `mypy` and the full `pytest` pass | 1 |
+| 3 | `[profile] feat: PUT /users/me/profile (backend)` | backend, area:profile | - [ ] `PUT /api/v1/users/me/profile` as in the contract; the route is `user` in `ROUTE_ACCESS`<br>- [ ] The first save creates the row, the next ones replace it; a `null` field clears the value<br>- [ ] Each field rule answers `422 validation_error` with its field; a user never changes another's profile; bodies are never logged<br>- [ ] Unit and integration tests, auth sweep, contract and OpenAPI snapshot tests, `pytest -m fuzz`, `backend/hurl/profile.hurl` extended and its output; `docs/api/openapi.json` updated<br>- [ ] `ruff`, `mypy` and the full `pytest` pass | 2 |
+| 4 | `[auth] feat: PUT /users/me/email (backend)` | backend, area:auth, human-merge | - [ ] `PUT /api/v1/users/me/email` as in the contract; the route is `user` in `ROUTE_ACCESS`<br>- [ ] A wrong current password answers `403 incorrect_password`, records a failed attempt and counts toward `429 rate_limited`<br>- [ ] Same email answers `422`; a taken email answers `409 email_taken`, also on the unique-constraint race; sign-in works with the new email<br>- [ ] Unit and integration tests, auth sweep, contract and OpenAPI snapshot tests, `pytest -m fuzz`, `backend/hurl/auth.hurl` extended and its output; `docs/api/openapi.json` updated<br>- [ ] `ruff`, `mypy` and the full `pytest` pass | 1 |
+| 5 | `[auth] feat: PUT /users/me/password (backend)` | backend, area:auth, human-merge | - [ ] `PUT /api/v1/users/me/password` as in the contract; the route is `user` in `ROUTE_ACCESS`<br>- [ ] A wrong current password answers `403 incorrect_password` and counts toward `429 rate_limited`; a broken rule or the same password answers `422`<br>- [ ] Every refresh token of the user is revoked and a new pair is returned; an old refresh token then fails; sign-in works with the new password only<br>- [ ] Unit and integration tests, auth sweep, contract and OpenAPI snapshot tests, `pytest -m fuzz`, `backend/hurl/auth.hurl` extended and its output; `docs/api/openapi.json` updated<br>- [ ] `ruff`, `mypy` and the full `pytest` pass | 4 |
+| 6 | `[profile] feat: Profile tab and settings form layout (mobile)` | frontend, area:profile | - [ ] The Profile tab as in Figma `1:64`: initials avatar, no Change Avatar, the Profile, Email and Password rows, Sign out below<br>- [ ] Routes `/profile/info`, `/profile/email`, `/profile/password` on the root navigator with a back button (placeholder pages until tasks 7 to 9)<br>- [ ] `SettingsFormLayout` in `lib/shared/widgets/` with the keyboard handling of the Approach, with keyboard page tests on a sample form as in Verification<br>- [ ] Page and golden tests at both phone sizes and text scales; `flutter analyze` and `flutter test` pass | none |
+| 7 | `[profile] feat: profile info (mobile, mock)` | frontend, mock, area:profile | - [ ] The form as in Figma `1:100`, with the pickers, the Units switch and conversions<br>- [ ] `ProfileRepository`, `ProfileRemoteDataSource` against the contract, `FakeProfileRemoteDataSource` with fixtures equal to the examples, checked in `test/contract`<br>- [ ] `ProfileInfoBloc` with loading, error, form, saving, save error and saved states; bloc, page, golden and conversion tests at both phone sizes and text scales<br>- [ ] Uses `SettingsFormLayout`: the keyboard never covers a field, its error or Save; Next and Done; tap outside and drag close it; each picker closes it first. Keyboard page tests as in Verification, and a Simulator screenshot with the keyboard open<br>- [ ] Screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged` | 1, 6 |
+| 8 | `[auth] feat: change email (mobile, mock)` | frontend, mock, area:auth, human-merge | - [ ] The Email screen as in Figma `1:163` plus Current Password; Save enabled only for a changed, valid email and a password; StrideQuest copy<br>- [ ] `ChangeEmailBloc`; `AuthRepository.changeEmail` and the `userUpdated` stream; `AuthBloc` shows the new email<br>- [ ] `incorrect_password`, `email_taken`, `rate_limited` and field errors shown; fake data source fixtures equal to the examples<br>- [ ] Uses `SettingsFormLayout`: the keyboard never covers a field, its error or Save; Next and Done; tap outside closes it. Keyboard page tests as in Verification, and a Simulator screenshot with the keyboard open<br>- [ ] Bloc, repository, page and golden tests at both phone sizes and text scales; screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged` | 1, 6 |
+| 9 | `[auth] feat: change password (mobile, mock)` | frontend, mock, area:auth, human-merge | - [ ] The Password screen as in Figma `1:137`, without Forgot Password?, with the contract's rule as the hint, matching confirmation and show/hide toggles<br>- [ ] `ChangePasswordBloc`; `AuthRepository.changePassword` stores the new token pair<br>- [ ] `incorrect_password`, `rate_limited` and field errors shown; fake data source fixtures equal to the examples<br>- [ ] Uses `SettingsFormLayout`: the keyboard never covers a field, its error or Save; Next and Done; tap outside closes it. Keyboard page tests as in Verification, and a Simulator screenshot with the keyboard open<br>- [ ] Bloc, repository, page and golden tests at both phone sizes and text scales; screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged` | 1, 6 |
+| 10 | `[profile] feat: profile info (mobile, integration)` | frontend, integration, area:profile | - [ ] The app against the local backend: load an empty profile, save every field, reopen and see them, in both unit systems; each documented error shown. Integration gate: 2 and 3 are closed and their endpoints are in `openapi.json` on `develop` | 2, 3, 7 |
+| 11 | `[auth] feat: change email (mobile, integration)` | frontend, integration, area:auth, human-merge | - [ ] The app against the local backend: change the email and sign in with it; `incorrect_password`, `email_taken`, `rate_limited` and a field error shown. Integration gate: 4 is closed and its endpoint is in `openapi.json` on `develop` | 4, 8 |
+| 12 | `[auth] feat: change password (mobile, integration)` | frontend, integration, area:auth, human-merge | - [ ] The app against the local backend: change the password, keep working on this device, sign in with the new password; `incorrect_password`, `rate_limited` and a field error shown. Integration gate: 5 is closed and its endpoint is in `openapi.json` on `develop` | 5, 9 |
