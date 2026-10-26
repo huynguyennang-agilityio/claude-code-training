@@ -9,3 +9,4 @@ One line per finished task, appended at the end, in the task's last commit befor
 A task that touches `mobile/` too also writes a line in `mobile/PROGRESS.md`. Read the end of this file with `tail -n 30`. Past 200 lines, move the older lines to `PROGRESS-archive.md`.
 
 ## Done
+- 2026-10-26 [profile] #120 docs: profile, email and password contract. Adds `docs/api/profile.md`, the email and password routes and `incorrect_password` in `docs/api/auth.md`, and their examples.

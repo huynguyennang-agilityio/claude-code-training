@@ -18,7 +18,13 @@ from pydantic import BaseModel, Field, field_validator
 from app.core.errors import ErrorResponse
 from app.main import create_app
 from app.modules.auth.service import ForbiddenError
-from tests.api_docs import API_DOCS_DIR, AUTH_MODULE_ERROR_CODES, error_codes, load_example
+from tests.api_docs import (
+    API_DOCS_DIR,
+    AUTH_MODULE_ERROR_CODES,
+    DOCUMENTED_NOT_YET_SERVED_ERROR_CODES,
+    error_codes,
+    load_example,
+)
 
 # code -> (method, path, status). The routes under /test are added by `app_under_test`.
 IMPLEMENTED: dict[str, tuple[str, str, int]] = {
@@ -86,7 +92,8 @@ async def trigger(client: AsyncClient, code: str) -> Response:
 def test_every_documented_code_is_tested_here_or_in_the_auth_api_tests() -> None:
     documented = error_codes(API_DOCS_DIR / "auth.md")
 
-    assert sorted(documented) == sorted(set(IMPLEMENTED) | AUTH_MODULE_ERROR_CODES)
+    served = set(IMPLEMENTED) | AUTH_MODULE_ERROR_CODES | DOCUMENTED_NOT_YET_SERVED_ERROR_CODES
+    assert sorted(documented) == sorted(served)
     assert not set(IMPLEMENTED) & AUTH_MODULE_ERROR_CODES
 
 

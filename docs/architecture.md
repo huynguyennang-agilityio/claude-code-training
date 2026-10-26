@@ -19,6 +19,7 @@ flowchart LR
         CH["challenges"]
         RUNS["runs"]
         MED["medals"]
+        PROF["profile"]
     end
     API --- API_MODULES
 ```
@@ -160,6 +161,7 @@ backend/
 │   │   ├── challenges/        # Same files
 │   │   ├── runs/              # Same files, plus validation.py (validate_run)
 │   │   ├── medals/            # Same files
+│   │   ├── profile/           # Same files (user_profiles: optional personal details)
 │   │   └── models.py          # Imports every module's models for Base.metadata
 │   ├── api/
 │   │   └── v1/
@@ -195,18 +197,20 @@ Presentation copy: [`diagrams/backend-modules.svg`](diagrams/backend-modules.svg
 ```mermaid
 flowchart TB
     MAIN["main.py"] --> V1["api/v1/router"]
-    V1 --> AR["auth.router"] & CR["challenges.router"] & RR["runs.router"] & MR["medals.router"]
+    V1 --> AR["auth.router"] & CR["challenges.router"] & RR["runs.router"] & MR["medals.router"] & PR["profile.router"]
     AR --> AS["auth.service"]
     CR --> CS["challenges.service"]
     RR --> RS["runs.service"]
     MR --> MS["medals.service"]
+    PR --> PS["profile.service"]
     RS -->|"validate against rules"| CS
     RS -->|"award medal"| MS
     AS --> ARP["auth.repository"]
     CS --> CRP["challenges.repository"]
     RS --> RRP["runs.repository"]
     MS --> MRP["medals.repository"]
-    ARP & CRP & RRP & MRP --> DB[("PostgreSQL")]
+    PS --> PRP["profile.repository"]
+    ARP & CRP & RRP & MRP & PRP --> DB[("PostgreSQL")]
     MS --> STORE["core.storage"]
     subgraph CORE["core"]
         CFG["config"]

@@ -19,6 +19,8 @@ This is the source of truth for sign up and sign in between the Flutter app and 
 | `POST` | `/api/v1/auth/refresh` | none (refresh token in body) | Swap a refresh token for a new token pair |
 | `POST` | `/api/v1/auth/signout` | none (refresh token in body) | Revoke a refresh token |
 | `GET` | `/api/v1/users/me` | access token | Read the signed-in user, with their `role` |
+| `PUT` | `/api/v1/users/me/email` | access token | Change the email, with the current password |
+| `PUT` | `/api/v1/users/me/password` | access token | Change the password, with the current password |
 
 ## Roles
 
@@ -145,7 +147,8 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 | 401 | `invalid_token` | The access token is malformed, has a bad signature, or its user no longer exists. |
 | 401 | `token_expired` | The access token has expired. Refresh and retry. |
 | 403 | `forbidden` | The caller is signed in, but the route needs the `admin` role. |
-| 429 | `rate_limited` | Too many failed sign-ins for this email or device. Wait for the number of seconds in the `Retry-After` header. |
+| 403 | `incorrect_password` | The `current_password` sent to change the email or the password is wrong. It is not `401`, so the app's refresh-and-retry (for `token_expired` and `invalid_token`) never runs for it. |
+| 429 | `rate_limited` | Too many failed sign-ins (a wrong `current_password` counts) for this email or device. Wait for the number of seconds in the `Retry-After` header. |
 | 404 | `not_found` | No route matches the path. |
 | 405 | `method_not_allowed` | The path exists but not for this method. The `Allow` header lists the valid methods. |
 | any 4xx/5xx | `http_error` | Any other HTTP error with no more specific code. The status code is kept. |
@@ -229,6 +232,69 @@ Header: `Authorization: Bearer <access_token>`.
 Responses:
 
 - `200 OK` with `User`.
+- `401 not_authenticated`, `401 invalid_token`, `401 token_expired`.
+
+## `PUT /api/v1/users/me/email`
+
+Header: `Authorization: Bearer <access_token>`.
+
+Request:
+
+<!-- example: auth/change_email_request.json -->
+```json
+{
+  "new_email": "new.runner@example.com",
+  "current_password": "run4medals"
+}
+```
+
+`new_email` follows the `email` rule and is stored lowercase. The change applies at once: there is no verification email (see "Out of scope for the MVP").
+
+Responses:
+
+- `200 OK` with the updated `User`. Sessions are not revoked: the tokens in use stay valid, since the password does not change.
+- `403 incorrect_password`:
+
+<!-- example: auth/error_incorrect_password.json -->
+```json
+{
+  "error": {
+    "code": "incorrect_password",
+    "message": "The current password is incorrect.",
+    "fields": []
+  }
+}
+```
+
+- `409 email_taken` when another account has that email, including when two requests race and the database unique constraint fails.
+- `422 validation_error` when `new_email` breaks the rule or equals the current email.
+- `429 rate_limited` with a `Retry-After` header.
+- `401 not_authenticated`, `401 invalid_token`, `401 token_expired`.
+
+A wrong `current_password` is recorded as a failed sign-in for the rate limit of `POST /api/v1/auth/signin` (by the user's email and by IP), so these routes cannot be used to guess the password. Once the limit is reached, the route answers `429` even with the right password.
+
+## `PUT /api/v1/users/me/password`
+
+Header: `Authorization: Bearer <access_token>`.
+
+Request:
+
+<!-- example: auth/change_password_request.json -->
+```json
+{
+  "current_password": "run4medals",
+  "new_password": "newrun5medals"
+}
+```
+
+`new_password` follows the `password` rule and must differ from `current_password`.
+
+Responses:
+
+- `200 OK` with a new `TokenPair` for the device in use. Every refresh token of the user is revoked, including the one this device held, so the app must store the new pair at once and every other device is signed out when its access token expires. Access tokens issued before stay valid until they expire (15 minutes by default); there is no deny list.
+- `403 incorrect_password` (the example above).
+- `422 validation_error` when `new_password` breaks the rule or equals `current_password`.
+- `429 rate_limited` with a `Retry-After` header, under the same rate limit as above.
 - `401 not_authenticated`, `401 invalid_token`, `401 token_expired`.
 
 ## Out of scope for the MVP

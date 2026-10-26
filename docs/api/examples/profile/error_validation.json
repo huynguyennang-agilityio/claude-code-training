@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Request is invalid.",
+    "fields": [
+      { "field": "country", "message": "Country must be a two-letter code in capitals." },
+      { "field": "height_cm", "message": "Height must be between 50.0 and 272.0 cm." }
+    ]
+  }
+}

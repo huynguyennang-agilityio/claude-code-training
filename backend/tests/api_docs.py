@@ -50,3 +50,8 @@ AUTH_MODULE_ERROR_CODES = frozenset(
         "rate_limited",
     }
 )
+
+# Documented in `docs/api/auth.md` before the backend serves them (plan 024). The tasks that
+# add the routes (#123, #124) move `incorrect_password` into `AUTH_MODULE_ERROR_CODES` with
+# the integration test that produces it, and empty this set.
+DOCUMENTED_NOT_YET_SERVED_ERROR_CODES = frozenset({"incorrect_password"})
