@@ -213,4 +213,22 @@ void main() {
       expect(nodes.last.hasFocus, isFalse);
     },
   );
+
+  testWidgets(
+    'dragging sideways inside a long single-line field keeps the keyboard',
+    (tester) async {
+      await pumpForm(tester, textScale: 2);
+      await openKeyboard(tester);
+      final field = find.byKey(const Key('field0'));
+      await tester.enterText(field, 'a very long text ' * 8);
+      nodes.first.requestFocus();
+      await tester.pumpAndSettle();
+      expect(nodes.first.hasFocus, isTrue);
+
+      await tester.drag(field, const Offset(-100, 0));
+      await tester.pumpAndSettle();
+
+      expect(nodes.first.hasFocus, isTrue);
+    },
+  );
 }

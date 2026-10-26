@@ -72,17 +72,25 @@ class SettingsFormLayout extends StatelessWidget {
               constraints: const BoxConstraints(
                 maxWidth: AppSizes.formMaxWidth,
               ),
-              // `onDrag` does not close the keyboard when a drag only pulls
-              // the content down at its top (Android: nothing moves), so a
-              // finger that starts dragging the content closes it here.
+              // A finger that starts dragging the content closes the keyboard,
+              // also when the drag only pulls down at the top (nothing moves).
               child: NotificationListener<ScrollStartNotification>(
                 onNotification: (notification) {
-                  if (notification.dragDetails != null) _closeKeyboard();
+                  // Only the form's own vertical scroll: a text field has a
+                  // horizontal Scrollable of its own (depth > 0).
+                  if (notification.depth == 0 &&
+                      notification.metrics.axis == Axis.vertical &&
+                      notification.dragDetails != null) {
+                    _closeKeyboard();
+                  }
                   return false;
                 },
                 child: CustomScrollView(
+                  // No `keyboardDismissBehavior: onDrag`: it also reacts to a
+                  // text field's own horizontal scroll. The listener above
+                  // closes the keyboard for the form's vertical drags only.
                   keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
+                      ScrollViewKeyboardDismissBehavior.manual,
                   slivers: [
                     SliverPadding(
                       padding: const EdgeInsets.all(AppSpacing.md),

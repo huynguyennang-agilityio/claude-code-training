@@ -169,6 +169,27 @@ void main() {
       expect((await fake.get()).toJson(), profileFixture);
     });
 
+    test(
+      'today in UTC is a valid birthday, tomorrow is not, at 23:30 UTC',
+      () async {
+        final fake = FakeProfileRemoteDataSource(
+          now: () => DateTime.utc(2026, 10, 26, 23, 30),
+        );
+
+        final saved = await fake.put(
+          const ProfileModel(unitSystem: 'metric', birthday: '2026-10-26'),
+        );
+        final failure = await _failureOf(
+          fake.put(
+            const ProfileModel(unitSystem: 'metric', birthday: '2026-10-27'),
+          ),
+        );
+
+        expect(saved.birthday, '2026-10-26');
+        expect(failure.fieldErrors.keys, ['birthday']);
+      },
+    );
+
     test('a birthday of 1900-01-01 is refused, the next day is fine', () async {
       final fake = FakeProfileRemoteDataSource();
 

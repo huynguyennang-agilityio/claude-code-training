@@ -38,8 +38,12 @@ class FakeProfileRemoteDataSource implements ProfileRemoteDataSource {
   }
 
   Map<String, String> _validate(ProfileModel p) {
-    final birthday = p.birthday == null ? null : DateTime.tryParse(p.birthday!);
-    final today = _now().toUtc();
+    // Both sides are UTC calendar dates, like the backend's check.
+    final birthday = p.birthday == null
+        ? null
+        : DateTime.tryParse('${p.birthday}T00:00:00Z');
+    final now = _now().toUtc();
+    final today = DateTime.utc(now.year, now.month, now.day);
     return {
       if (!_name(p.firstName))
         'first_name': 'First name is 1 to 50 characters.',
