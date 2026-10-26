@@ -13,6 +13,7 @@ The rules of Phase 1 are in [`.claude/workflow/plan.md`](../../workflow/plan.md)
 
 Write the plan the old way (a file on a `docs/plan-NNN-<name>` branch with its own PR, `.claude/workflow/plan.md`) when:
 
+- **Transition, until #115 merges:** `/approve-plan` cannot read an artifact yet (its step 2 stops without an open plan PR). Until `.claude/skills/approve-plan/SKILL.md` on `develop` has an artifact path, show the draft as an artifact for review if the user wants, but write the plan file, push its branch and open its PR the old way before asking for `/approve-plan`. #115 removes this line;
 - the session has no Artifact tool (for example `@claude` on GitHub);
 - the plan already exists as an open plan PR (a plan written before this skill, like plan 022): keep editing that file.
 

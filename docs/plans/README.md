@@ -40,7 +40,7 @@ Copy this into `docs/plans/NNN-<short-name>.md`.
 Status: draft
 Approved: <YYYY-MM-DD; /approve-plan adds the user's words after the date>
 Issues: <filled in after approval>
-Draft: <artifact link, version id; /approve-plan fills it in, or "none" for a plan written as a file>
+Draft: <artifact link, version id, filled in by /approve-plan; the author of a plan written as a file writes "none">
 
 ## Context
 
