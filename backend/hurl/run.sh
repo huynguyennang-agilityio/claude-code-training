@@ -52,4 +52,6 @@ hurl --test --variable "base=$base" --variable "admin_token=$admin_token" \
   --variable "day_after_tomorrow=$(day 2)" \
   --variable "title=Hurl runs $stamp" --variable "sample_start=$sample_start" \
   --variable "sample_end=$sample_end" "$dir/runs.hurl"
+hurl --test --variable "base=$base" --variable "user_token=$user_token" \
+  --variable "other_token=$other_token" "$dir/profile.hurl"
 if $rate_limit; then run auth_rate_limit.hurl; fi
