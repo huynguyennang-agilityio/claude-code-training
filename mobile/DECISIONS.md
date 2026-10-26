@@ -15,3 +15,5 @@ Loaded through `mobile/CLAUDE.md` whenever Claude works on files under `mobile/`
 - **2026-10-23, plan 015.** Golden baselines only match on macOS (Apple Silicon). Generate them there with `flutter test --update-goldens --tags golden`; CI checks them in the `goldens` job on `macos-15`.
 - **2026-10-23, plan 009.** A `Fake<Feature>RemoteDataSource` fixture must equal its file in `docs/api/examples/`; `flutter test test/contract` checks it. Change the example first, then the fixture.
 - **2026-10-23, CLAUDE.md.** Regenerate `freezed` and `json_serializable` code with `dart run build_runner build --force-jit` and commit the generated files.
+- **2026-10-26, #125.** A screen without the tab bar is a top-level `GoRoute` above the `StatefulShellRoute` (like `ChallengeDetailPage`), not a `parentNavigatorKey` route: the app has no navigator keys.
+- **2026-10-26, #125.** A text field inside `SettingsFormLayout` passes `scrollPadding: SettingsFormLayout.scrollPadding`, or its error line can end up under the keyboard.
