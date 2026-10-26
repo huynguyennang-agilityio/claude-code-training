@@ -1,9 +1,10 @@
 # Plans
 
-Every non-trivial change starts with a plan file here, before any issue, branch or code. The flow is in [`.claude/workflow/plan.md`](../../.claude/workflow/plan.md#phase-1-plan-approval-and-issues) and drawn in [`../workflow.md`](../workflow.md).
+Every non-trivial change starts with a plan, before any issue, branch or code. The flow is in [`.claude/workflow/plan.md`](../../.claude/workflow/plan.md#phase-1-plan-approval-and-issues) and drawn in [`../workflow.md`](../workflow.md).
 
-- **Name:** `docs/plans/NNN-<short-name>.md`, where `NNN` is the next number (`001`, `002`, ...).
-- **Branch:** `docs/plan-NNN-<short-name>` from `develop`, with its own PR into `develop`. A plan needs no issue.
+- **Draft:** a draft plan is a Vietnamese artifact (a private claude.ai page), written with the [`plan-artifact`](../../.claude/skills/plan-artifact/SKILL.md) skill ([plan 023](023-task-breakdown-skill.md)). Nothing reaches git or GitHub until the user runs `/approve-plan <NNN>`, which writes the file here in English, with a `Draft:` line naming the artifact link and version. Without the Artifact tool (for example `@claude` on GitHub), the draft is a file on its own branch and PR, as before.
+- **Name:** `docs/plans/NNN-<short-name>.md`, where `NNN` is the next number (`001`, `002`, ...), counting the open `docs/plan-*` branches too.
+- **Branch:** `docs/plan-NNN-<short-name>` from `develop`, with its own PR into `develop`, made by `/approve-plan` (or by hand in the old flow). A plan needs no issue.
 - **Status:** the first line after the title is `Status: draft` or `Status: approved`. **Only the user approves a plan**: in chat, by running `/approve-plan <NNN>` (Claude cannot start it; a plain "plan 019 ok" gets a request to run the command), after which the skill writes `approved` with the date and their words, creates the issues and merges the plan PR; or on GitHub, by setting `approved` with the date and merging the PR. Claude never writes `approved` any other way. A plan edited after approval goes back to `draft`; recording its issue numbers, and merging `develop` into the plan branch without changing the plan file, are not edits.
 - **Issues:** Claude creates issues only from an approved plan, exactly as the plan lists them, and writes the numbers into the `Issues:` line and the "Depends on" column. Through `/approve-plan` this happens in the plan PR itself, so one PR covers the plan, its approval and its issue numbers. A plan approved on GitHub gets its issues once it is on `develop`, with a separate docs PR for the numbers.
 - **Issue titles and areas:** every issue title starts with its area, `[area] type: summary` (for example `[auth] feat: sign in (mobile, mock)`), and the issue carries the matching `area:<area>` label next to its other labels. Tools filter by the label (`gh issue list --label area:auth`), not by the title. The areas are below; a new one is added here through a plan ([plan 019](019-area-autopilot.md)).
@@ -39,6 +40,7 @@ Copy this into `docs/plans/NNN-<short-name>.md`.
 Status: draft
 Approved: <YYYY-MM-DD; /approve-plan adds the user's words after the date>
 Issues: <filled in after approval>
+Draft: <artifact link, version id; /approve-plan fills it in, or "none" for a plan written as a file>
 
 ## Context
 
