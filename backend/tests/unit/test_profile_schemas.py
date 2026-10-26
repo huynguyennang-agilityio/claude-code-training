@@ -146,6 +146,12 @@ def test_height_is_a_number_with_at_most_one_decimal(value: object) -> None:
     assert list(failing_fields(body(height_cm=value))) == ["height_cm"]
 
 
+@pytest.mark.parametrize("field", ["height_cm", "weight_kg"])
+@pytest.mark.parametrize("value", [1e308, -1e308])
+def test_a_huge_float_is_a_validation_error_not_a_crash(field: str, value: float) -> None:
+    assert list(failing_fields(body(**{field: value}))) == [field]
+
+
 def test_a_whole_number_is_a_valid_weight() -> None:
     assert ProfileWrite.model_validate(body(weight_kg=70)).weight_kg == Decimal("70")
 

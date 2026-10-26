@@ -252,6 +252,14 @@ async def test_a_missing_key_and_a_null_unit_system_are_422(
 
 
 @pytest.mark.anyio
+async def test_a_huge_height_is_a_422_not_a_500(client: AsyncClient, user: dict[str, str]) -> None:
+    response = await client.put(URL, json=put_body(height_cm=1e308), headers=user)
+
+    assert response.status_code == 422
+    assert [f["field"] for f in response.json()["error"]["fields"]] == ["height_cm"]
+
+
+@pytest.mark.anyio
 async def test_a_failed_validation_keeps_the_stored_profile(
     client: AsyncClient, user: dict[str, str]
 ) -> None:

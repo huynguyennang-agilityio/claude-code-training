@@ -50,6 +50,10 @@ def _measure(label: str, unit: str, low: Decimal, high: Decimal) -> tuple[object
         if isinstance(value, float):
             if value != value or abs(value) == float("inf"):  # NaN or infinity
                 raise ValueError(f"{label} must be a number.")
+            # Range first: a huge float (1e308) overflows once scaled, and `round(inf)`
+            # raises OverflowError, which Pydantic would turn into a 500.
+            if not float(low) <= value <= float(high):
+                raise ValueError(f"{label} must be between {low} and {high} {unit}.")
             tenths = value * 10
             if abs(tenths - round(tenths)) > _FLOAT_NOISE:
                 raise ValueError(f"{label} can have at most one decimal.")
