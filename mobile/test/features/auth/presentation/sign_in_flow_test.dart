@@ -67,7 +67,7 @@ void main() {
     expect(find.byType(ChallengesPage), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
     await openProfile(tester);
-    expect(find.text('Lan Runner'), findsOneWidget);
+    expect(find.text('LR'), findsOneWidget);
   });
 
   testWidgets('a wrong password stays on the page with the message', (

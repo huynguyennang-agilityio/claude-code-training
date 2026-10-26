@@ -86,6 +86,12 @@ abstract final class AppChallengeSizes {
   static const double progressBar = 8;
 }
 
+/// Sizes of the Profile tab (Figma frame `1:64`).
+abstract final class AppProfileSizes {
+  /// The round avatar with the user's initials.
+  static const double avatar = 96;
+}
+
 /// Sizes of the Active tab (`docs/designs/003-active-tab.html`).
 abstract final class AppActiveSizes {
   /// The circle behind the heart on the health gate, and the heart in it.

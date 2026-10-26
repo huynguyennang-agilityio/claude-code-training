@@ -9,3 +9,4 @@ One line per finished task, appended at the end, in the task's last commit befor
 A task that touches `backend/` too also writes a line in `backend/PROGRESS.md`. Read the end of this file with `tail -n 30`. Past 200 lines, move the older lines to `PROGRESS-archive.md`.
 
 ## Done
+- 2026-10-26 [profile] #125 feat: Profile tab and settings form layout (mobile). Rebuilds the Profile tab (initials avatar, account list, Sign out), adds the three account routes and `SettingsFormLayout` with keyboard handling.
