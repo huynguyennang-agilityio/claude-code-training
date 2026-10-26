@@ -11,3 +11,4 @@ A task that touches `mobile/` too also writes a line in `mobile/PROGRESS.md`. Re
 ## Done
 - 2026-10-26 [profile] #120 docs: profile, email and password contract. Adds `docs/api/profile.md`, the email and password routes and `incorrect_password` in `docs/api/auth.md`, and their examples.
 - 2026-10-26 [profile] #121 feat: GET /users/me/profile (backend). Adds the `profile` module, the `user_profiles` table and `GET /api/v1/users/me/profile`, which returns an empty profile when the user never saved one.
+- 2026-10-26 [profile] #122 feat: PUT /users/me/profile (backend). Adds `PUT /api/v1/users/me/profile`, an upsert that replaces the whole profile, with every contract field rule checked as `422 validation_error`.
