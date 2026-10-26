@@ -9,6 +9,7 @@ Every non-trivial change starts with a plan file here, before any issue, branch 
 - **Issue titles and areas:** every issue title starts with its area, `[area] type: summary` (for example `[auth] feat: sign in (mobile, mock)`), and the issue carries the matching `area:<area>` label next to its other labels. Tools filter by the label (`gh issue list --label area:auth`), not by the title. The areas are below; a new one is added here through a plan ([plan 019](019-area-autopilot.md)).
 - **`human-merge`:** put this label on every issue in a Phase 2 risk category: a migration that could lose data, authentication or authorization, a breaking API change, or anything touching production or costs. `/run-tasks` never merges a PR for such an issue; it stops at "ready to merge" for the user. It also adds the label itself to a PR above 400 changed lines (generated files, tests and fixtures not counted).
 - **Trivial changes** (a typo, a one-line fix) need no plan.
+- **Task breakdown:** every plan breaks its work into tasks, one issue each, with **Requirements**, **Steps** and a **Checklist**, and **one backend endpoint per task**. The rules are in the [`task-breakdown`](../../.claude/skills/task-breakdown/SKILL.md) skill ([plan 023](023-task-breakdown-skill.md)); the table's acceptance criteria are each task's checklist, word for word.
 - **Mobile features that call an endpoint** are listed as two issues, `(mobile, mock)` and `(mobile, integration)`, as in the template below. The scope, evidence and the integration gate are in [`.claude/workflow/plan.md`](../../.claude/workflow/plan.md#mobile-tasks-mock-and-integration).
 
 ## Areas
@@ -65,13 +66,38 @@ How each acceptance criterion will be checked (commands, requests, screens, devi
 
 What the ticket evidence gate in `.claude/workflow/plan.md` requires for each issue, and where it is (design link, sample request and response, reproduction steps).
 
+## Task breakdown
+
+One task is one issue. Each backend endpoint is its own task.
+
+Order: <which tasks can start at once, which wait, which run in parallel>.
+
+### Task 1: `[area] type: short title`
+
+**Requirements**
+
+- What must be true when it is done, and the rules it follows.
+
+**Steps**
+
+1. What to do, in order, naming the files it touches.
+2. The tests to add.
+
+**Checklist**
+
+- [ ] A concrete, checkable item.
+
+<one `### Task N` per row below, made with the `task-breakdown` skill>
+
 ## Issues to create
+
+The acceptance criteria are each task's checklist above, word for word.
 
 | # | Title | Labels | Acceptance criteria | Depends on |
 | --- | --- | --- | --- | --- |
 | 1 | `[area] type: short title` | frontend, area:<area> | - [ ] ... | none |
 | 2 | `[area] docs: <module> contract` | docs, area:<area> | - [ ] `docs/api/<module>.md` and `docs/api/examples/<module>/` | none |
-| 3 | `[area] feat: <endpoints> (backend)` | backend, area:<area> | - [ ] ... `docs/api/openapi.json` updated | 2 |
+| 3 | `[area] feat: <METHOD> <path> (backend)` | backend, area:<area> | - [ ] ... `docs/api/openapi.json` updated | 2 |
 | 4 | `[area] feat: <feature> (mobile, mock)` | frontend, mock, area:<area> | - [ ] `Fake<Feature>RemoteDataSource` with fixtures equal to the examples, checked in `test/contract`<br>- [ ] Screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged` | 2 |
 | 5 | `[area] feat: <feature> (mobile, integration)` | frontend, integration, area:<area> | - [ ] The app against the local backend: one success case and each documented error. Integration gate: 3 is closed and its endpoints are in `openapi.json` on `develop` | 3, 4 |
 ````
