@@ -59,7 +59,12 @@ class SettingsFormLayout extends StatelessWidget {
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
           excludeFromSemantics: true,
-          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          // `onDrag` only fires when the content scrolls. A short form does
+          // not scroll on Android (clamping physics), so the drag gesture
+          // itself closes the keyboard too. When the content does scroll, the
+          // scroll view wins the drag and `onDrag` handles it.
+          onVerticalDragStart: (_) => _closeKeyboard(),
+          onTap: _closeKeyboard,
           child: Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
@@ -94,3 +99,5 @@ class SettingsFormLayout extends StatelessWidget {
     );
   }
 }
+
+void _closeKeyboard() => FocusManager.instance.primaryFocus?.unfocus();

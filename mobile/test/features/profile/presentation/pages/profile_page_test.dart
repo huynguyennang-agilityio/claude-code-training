@@ -8,6 +8,7 @@ import 'package:stridequest/core/router/app_router.dart';
 import 'package:stridequest/core/theme/app_theme.dart';
 import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:stridequest/features/auth/presentation/pages/sign_in_page.dart';
 import 'package:stridequest/features/home/presentation/pages/home_shell.dart';
 import 'package:stridequest/features/profile/presentation/pages/profile_page.dart';
 
@@ -186,12 +187,23 @@ void main() {
       });
     }
 
-    test('the new paths need sign in', () {
-      expect(
-        protectedPaths,
-        containsAll(['/profile/info', '/profile/email', '/profile/password']),
-      );
-    });
+    for (final path in [
+      '/profile/info',
+      '/profile/email',
+      '/profile/password',
+    ]) {
+      test('$path sends a signed-out user to sign in', () {
+        expect(
+          authRedirect(
+            const AuthUnauthenticated(),
+            location: path,
+            route: path,
+            protected: protectedPaths,
+          ),
+          SignInPage.path,
+        );
+      });
+    }
   });
 
   group('layout and accessibility', () {

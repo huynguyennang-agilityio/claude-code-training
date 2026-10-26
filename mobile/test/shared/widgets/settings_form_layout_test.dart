@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stridequest/shared/widgets/settings_form_layout.dart';
@@ -175,4 +176,25 @@ void main() {
       });
     }
   }
+
+  testWidgets(
+    'dragging a short form that does not scroll closes the keyboard',
+    (tester) async {
+      for (final n in nodes) {
+        n.dispose();
+      }
+      nodes = List.generate(2, (_) => FocusNode());
+      expect(defaultTargetPlatform, TargetPlatform.android);
+      await pumpForm(tester, size: largePhone);
+      await openKeyboard(tester);
+      nodes.last.requestFocus();
+      await tester.pumpAndSettle();
+      expect(nodes.last.hasFocus, isTrue);
+
+      await tester.dragFrom(const Offset(200, 500), const Offset(0, -80));
+      await tester.pumpAndSettle();
+
+      expect(nodes.last.hasFocus, isFalse);
+    },
+  );
 }
