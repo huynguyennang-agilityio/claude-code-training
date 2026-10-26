@@ -17,16 +17,16 @@ Both routes are for any signed-in user (the `user` level). A user only reads and
 
 ## Field rules
 
-Every field except `unit_system` is optional and can be `null`. The app should check these on the form before calling the API. The backend checks them again.
+Every field except `unit_system` is optional and can be `null`. To clear a value, send `null`: an empty or whitespace-only string is a `422` for every text field, never stored as `""`. The app should check these on the form before calling the API. The backend checks them again.
 
 | Field | Rule |
 | --- | --- |
 | `first_name`, `last_name` | 1 to 50 characters after trimming spaces, or `null`. |
 | `birthday` | An ISO 8601 date (`YYYY-MM-DD`) after 1900-01-01 (that day itself is a `422`) and not after today in UTC, or `null`. No minimum age. |
 | `country` | An ISO 3166-1 alpha-2 code matching `^[A-Z]{2}$`, or `null`. The backend checks only the format and keeps no country list; the app ships the list. |
-| `state` | Free text of at most 100 characters after trimming, or `null`. |
+| `state` | Free text of 1 to 100 characters after trimming, or `null`. |
 | `gender` | `female`, `male`, `non_binary` or `prefer_not_to_say`, or `null`. |
-| `unit_system` | `imperial` or `metric`, never `null` (`null` is a `422`). Default `metric` when the field is left out. A display preference only: `height_cm` and `weight_kg` are always metric. |
+| `unit_system` | `imperial` or `metric`, never `null` (`null` is a `422`). A profile that was never saved reads as `metric`. A display preference only: `height_cm` and `weight_kg` are always metric. |
 | `height_cm` | A number from 50.0 to 272.0 with at most one decimal, or `null`. |
 | `weight_kg` | A number from 20.0 to 400.0 with at most one decimal, or `null`. |
 
@@ -36,7 +36,7 @@ Every field except `unit_system` is optional and can be `null`. The app should c
 
 ### `Profile`
 
-Returned by both routes and sent as the body of `PUT`. The body always has the nine fields.
+Returned by both routes and sent as the body of `PUT`. The body of `PUT` must have all nine keys; a value may be `null` where the field rules allow it.
 
 <!-- example: profile/profile.json -->
 ```json
@@ -82,7 +82,7 @@ Responses:
 
 Header: `Authorization: Bearer <access_token>`.
 
-`PUT` replaces the whole profile: send every field, and a field sent as `null` clears its value. The first save creates the profile. A field left out of the body is treated as `null` (`metric` for `unit_system`), so the app always sends all nine.
+`PUT` replaces the whole profile: send every field, and a field sent as `null` clears its value. The first save creates the profile. A key left out of the body is a `422 validation_error` naming that field, so a client that forgets a key never wipes a stored value by accident.
 
 Request (`Profile`):
 

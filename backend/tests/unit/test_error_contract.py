@@ -99,6 +99,20 @@ def test_every_documented_code_is_tested_here_or_in_the_auth_api_tests() -> None
     assert not DOCUMENTED_NOT_YET_SERVED_ERROR_CODES & (set(IMPLEMENTED) | AUTH_MODULE_ERROR_CODES)
 
 
+def test_codes_not_yet_served_have_no_route_yet() -> None:
+    """`DOCUMENTED_NOT_YET_SERVED_ERROR_CODES` is only for codes whose routes don't exist yet.
+
+    Once the email and password routes are added (#123, #124), this fails until
+    `incorrect_password` moves into `AUTH_MODULE_ERROR_CODES` and the set is emptied.
+    """
+    if not DOCUMENTED_NOT_YET_SERVED_ERROR_CODES:
+        return
+    paths = {getattr(route, "path", "") for route in create_app().routes}
+
+    assert "/api/v1/users/me/email" not in paths
+    assert "/api/v1/users/me/password" not in paths
+
+
 @pytest.mark.anyio
 @pytest.mark.parametrize("code", sorted(IMPLEMENTED))
 async def test_error_has_the_documented_status_code_and_shape(
