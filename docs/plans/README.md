@@ -99,5 +99,5 @@ The acceptance criteria are each task's checklist above, word for word.
 | 2 | `[area] docs: <module> contract` | docs, area:<area> | - [ ] `docs/api/<module>.md` and `docs/api/examples/<module>/` | none |
 | 3 | `[area] feat: <METHOD> <path> (backend)` | backend, area:<area> | - [ ] ... `docs/api/openapi.json` updated | 2 |
 | 4 | `[area] feat: <feature> (mobile, mock)` | frontend, mock, area:<area> | - [ ] `Fake<Feature>RemoteDataSource` with fixtures equal to the examples, checked in `test/contract`<br>- [ ] Screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged` | 2 |
-| 5 | `[area] feat: <feature> (mobile, integration)` | frontend, integration, area:<area> | - [ ] The app against the local backend: one success case and each documented error. Integration gate: 3 is closed and its endpoints are in `openapi.json` on `develop` | 3, 4 |
+| 5 | `[area] feat: <feature> (mobile, integration)` | frontend, integration, area:<area> | - [ ] The app against the local backend: one success case and each documented error. Integration gate: 3 is closed and its endpoint is in `openapi.json` on `develop` | 3, 4 |
 ````

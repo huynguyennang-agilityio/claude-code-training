@@ -50,7 +50,7 @@ Order: <which tasks can start at once, which wait, which run in parallel>.
   - A later endpoint that needs a schema change carries its own migration.
   - Shared service code (a helper both routes use) goes in the first task that needs it; the second task depends on it and reuses it.
 - **Contract first.** A `docs` task writes `docs/api/<module>.md` and `docs/api/examples/<module>/` before the backend and mobile tasks that use them.
-- **Mobile.** A flow that calls an endpoint is a `(mobile, mock)` task and a `(mobile, integration)` task ([`.claude/workflow/plan.md`](../../workflow/plan.md#mobile-tasks-mock-and-integration)). The integration task depends only on the backend tasks of the endpoints that flow calls, so one late endpoint does not hold back every screen. A screen with no backend call is one task.
+- **Mobile.** A flow that calls an endpoint is a `(mobile, mock)` task and a `(mobile, integration)` task ([`.claude/workflow/plan.md`](../../workflow/plan.md#mobile-tasks-mock-and-integration)). The integration task depends on its mock task and only on the backend tasks of the endpoints that flow calls, so one late endpoint does not hold back every screen. A screen with no backend call is one task.
 - **Shared groundwork** used by several mobile tasks (a layout, routes, a shared widget) is its own task, so the tasks that use it can run in parallel instead of waiting for each other.
 - **Docs-only and tooling plans** use the same three parts per task, without the endpoint rule.
 - **Size.** Split a task that would pass about 400 changed lines, not counting generated files, tests and fixtures. `/run-tasks` adds `human-merge` above that.
