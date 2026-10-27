@@ -22,5 +22,8 @@ USER app
 
 EXPOSE 8000
 
-# Render sets $PORT; locally it defaults to 8000. The shell form expands it.
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers
+# Render sets $PORT; locally it defaults to 8000. The shell form expands it, and `exec` makes
+# uvicorn PID 1 so it gets SIGTERM and shuts down gracefully.
+# --proxy-headers only trusts the proxies in FORWARDED_ALLOW_IPS (127.0.0.1 by default), which
+# the host sets; see "Environment variables" in docs/deploy.md.
+CMD exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers
