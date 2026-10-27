@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:stridequest/core/theme/app_theme.dart';
 import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 import 'package:stridequest/features/auth/presentation/bloc/change_email_bloc.dart';
@@ -41,7 +40,7 @@ void main() {
         await pumpChangeEmail(tester, repository);
 
         expect(find.widgetWithText(AppBar, 'Email'), findsOneWidget);
-        expect(find.byType(BackButton), findsNothing); // root route: no back
+        expect(find.byType(BackButton), findsOneWidget); // pushed over the tab
         expect(
           find.text(
             'This will change the account email you use to sign in with '
@@ -115,7 +114,8 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 
-      expect(hasFocus(tester, passwordLabel), isFalse);
+      // The save pops the page, which takes the keyboard focus with it.
+      expect(find.text(parentText), findsOneWidget);
       verifyChanged();
     });
 
@@ -139,39 +139,58 @@ void main() {
   group('saving', () {
     testWidgets('sends the trimmed email, then shows the new address and goes '
         'back', (tester) async {
-      tester.view
-        ..devicePixelRatio = 1
-        ..physicalSize = smallPhone;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.dark,
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => changeEmailPage(repository),
-                  ),
-                ),
-                child: const Text('Open'),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
+      await pumpChangeEmail(tester, repository);
       await fillForm(tester, email: '  New.Runner@example.com ');
 
       await tapSave(tester);
 
       verifyChanged(email: 'New.Runner@example.com');
       expect(find.byType(ChangeEmailPage), findsNothing);
+      expect(find.text(parentText), findsOneWidget);
       expect(
         find.text('Email changed to new.runner@example.com'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('goes back even when the save also refreshes the router, as '
+        'the session update does', (tester) async {
+      final refresh = ChangeNotifier();
+      addTearDown(refresh.dispose);
+      when(
+        () => repository.changeEmail(
+          newEmail: any(named: 'newEmail'),
+          currentPassword: any(named: 'currentPassword'),
+        ),
+      ).thenAnswer((invocation) async {
+        // `AuthBloc` handles the announced user a little later and emits it,
+        // which refreshes the router.
+        unawaited(Future<void>(refresh.notifyListeners));
+        return testUser
+            .copyWith(email: invocation.namedArguments[#newEmail] as String)
+            .toEntity();
+      });
+      await pumpChangeEmail(tester, repository, refreshListenable: refresh);
+      await fillForm(tester);
+
+      await tapSave(tester);
+
+      expect(find.byType(ChangeEmailPage), findsNothing);
+      expect(find.text(parentText), findsOneWidget);
+    });
+
+    testWidgets('goes to the Profile tab when it is the only page', (
+      tester,
+    ) async {
+      await pumpChangeEmail(tester, repository, pushed: false);
+      expect(find.byType(BackButton), findsNothing);
+      await fillForm(tester);
+
+      await tapSave(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ChangeEmailPage), findsNothing);
+      expect(find.text(profileRouteText), findsOneWidget);
     });
 
     testWidgets('shows progress and locks the form while it saves', (

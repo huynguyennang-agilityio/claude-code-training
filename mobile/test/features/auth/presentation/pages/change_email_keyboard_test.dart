@@ -166,7 +166,8 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 
-      expect(hasFocus(tester, passwordLabel), isFalse);
+      // The save pops the page, which takes the keyboard focus with it.
+      expect(find.text(parentText), findsOneWidget);
       verify(
         () => repository.changeEmail(
           newEmail: 'new.runner@example.com',

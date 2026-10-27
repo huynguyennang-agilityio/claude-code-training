@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../shared/widgets/settings_form_layout.dart';
@@ -17,6 +18,9 @@ class ChangeEmailPage extends StatelessWidget {
 
   static const _title = 'Email';
 
+  /// Where Save goes when the page is the only one on the stack (a deep link).
+  static const _profilePath = '/profile';
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ChangeEmailBloc, ChangeEmailState>(
@@ -30,7 +34,7 @@ class ChangeEmailPage extends StatelessWidget {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(content: Text('Email changed to $email')));
-        Navigator.of(context).maybePop();
+        context.canPop() ? context.pop() : context.go(_profilePath);
       },
       builder: (context, state) => switch (state) {
         ChangeEmailLoading() => const SettingsFormLayout(
