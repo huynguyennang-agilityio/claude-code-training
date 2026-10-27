@@ -130,9 +130,10 @@ jobs:
           IOS_PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           for name in IOS_DIST_CERT_P12 IOS_DIST_CERT_PASSWORD IOS_PROVISIONING_PROFILE \
-                      APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_KEY_P8; do
+                      APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_KEY_P8 APP_STORE_CONNECT_ISSUER_ID; do
             if [[ -z "${!name}" ]]; then
               echo "::error::Secret $name is missing in the production environment (docs/deploy.md)."
               exit 1
@@ -161,14 +162,12 @@ jobs:
           printf '%s' "$IOS_PROVISIONING_PROFILE" | base64 --decode > "$profile"
           security cms -D -i "$profile" > "$RUNNER_TEMP/profile.plist"
           profile_uuid="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")"
-          profile_name="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")"
           for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" \
                      "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
             mkdir -p "$dir"
             cp "$profile" "$dir/$profile_uuid.mobileprovision"
           done
           echo "PROFILE_UUID=$profile_uuid" >> "$GITHUB_ENV"
-          echo "PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
 
           # The App Store Connect API key, for the upload.
           key_path="$RUNNER_TEMP/AuthKey_$APP_STORE_CONNECT_KEY_ID.p8"
