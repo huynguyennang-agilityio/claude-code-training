@@ -45,8 +45,10 @@ jobs:
     # falsy, so that form always gives 'production'.
     environment: ${{ github.event_name != 'pull_request' && !inputs.dry_run && 'production' || '' }}
     concurrency:
-      # A PR's dry runs queue per branch; real releases share one group and never cancel.
-      group: release-android-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
+      # A PR's runs cancel the older run on the same branch, and each dispatched dry run has
+      # its own group. Real releases share one group: one runs, and a newer pending release
+      # replaces an older pending one, so a dry run can never cancel a release.
+      group: release-android-${{ github.event_name == 'pull_request' && github.ref || inputs.dry_run && format('dry-{0}', github.run_id) || 'release' }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     env:
       DRY_RUN: ${{ github.event_name == 'pull_request' || inputs.dry_run == true }}
@@ -144,9 +146,13 @@ jobs:
           flutter build apk --release \
             --build-name="$VERSION" --build-number="$BUILD_NUMBER" "${defines[@]}"
 
+      # The keystore is no longer needed: delete it before any third-party code (the Firebase
+      # CLI) runs. The last step deletes it again in case the build failed.
+      - name: Delete the release keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
       - name: Check the APK signature
-        env:
-          ANDROID_KEY_ALIAS: ${{ env.DRY_RUN != 'true' && secrets.ANDROID_KEY_ALIAS || '' }}
         run: |
           apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
           certs="$("$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk)"
@@ -165,7 +171,7 @@ jobs:
         run: |
           credentials="$RUNNER_TEMP/firebase-service-account.json"
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$credentials"
-          GOOGLE_APPLICATION_CREDENTIALS="$credentials" npx --yes firebase-tools@15 \
+          GOOGLE_APPLICATION_CREDENTIALS="$credentials" npx --yes firebase-tools@15.34.1 \
             appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
             --app "$FIREBASE_ANDROID_APP_ID" \
             --groups testers \
