@@ -46,3 +46,36 @@ docker run --rm -e DATABASE_URL='…' stridequest-api alembic upgrade head
 | `CLOUDINARY_FOLDER` | no | `stridequest` by default |
 
 Never bake a value into the image or commit it: set them on the host (Render's dashboard in production).
+
+## Android release (Firebase App Distribution)
+
+`.github/workflows/release-android.yml` builds a release APK and sends it to the `testers` group in Firebase App Distribution. It runs on a tag `android-vX.Y.Z` on `main`, from `release.yml` for a tag `vX.Y.Z`, by hand (`workflow_dispatch`, a dry run by default), and on every PR into `develop` that changes the workflow or `mobile/android/` (always a dry run). A dry run builds the APK signed with the debug key and uploads nothing, so it needs no secret.
+
+- **Version:** `--build-name` is `X.Y.Z` from the tag; `--build-number` is Unix minutes, `$(( $(date +%s) / 60 ))`, so it always increases and stays below Android's `versionCode` limit of 2,100,000,000.
+- **API:** the build passes `--dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}`. A real release fails when the variable is missing.
+- **Signing:** `mobile/android/app/build.gradle.kts` signs `release` with the keystore at `ANDROID_KEYSTORE_PATH` (with `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`). Without `ANDROID_KEYSTORE_PATH` it keeps the debug key, so `flutter run --release` works locally. The workflow decodes the keystore into `$RUNNER_TEMP`, checks with `apksigner` that a real release is not debug-signed, and deletes the keystore in an `always()` step.
+
+### One-time setup
+
+1. **Keystore.** Outside the repo, run:
+
+   ```bash
+   keytool -genkeypair -v -keystore stridequest-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias stridequest
+   ```
+
+   Keep the file and both passwords somewhere safe outside GitHub, such as a password manager. Without this keystore the app can never be updated on Google Play later. `*.jks`, `*.keystore`, `*.p12`, `*.p8` and `*.mobileprovision` are git-ignored repo-wide, but don't create them inside the repo.
+2. **Firebase.** Create a Firebase project and add an Android app with package `huynang.stridequest`. In App Distribution, create the group `testers` (that exact alias) and add the testers' emails. In Google Cloud IAM, create a service account with the Firebase App Distribution Admin role and download its JSON key.
+3. **Secrets** in the GitHub environment `production` (names only; enter the values yourself on GitHub or with `gh secret set <NAME> --env production`):
+
+   | Secret | Value |
+   | --- | --- |
+   | `ANDROID_KEYSTORE_BASE64` | `base64 -i stridequest-release.jks` |
+   | `ANDROID_KEYSTORE_PASSWORD` | the keystore password |
+   | `ANDROID_KEY_ALIAS` | `stridequest` |
+   | `ANDROID_KEY_PASSWORD` | the key password |
+   | `FIREBASE_SERVICE_ACCOUNT_JSON` | the service account's JSON key, as is |
+   | `FIREBASE_ANDROID_APP_ID` | the app ID from Firebase project settings (`1:…:android:…`) |
+
+   The repository variable `API_BASE_URL` is set with the API release (plan 025, Prerequisites row 3).
+
+Testers get an email from Firebase and install the APK from the App Distribution page; they need to allow installs from unknown sources.
