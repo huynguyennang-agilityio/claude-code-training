@@ -525,6 +525,89 @@ void main() {
     });
   });
 
+  group('changePassword', () {
+    test('puts both passwords and reads the new token pair', () async {
+      late RequestOptions sent;
+      final repository = _repository((request) async {
+        sent = request;
+        return _json(_tokens, 200);
+      });
+
+      final tokens = await repository.changePassword(
+        currentPassword: 'run4medals',
+        newPassword: 'newrun5medals',
+      );
+
+      expect(sent.method, 'PUT');
+      expect(sent.uri.path, '/users/me/password');
+      expect(sentJson(sent), {
+        'current_password': 'run4medals',
+        'new_password': 'newrun5medals',
+      });
+      expect(tokens, TokenPairModel.fromJson(_tokens));
+    });
+
+    for (final (status, code, expected) in [
+      (403, 'incorrect_password', AuthFailureCode.incorrectPassword),
+      (422, 'validation_error', AuthFailureCode.validation),
+      (429, 'rate_limited', AuthFailureCode.rateLimited),
+      (401, 'not_authenticated', AuthFailureCode.notAuthenticated),
+    ]) {
+      test('maps $status $code', () async {
+        final failure = await _failureOf(
+          _repository(
+            (_) async => _error(code, status, headers: {'retry-after': '90'}),
+          ).changePassword(currentPassword: 'p', newPassword: 'q'),
+        );
+
+        expect(failure.code, expected);
+      });
+    }
+
+    test('keeps Retry-After and the field messages', () async {
+      final limited = await _failureOf(
+        _repository(
+          (_) async =>
+              _error('rate_limited', 429, headers: {'retry-after': '90'}),
+        ).changePassword(currentPassword: 'p', newPassword: 'q'),
+      );
+      final invalid = await _failureOf(
+        _repository(
+          (_) async => _error(
+            'validation_error',
+            422,
+            fields: [
+              {'field': 'new_password', 'message': 'Must differ.'},
+            ],
+          ),
+        ).changePassword(currentPassword: 'p', newPassword: 'q'),
+      );
+
+      expect(limited.retryAfter, const Duration(seconds: 90));
+      expect(invalid.fieldErrors, {'new_password': 'Must differ.'});
+    });
+
+    test('an unreadable success body is unknown', () async {
+      final failure = await _failureOf(
+        _repository(
+          (_) async => textBody('<html>', 200),
+        ).changePassword(currentPassword: 'p', newPassword: 'q'),
+      );
+
+      expect(failure.code, AuthFailureCode.unknown);
+    });
+
+    test('a refused connection is network', () async {
+      final failure = await _failureOf(
+        _repository(
+          (_) async => throw const SocketException('refused'),
+        ).changePassword(currentPassword: 'p', newPassword: 'q'),
+      );
+
+      expect(failure.code, AuthFailureCode.network);
+    });
+  });
+
   group('changeEmail behind the auth interceptor', () {
     late _MockTokens tokens;
     late FakeHttpAdapter adapter;
@@ -599,6 +682,41 @@ void main() {
 
       final failure = await _failureOf(
         source.changeEmail(newEmail: 'a@b.co', currentPassword: 'p'),
+      );
+
+      expect(failure.code, AuthFailureCode.incorrectPassword);
+      expect(adapter.requests, hasLength(1));
+      verifyNever(() => tokens.refreshTokens());
+    });
+
+    test('changePassword: a token_expired 401 refreshes and retries', () async {
+      when(() => tokens.refreshTokens()).thenAnswer((_) async {
+        accessToken = 'access-2';
+        return TokenRefreshResult.refreshed;
+      });
+      final source = build(
+        (request) async => request.headers['Authorization'] == 'Bearer access-1'
+            ? _error('token_expired', 401)
+            : _json(_tokens, 200),
+      );
+
+      final pair = await source.changePassword(
+        currentPassword: 'p',
+        newPassword: 'q',
+      );
+
+      expect(pair, TokenPairModel.fromJson(_tokens));
+      expect(adapter.requests, hasLength(2));
+      expect(adapter.requests.last.headers['Authorization'], 'Bearer access-2');
+      verify(() => tokens.refreshTokens()).called(1);
+      verifyNever(() => tokens.expireSession());
+    });
+
+    test('changePassword: a 403 is not refreshed or retried', () async {
+      final source = build((_) async => _error('incorrect_password', 403));
+
+      final failure = await _failureOf(
+        source.changePassword(currentPassword: 'p', newPassword: 'q'),
       );
 
       expect(failure.code, AuthFailureCode.incorrectPassword);

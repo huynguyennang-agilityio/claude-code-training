@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:stridequest/core/network/auth_token_handler.dart';
 import 'package:stridequest/features/auth/data/datasources/auth_remote_data_source.dart';
+import 'package:stridequest/features/auth/data/models/auth_session_model.dart';
 import 'package:stridequest/features/auth/data/models/token_pair_model.dart';
 import 'package:stridequest/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
@@ -357,4 +358,147 @@ void main() {
       expect(local.session?.user, updated);
     });
   });
+
+  group('changePassword', () {
+    setUp(() {
+      when(
+        () => remote.changePassword(
+          currentPassword: 'run4medals',
+          newPassword: 'newrun5medals',
+        ),
+      ).thenAnswer((_) async => testTokens(2));
+    });
+
+    Future<void> change() => repository.changePassword(
+      currentPassword: 'run4medals',
+      newPassword: 'newrun5medals',
+    );
+
+    test('stores the new pair for the same user before it returns', () async {
+      local.session = testSession();
+
+      await change();
+
+      expect(local.session, testSession(2));
+      expect(await repository.accessToken(), 'access-2');
+    });
+
+    test('a failure stores nothing', () async {
+      local.session = testSession();
+      when(
+        () => remote.changePassword(
+          currentPassword: any(named: 'currentPassword'),
+          newPassword: any(named: 'newPassword'),
+        ),
+      ).thenThrow(AuthFailure(AuthFailureCode.incorrectPassword));
+
+      await expectLater(
+        change(),
+        throwsA(
+          isA<AuthFailure>().having(
+            (f) => f.code,
+            'code',
+            AuthFailureCode.incorrectPassword,
+          ),
+        ),
+      );
+
+      expect(local.session, testSession());
+    });
+
+    test('a failure to store the pair ends the session and says so', () async {
+      final failing = _ThrowingLocal()..session = testSession();
+      final repo = AuthRepositoryImpl(remote, failing);
+      addTearDown(repo.dispose);
+      var expired = 0;
+      final subscription = repo.sessionExpired.listen((_) => expired++);
+      addTearDown(subscription.cancel);
+
+      await expectLater(
+        repo.changePassword(
+          currentPassword: 'run4medals',
+          newPassword: 'newrun5medals',
+        ),
+        throwsA(
+          isA<AuthFailure>().having(
+            (f) => f.code,
+            'code',
+            AuthFailureCode.passwordChangedSignInAgain,
+          ),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(failing.session, isNull);
+      expect(expired, 1);
+    });
+
+    test('a sign-out during the request stores nothing', () async {
+      local.session = testSession();
+      when(
+        () => remote.changePassword(
+          currentPassword: any(named: 'currentPassword'),
+          newPassword: any(named: 'newPassword'),
+        ),
+      ).thenAnswer((_) async {
+        local.session = null;
+        return testTokens(2);
+      });
+
+      await change();
+
+      expect(local.session, isNull);
+    });
+
+    test('another user signing in during the request is left alone', () async {
+      final other = testSession().copyWith(
+        user: testUser.copyWith(id: 'user-2'),
+      );
+      local.session = testSession();
+      when(
+        () => remote.changePassword(
+          currentPassword: any(named: 'currentPassword'),
+          newPassword: any(named: 'newPassword'),
+        ),
+      ).thenAnswer((_) async {
+        local.session = other;
+        return testTokens(2);
+      });
+
+      await change();
+
+      expect(local.session, other);
+    });
+
+    test('without a stored session it stores nothing', () async {
+      await change();
+
+      expect(local.session, isNull);
+    });
+
+    test('a refresh during the request does not deadlock', () async {
+      local.session = testSession();
+      when(
+        () => remote.changePassword(
+          currentPassword: any(named: 'currentPassword'),
+          newPassword: any(named: 'newPassword'),
+        ),
+      ).thenAnswer((_) async {
+        // What the auth interceptor does on a 401.
+        await repository.refreshTokens();
+        return testTokens(3);
+      });
+      when(() => remote.refresh(any())).thenAnswer((_) async => testTokens(2));
+
+      await change().timeout(const Duration(seconds: 2));
+
+      expect(local.session?.tokens, testTokens(3));
+    });
+  });
+}
+
+class _ThrowingLocal extends InMemoryAuthLocalDataSource {
+  @override
+  Future<void> saveSession(AuthSessionModel session) async =>
+      throw StateError('storage failed');
 }

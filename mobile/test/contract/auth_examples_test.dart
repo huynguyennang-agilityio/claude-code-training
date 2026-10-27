@@ -155,6 +155,28 @@ void main() {
     expect(user, AuthUserModel.fromJson(_example('user')));
   });
 
+  test(
+    'change password sends change_password_request and reads token_pair',
+    () async {
+      late RequestOptions sent;
+      final dataSource = _dataSource((request) async {
+        sent = request;
+        return jsonBody(_example('token_pair'), 200);
+      });
+      final request = _example('change_password_request');
+
+      final tokens = await dataSource.changePassword(
+        currentPassword: request['current_password'] as String,
+        newPassword: request['new_password'] as String,
+      );
+
+      expect(sent.method, 'PUT');
+      expect(sent.uri.path, '/users/me/password');
+      expect(sentJson(sent), request);
+      expect(tokens, TokenPairModel.fromJson(_example('token_pair')));
+    },
+  );
+
   group('error examples map to failures', () {
     test('error_incorrect_password', () async {
       final example = _example('error_incorrect_password');
@@ -227,6 +249,48 @@ void main() {
         expect(changed.displayName, user.displayName);
       },
     );
+
+    test('change password accepts change_password_request and answers like '
+        'token_pair', () async {
+      final fake = FakeAuthRemoteDataSource();
+      final pair = TokenPairModel.fromJson(_example('token_pair'));
+      final request = _example('change_password_request');
+      await fake.signUp(
+        email: 'runner@example.com',
+        password: request['current_password'] as String,
+        displayName: 'Lan',
+      );
+
+      final changed = await fake.changePassword(
+        currentPassword: request['current_password'] as String,
+        newPassword: request['new_password'] as String,
+      );
+
+      expect(changed.toJson().keys, pair.toJson().keys);
+      expect(changed.tokenType, pair.tokenType);
+      expect(changed.expiresIn, pair.expiresIn);
+    });
+
+    test('a wrong current password is error_incorrect_password', () async {
+      final fake = FakeAuthRemoteDataSource();
+      final example = _example('error_incorrect_password')['error'] as Map;
+      await fake.signUp(
+        email: 'runner@example.com',
+        password: 'run4medals',
+        displayName: 'Lan',
+      );
+
+      final failure = await _failureOf(
+        fake.changePassword(
+          currentPassword: 'wrong123',
+          newPassword: 'newrun5medals',
+        ),
+      );
+
+      expect(failure.code.wireCode, example['code']);
+      expect(failure.message, example['message']);
+      expect(failure.fieldErrors, isEmpty);
+    });
 
     test('a wrong password is error_incorrect_password', () async {
       final fake = FakeAuthRemoteDataSource();
