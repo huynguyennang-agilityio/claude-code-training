@@ -190,7 +190,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.byType(ChangeEmailPage), findsNothing);
-      expect(find.text(parentText), findsOneWidget);
+      expect(find.text(profileRouteText), findsOneWidget);
     });
 
     testWidgets('shows progress and locks the form while it saves', (

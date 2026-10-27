@@ -49,6 +49,9 @@ void failChangeEmail(MockAuthRepository repository, AuthFailure failure) =>
 /// Text of the screen under the Email page, to tell that the page popped.
 const parentText = 'Profile tab';
 
+/// What the `/profile` route shows, so a test can tell it from the parent.
+const profileRouteText = 'Profile route';
+
 /// Pumps the Email page pushed over a parent route under a [GoRouter], as the
 /// app does, so a save can pop back to the parent. [refreshListenable] is the
 /// router's, as `AuthBloc`'s stream is in the app. With [pushed] false the page
@@ -75,7 +78,8 @@ Future<void> pumpChangeEmail(
       ),
       GoRoute(
         path: '/profile',
-        builder: (context, state) => const Scaffold(body: Text(parentText)),
+        builder: (context, state) =>
+            const Scaffold(body: Text(profileRouteText)),
       ),
       GoRoute(
         path: ChangeEmailPage.path,
