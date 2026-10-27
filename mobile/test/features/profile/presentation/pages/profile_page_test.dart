@@ -4,12 +4,16 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:stridequest/core/di/injection.dart';
 import 'package:stridequest/core/router/app_router.dart';
 import 'package:stridequest/core/theme/app_theme.dart';
 import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/auth/presentation/pages/sign_in_page.dart';
 import 'package:stridequest/features/home/presentation/pages/home_shell.dart';
+import 'package:stridequest/features/profile/data/datasources/fake_profile_remote_data_source.dart';
+import 'package:stridequest/features/profile/data/repositories/profile_repository_impl.dart';
+import 'package:stridequest/features/profile/presentation/bloc/profile_info_bloc.dart';
 import 'package:stridequest/features/profile/presentation/pages/profile_page.dart';
 
 import '../../../../helpers/expect_accessible.dart';
@@ -57,7 +61,15 @@ void main() {
   late MockAuthBloc bloc;
 
   setUpAll(() => registerFallbackValue(const AuthStarted()));
-  setUp(() => bloc = MockAuthBloc());
+  setUp(() {
+    bloc = MockAuthBloc();
+    // The Profile info route builds its bloc from `getIt`.
+    getIt.registerFactory<ProfileInfoBloc>(
+      () =>
+          ProfileInfoBloc(ProfileRepositoryImpl(FakeProfileRemoteDataSource())),
+    );
+  });
+  tearDown(getIt.reset);
 
   Future<void> pumpProfile(
     WidgetTester tester, {
@@ -175,7 +187,11 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(NavigationBar), findsNothing);
-        expect(find.text('Coming soon'), findsOneWidget);
+        // Profile is the real form; Email and Password are still placeholders.
+        expect(
+          find.text(row == 'Profile' ? 'First Name' : 'Coming soon'),
+          findsOneWidget,
+        );
         expect(find.widgetWithText(AppBar, row), findsOneWidget);
 
         await tester.tap(find.byType(BackButton));
@@ -183,6 +199,7 @@ void main() {
 
         expect(find.byType(NavigationBar), findsOneWidget);
         expect(find.text('Coming soon'), findsNothing);
+        expect(find.text('First Name'), findsNothing);
         expect(find.text('Sign out'), findsOneWidget);
       });
     }

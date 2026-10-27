@@ -159,6 +159,22 @@ void main() {
           expect(nodes.first.hasFocus, isFalse);
         });
 
+        testWidgets(
+          'dragging down at the top of the form closes the keyboard',
+          (tester) async {
+            await pumpForm(tester, size: size, textScale: textScale);
+            await openKeyboard(tester);
+            nodes.first.requestFocus();
+            await tester.pumpAndSettle();
+            expect(nodes.first.hasFocus, isTrue);
+
+            await tester.dragFrom(const Offset(200, 300), const Offset(0, 120));
+            await tester.pumpAndSettle();
+
+            expect(nodes.first.hasFocus, isFalse);
+          },
+        );
+
         testWidgets('tapping outside a field closes the keyboard', (
           tester,
         ) async {
@@ -195,6 +211,24 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(nodes.last.hasFocus, isFalse);
+    },
+  );
+
+  testWidgets(
+    'dragging sideways inside a long single-line field keeps the keyboard',
+    (tester) async {
+      await pumpForm(tester, textScale: 2);
+      await openKeyboard(tester);
+      final field = find.byKey(const Key('field0'));
+      await tester.enterText(field, 'a very long text ' * 8);
+      nodes.first.requestFocus();
+      await tester.pumpAndSettle();
+      expect(nodes.first.hasFocus, isTrue);
+
+      await tester.drag(field, const Offset(-100, 0));
+      await tester.pumpAndSettle();
+
+      expect(nodes.first.hasFocus, isTrue);
     },
   );
 }

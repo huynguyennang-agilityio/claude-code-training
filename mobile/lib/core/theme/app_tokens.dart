@@ -90,6 +90,9 @@ abstract final class AppChallengeSizes {
 abstract final class AppProfileSizes {
   /// The round avatar with the user's initials.
   static const double avatar = 96;
+
+  /// The share of the screen height the Country list takes.
+  static const double pickerSheetHeightFactor = 0.85;
 }
 
 /// Sizes of the Active tab (`docs/designs/003-active-tab.html`).

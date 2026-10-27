@@ -15,6 +15,7 @@ import '../../features/challenges/presentation/pages/challenge_detail_page.dart'
 import '../../features/challenges/presentation/pages/challenges_page.dart';
 import '../../features/home/presentation/pages/home_shell.dart';
 import '../../features/medals/presentation/pages/medals_page.dart';
+import '../../features/profile/presentation/bloc/profile_info_bloc.dart';
 import '../../features/profile/presentation/pages/profile_info_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/runs/presentation/bloc/health_gate_bloc.dart';
@@ -111,7 +112,10 @@ final appRoutes = <RouteBase>[
   // like the detail (the app has no navigator keys to target instead).
   GoRoute(
     path: ProfileInfoPage.path,
-    builder: (context, state) => const ProfileInfoPage(),
+    builder: (context, state) => BlocProvider(
+      create: (_) => getIt<ProfileInfoBloc>()..add(const ProfileInfoStarted()),
+      child: const ProfileInfoPage(),
+    ),
   ),
   GoRoute(
     path: ChangeEmailPage.path,
