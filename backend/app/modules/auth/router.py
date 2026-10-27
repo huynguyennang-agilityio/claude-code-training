@@ -4,6 +4,7 @@ from app.core.errors import ErrorResponse
 from app.modules.auth.deps import AuthServiceDep, CurrentUserDep
 from app.modules.auth.schemas import (
     AuthResponse,
+    ChangeEmailRequest,
     RefreshTokenRequest,
     SignInRequest,
     SignUpRequest,
@@ -51,3 +52,19 @@ async def sign_out(body: RefreshTokenRequest, service: AuthServiceDep) -> None:
 @users_router.get("/me", responses={401: {"model": ErrorResponse}})
 async def read_me(user: CurrentUserDep) -> UserRead:
     return UserRead.model_validate(user)
+
+
+@users_router.put(
+    "/me/email",
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        429: {"model": ErrorResponse},
+    },
+)
+async def change_email(
+    body: ChangeEmailRequest, request: Request, user: CurrentUserDep, service: AuthServiceDep
+) -> UserRead:
+    updated = await service.change_email(user, body, _client_ip(request))
+    return UserRead.model_validate(updated)

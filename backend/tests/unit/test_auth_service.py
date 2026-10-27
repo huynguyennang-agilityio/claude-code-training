@@ -16,7 +16,7 @@ from app.core.security import (
 )
 from app.modules.auth.models import RefreshToken, User
 from app.modules.auth.repository import AuthRepository
-from app.modules.auth.schemas import SignInRequest, SignUpRequest
+from app.modules.auth.schemas import ChangeEmailRequest, SignInRequest, SignUpRequest
 from app.modules.auth.service import (
     FAILED_SIGN_IN_WINDOW,
     MAX_FAILED_SIGN_INS_PER_EMAIL,
@@ -25,10 +25,12 @@ from app.modules.auth.service import (
     AuthService,
     AuthSettings,
     EmailTakenError,
+    IncorrectPasswordError,
     InvalidAccessTokenError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
     RateLimitedError,
+    SameEmailError,
     _utcnow,
 )
 
@@ -331,6 +333,134 @@ async def test_the_failed_attempt_lookups_use_the_window_and_the_limits(
     )
 
 
+# change email
+
+
+def change_email_request(
+    new_email: str = "new@example.com", password: str = PASSWORD
+) -> ChangeEmailRequest:
+    return ChangeEmailRequest(new_email=new_email, current_password=password)
+
+
+@pytest.mark.anyio
+async def test_change_email_updates_clears_the_failures_and_commits(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    user = make_user()
+
+    updated = await service.change_email(user, change_email_request("New@Example.com"), IP)
+
+    assert updated is user
+    repository.get_user_by_email.assert_awaited_once_with("new@example.com")
+    repository.update_email.assert_awaited_once_with(user, "new@example.com")
+    repository.clear_login_attempts.assert_awaited_once_with("runner@example.com")
+    repository.add_login_attempt.assert_not_awaited()
+    repository.add_refresh_token.assert_not_awaited()
+    repository.revoke_refresh_token.assert_not_awaited()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_change_email_with_a_wrong_password_records_the_failure(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    with pytest.raises(IncorrectPasswordError) as error:
+        await service.change_email(make_user(), change_email_request(password="wrong-pass1"), IP)
+
+    assert error.value.code == "incorrect_password"
+    assert error.value.status_code == 403
+    repository.add_login_attempt.assert_awaited_once_with("runner@example.com", IP, START)
+    repository.update_email.assert_not_awaited()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("password", [PASSWORD, "wrong-pass1"])
+async def test_change_email_is_blocked_after_too_many_failures(
+    service: AuthService, repository: AsyncMock, session: AsyncMock, password: str
+) -> None:
+    repository.failed_attempts_by_email.return_value = full_window(
+        MAX_FAILED_SIGN_INS_PER_EMAIL, timedelta(minutes=10)
+    )
+
+    with pytest.raises(RateLimitedError) as error:
+        await service.change_email(make_user(), change_email_request(password=password), IP)
+
+    assert error.value.headers is not None
+    assert int(error.value.headers["Retry-After"]) >= 1
+    repository.add_login_attempt.assert_not_awaited()
+    repository.update_email.assert_not_awaited()
+    session.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("new_email", ["runner@example.com", "Runner@Example.com"])
+async def test_change_email_to_the_same_email_names_new_email(
+    service: AuthService, repository: AsyncMock, new_email: str
+) -> None:
+    with pytest.raises(SameEmailError) as error:
+        await service.change_email(make_user(), change_email_request(new_email), IP)
+
+    assert error.value.code == "validation_error"
+    assert error.value.status_code == 422
+    assert [field.field for field in error.value.fields] == ["new_email"]
+    repository.get_user_by_email.assert_not_awaited()
+    repository.update_email.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_change_email_to_an_email_in_use_is_email_taken(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    repository.get_user_by_email.return_value = make_user("new@example.com")
+
+    with pytest.raises(EmailTakenError):
+        await service.change_email(make_user(), change_email_request(), IP)
+
+    repository.update_email.assert_not_awaited()
+    session.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_change_email_checks_the_password_before_the_email_in_use(
+    service: AuthService, repository: AsyncMock
+) -> None:
+    repository.get_user_by_email.return_value = make_user("new@example.com")
+
+    with pytest.raises(IncorrectPasswordError):
+        await service.change_email(make_user(), change_email_request(password="wrong-pass1"), IP)
+
+    repository.get_user_by_email.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_change_email_maps_a_lost_race_on_the_email_constraint(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    class Orig(Exception):
+        constraint_name = "uq_users_email"
+
+    repository.update_email.side_effect = IntegrityError("update", {}, Orig("duplicate"))
+
+    with pytest.raises(EmailTakenError):
+        await service.change_email(make_user(), change_email_request(), IP)
+
+    session.rollback.assert_awaited_once()
+    session.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_change_email_does_not_hide_other_integrity_errors(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    repository.update_email.side_effect = IntegrityError("update", {}, Exception("other"))
+
+    with pytest.raises(IntegrityError):
+        await service.change_email(make_user(), change_email_request(), IP)
+
+    session.rollback.assert_awaited_once()
+
+
 # refresh and sign out
 
 
@@ -486,7 +616,18 @@ async def test_every_error_the_service_raises_has_a_message(
     clock.advance(timedelta(minutes=15))
     errors.append(await raised(service.authenticate(expired)))  # expired
 
-    assert len(errors) == 9
+    errors.append(
+        await raised(
+            service.change_email(make_user(), change_email_request(password="wrong-pass1"), IP)
+        )
+    )
+    errors.append(
+        await raised(
+            service.change_email(make_user(), change_email_request("runner@example.com"), IP)
+        )
+    )
+
+    assert len(errors) == 11
     for error in errors:
         assert isinstance(error.message, str), type(error).__name__
         assert error.message.strip(), type(error).__name__
