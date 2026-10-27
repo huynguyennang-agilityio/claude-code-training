@@ -1,6 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stridequest/core/config/api_mode.dart';
 import 'package:stridequest/core/di/injection.dart';
+import 'package:stridequest/core/network/dio_client.dart';
 import 'package:stridequest/features/auth/data/datasources/auth_remote_data_source.dart';
 import 'package:stridequest/features/auth/data/datasources/fake_auth_remote_data_source.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
@@ -42,6 +44,13 @@ void main() {
         expect(getIt<ChallengesBloc>(), isNotNull);
         expect(getIt<MyChallengesBloc>(), isNotNull);
         expect(getIt<ProfileInfoBloc>(), isNotNull);
+      });
+
+      test('the DioProvider hands out the authenticated Dio', () {
+        expect(
+          getIt<DioProvider>()(),
+          same(getIt<Dio>(instanceName: 'authenticatedDio')),
+        );
       });
 
       test('challenges and runs use their real data sources', () {

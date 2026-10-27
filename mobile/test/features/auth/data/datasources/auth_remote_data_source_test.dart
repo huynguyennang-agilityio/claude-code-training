@@ -3,6 +3,9 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:stridequest/core/network/auth_interceptor.dart';
+import 'package:stridequest/core/network/auth_token_handler.dart';
 import 'package:stridequest/core/network/dio_client.dart';
 import 'package:stridequest/core/network/network_simulation.dart';
 import 'package:stridequest/features/auth/data/datasources/auth_remote_data_source.dart';
@@ -24,6 +27,8 @@ const _tokens = {
   'token_type': 'bearer',
   'expires_in': 900,
 };
+
+class _MockTokens extends Mock implements AuthTokenHandler {}
 
 ResponseBody _json(Object body, int status, {Map<String, String>? headers}) {
   return jsonBody(body, status, headers: headers ?? const {});
@@ -517,6 +522,88 @@ void main() {
       );
 
       expect(failure.code, AuthFailureCode.network);
+    });
+  });
+
+  group('changeEmail behind the auth interceptor', () {
+    late _MockTokens tokens;
+    late FakeHttpAdapter adapter;
+    var accessToken = 'access-1';
+
+    DioAuthRemoteDataSource build(FakeHttpHandler handler) {
+      adapter = FakeHttpAdapter(handler);
+      final authenticated = createDio(
+        baseUrl: 'http://api.test/',
+        adapter: adapter,
+        interceptors: [
+          AuthInterceptor(
+            tokens: tokens,
+            retryClient: createDio(
+              baseUrl: 'http://api.test/',
+              adapter: adapter,
+            ),
+          ),
+        ],
+      );
+      // The public Dio must never be used for this call.
+      final public = createDio(
+        baseUrl: 'http://public.test/',
+        adapter: FakeHttpAdapter((_) async => fail('used the public Dio')),
+      );
+      return DioAuthRemoteDataSource(public, DioProvider(() => authenticated));
+    }
+
+    setUp(() {
+      accessToken = 'access-1';
+      tokens = _MockTokens();
+      when(() => tokens.accessToken()).thenAnswer((_) async => accessToken);
+      when(() => tokens.expireSession()).thenAnswer((_) async {});
+    });
+
+    test('sends the bearer token', () async {
+      final source = build((_) async => _json(_user, 200));
+
+      await source.changeEmail(newEmail: 'a@b.co', currentPassword: 'p');
+
+      expect(
+        adapter.requests.single.headers['Authorization'],
+        'Bearer access-1',
+      );
+    });
+
+    test('a token_expired 401 refreshes once and the retry succeeds', () async {
+      when(() => tokens.refreshTokens()).thenAnswer((_) async {
+        accessToken = 'access-2';
+        return TokenRefreshResult.refreshed;
+      });
+      final source = build(
+        (request) async => request.headers['Authorization'] == 'Bearer access-1'
+            ? _error('token_expired', 401)
+            : _json(_user, 200),
+      );
+
+      final user = await source.changeEmail(
+        newEmail: 'a@b.co',
+        currentPassword: 'p',
+      );
+
+      expect(user, AuthUserModel.fromJson(_user));
+      expect(adapter.requests, hasLength(2));
+      expect(adapter.requests.last.headers['Authorization'], 'Bearer access-2');
+      verify(() => tokens.refreshTokens()).called(1);
+      verifyNever(() => tokens.expireSession());
+    });
+
+    test('a 403 incorrect_password is not refreshed or retried', () async {
+      final source = build((_) async => _error('incorrect_password', 403));
+
+      final failure = await _failureOf(
+        source.changeEmail(newEmail: 'a@b.co', currentPassword: 'p'),
+      );
+
+      expect(failure.code, AuthFailureCode.incorrectPassword);
+      expect(adapter.requests, hasLength(1));
+      verifyNever(() => tokens.refreshTokens());
     });
   });
 }
