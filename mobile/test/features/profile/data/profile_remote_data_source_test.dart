@@ -9,6 +9,7 @@ import 'package:stridequest/core/network/dio_client.dart';
 import 'package:stridequest/features/profile/data/datasources/profile_fixtures.dart';
 import 'package:stridequest/features/profile/data/datasources/profile_remote_data_source.dart';
 import 'package:stridequest/features/profile/data/models/profile_model.dart';
+import 'package:stridequest/features/profile/domain/entities/profile.dart';
 import 'package:stridequest/features/profile/domain/failures/profile_failure.dart';
 
 import '../../../helpers/fake_http_adapter.dart';
@@ -47,6 +48,49 @@ class _TransportError implements Exception {
 }
 
 void main() {
+  group('requests and bodies', () {
+    test('get reads users/me/profile', () async {
+      late RequestOptions sent;
+      final source = _source((request) async {
+        sent = request;
+        return jsonBody(profileFixture, 200);
+      });
+
+      final model = await source.get();
+
+      expect(sent.method, 'GET');
+      expect(sent.path, 'users/me/profile');
+      expect(model.firstName, 'Max');
+      expect(model.heightCm, 180.3);
+    });
+
+    test('put sends all nine keys, null included', () async {
+      late RequestOptions sent;
+      final source = _source((request) async {
+        sent = request;
+        return jsonBody(profileEmptyFixture, 200);
+      });
+
+      await source.put(ProfileModel.fromEntity(const Profile()));
+
+      expect(sent.method, 'PUT');
+      expect(sent.path, 'users/me/profile');
+      expect(sent.data, profileEmptyFixture);
+    });
+
+    test('a body that is not a profile is an unknown failure', () async {
+      final source = _source((_) async => jsonBody({'first_name': 3}, 200));
+
+      expect((await _failureOf(source.get())).code, ProfileFailureCode.unknown);
+    });
+
+    test('a 500 without an error body is an unknown failure', () async {
+      final source = _source((_) async => textBody('oops', 500));
+
+      expect((await _failureOf(source.get())).code, ProfileFailureCode.unknown);
+    });
+  });
+
   group('the wire format', () {
     test('a whole number is read as a double', () async {
       final source = _source(
