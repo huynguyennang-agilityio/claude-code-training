@@ -18,6 +18,9 @@ class ChangeEmailPage extends StatelessWidget {
 
   static const _title = 'Email';
 
+  /// Where Save goes when the page is the only one on the stack (a deep link).
+  static const _profilePath = '/profile';
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ChangeEmailBloc, ChangeEmailState>(
@@ -31,7 +34,7 @@ class ChangeEmailPage extends StatelessWidget {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(content: Text('Email changed to $email')));
-        GoRouter.of(context).pop();
+        context.canPop() ? context.pop() : context.go(_profilePath);
       },
       builder: (context, state) => switch (state) {
         ChangeEmailLoading() => const SettingsFormLayout(

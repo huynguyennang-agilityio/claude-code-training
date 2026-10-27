@@ -146,7 +146,7 @@ void main() {
     await pumpUntilFound(tester, find.byType(NavigationBar));
     expect(find.text('Email address'), findsNothing);
 
-    // 2. The new email signs in; the old one no longer does.
+    // 2. The new email signs in.
     await tapVisible(tester, find.text('Sign out'));
     await pumpUntilFound(tester, find.widgetWithText(FilledButton, 'Sign in'));
     await signIn(newEmail);

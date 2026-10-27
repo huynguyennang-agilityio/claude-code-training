@@ -153,6 +153,46 @@ void main() {
       );
     });
 
+    testWidgets('goes back even when the save also refreshes the router, as '
+        'the session update does', (tester) async {
+      final refresh = ChangeNotifier();
+      addTearDown(refresh.dispose);
+      when(
+        () => repository.changeEmail(
+          newEmail: any(named: 'newEmail'),
+          currentPassword: any(named: 'currentPassword'),
+        ),
+      ).thenAnswer((invocation) async {
+        // `AuthBloc` handles the announced user a little later and emits it,
+        // which refreshes the router.
+        unawaited(Future<void>(refresh.notifyListeners));
+        return testUser
+            .copyWith(email: invocation.namedArguments[#newEmail] as String)
+            .toEntity();
+      });
+      await pumpChangeEmail(tester, repository, refreshListenable: refresh);
+      await fillForm(tester);
+
+      await tapSave(tester);
+
+      expect(find.byType(ChangeEmailPage), findsNothing);
+      expect(find.text(parentText), findsOneWidget);
+    });
+
+    testWidgets('goes to the Profile tab when it is the only page', (
+      tester,
+    ) async {
+      await pumpChangeEmail(tester, repository, pushed: false);
+      expect(find.byType(BackButton), findsNothing);
+      await fillForm(tester);
+
+      await tapSave(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ChangeEmailPage), findsNothing);
+      expect(find.text(parentText), findsOneWidget);
+    });
+
     testWidgets('shows progress and locks the form while it saves', (
       tester,
     ) async {

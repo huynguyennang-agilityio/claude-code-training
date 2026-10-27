@@ -50,21 +50,31 @@ void failChangeEmail(MockAuthRepository repository, AuthFailure failure) =>
 const parentText = 'Profile tab';
 
 /// Pumps the Email page pushed over a parent route under a [GoRouter], as the
-/// app does, so a save can pop back to the parent.
+/// app does, so a save can pop back to the parent. [refreshListenable] is the
+/// router's, as `AuthBloc`'s stream is in the app. With [pushed] false the page
+/// is the only one on the stack (a deep link).
 Future<void> pumpChangeEmail(
   WidgetTester tester,
   MockAuthRepository repository, {
   Size size = smallPhone,
   double textScale = 1,
+  Listenable? refreshListenable,
+  bool pushed = true,
 }) async {
   tester.view
     ..devicePixelRatio = 1
     ..physicalSize = size;
   addTearDown(tester.view.reset);
   final router = GoRouter(
+    initialLocation: pushed ? '/' : ChangeEmailPage.path,
+    refreshListenable: refreshListenable,
     routes: [
       GoRoute(
         path: '/',
+        builder: (context, state) => const Scaffold(body: Text(parentText)),
+      ),
+      GoRoute(
+        path: '/profile',
         builder: (context, state) => const Scaffold(body: Text(parentText)),
       ),
       GoRoute(
@@ -86,7 +96,7 @@ Future<void> pumpChangeEmail(
       ),
     ),
   );
-  unawaited(router.push(ChangeEmailPage.path));
+  if (pushed) unawaited(router.push(ChangeEmailPage.path));
   await tester.pumpAndSettle();
 }
 
