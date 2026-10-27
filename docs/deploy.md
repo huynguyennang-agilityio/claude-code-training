@@ -39,13 +39,59 @@ docker run --rm -e DATABASE_URL='…' stridequest-api alembic upgrade head
 | `DATABASE_URL` | yes | `postgresql+asyncpg://…`; the only one Alembic needs |
 | `JWT_SECRET` | yes | a long random string, for example `openssl rand -hex 32` |
 | `PORT` | no | the port uvicorn listens on, `8000` by default; Render sets it |
-| `FORWARDED_ALLOW_IPS` | behind a proxy | the proxy addresses uvicorn trusts for `X-Forwarded-For` (`127.0.0.1` by default). The sign-in rate limit counts failed attempts per client IP, so behind Render's proxy this must name the proxy, or every client shares the proxy's IP and 20 failed sign-ins lock out everyone. Never `*`: then uvicorn takes the leftmost `X-Forwarded-For` entry, which the client controls. The value for Render is set in `render.yaml` with the API release task (#151) |
+| `FORWARDED_ALLOW_IPS` | behind a proxy | the proxy addresses uvicorn trusts for `X-Forwarded-For` (`127.0.0.1` by default). The sign-in rate limit counts failed attempts per client IP, so behind Render's proxy this must name the proxy, or every client shares the proxy's IP and 20 failed sign-ins lock out everyone. Never `*`: then uvicorn takes the leftmost `X-Forwarded-For` entry, which the client controls. On Render, `render.yaml` sets it (see [Client IP behind Render's proxy](#client-ip-behind-renders-proxy)) |
 | `ACCESS_TOKEN_TTL_MINUTES` | no | `15` by default |
 | `REFRESH_TOKEN_TTL_DAYS` | no | `30` by default |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | no | needed only for image uploads ([ADR 0003](adr/0003-cloudinary-for-images.md)) |
 | `CLOUDINARY_FOLDER` | no | `stridequest` by default |
 
 Never bake a value into the image or commit it: set them on the host (Render's dashboard in production).
+
+## API release (Render and Neon)
+
+`.github/workflows/release-api.yml` migrates the Neon database and then deploys the same commit on Render. It runs on a tag `api-vX.Y.Z` on `main`, from `release.yml` for a tag `vX.Y.Z`, by hand (`workflow_dispatch`, a dry run by default), and on every PR into `develop` that changes the workflow, `render.yaml` or `backend/Dockerfile` (always a dry run). A dry run runs the checks, renders the migrations as SQL without a database (`alembic upgrade head --sql`) and builds the image; it migrates and deploys nothing, so it needs no secret.
+
+A real release, in order:
+
+1. Checks the tag is `vX.Y.Z` or `api-vX.Y.Z` and its commit is on `origin/main`.
+2. Runs `ruff check`, `ruff format --check`, `mypy` and the unit tests (the integration tests already ran on `develop`).
+3. Checks the secrets and the variable below are set.
+4. `alembic upgrade head` against Neon. If it fails, the workflow stops and nothing is deployed: the old code keeps running on the old schema.
+5. `POST https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys` with `{"commitId": "<the tag's commit>"}`, so Render builds exactly the commit that was migrated (a deploy hook would build the branch's latest commit). It polls that deploy until it is `live` and fails on `build_failed`, `update_failed`, `pre_deploy_failed`, `canceled` or `deactivated`.
+6. Waits for `<API_BASE_URL>health` to return 200. Steps 5 and 6 together fail after 10 minutes.
+
+### One-time setup
+
+1. **Neon.** Create a project (region close to Singapore, for example `aws-ap-southeast-1`) and a database. Copy its connection string and change it to the asyncpg form the backend uses: `postgresql+asyncpg://<user>:<password>@<host>/<db>?ssl=require`. asyncpg does not accept `sslmode=require` or `channel_binding`; use `ssl=require` and drop the rest. Use the **direct** host for both this secret and Render's `DATABASE_URL`, never the pooled one (`-pooler`): Neon's pooler runs PgBouncer in transaction mode, which breaks asyncpg's prepared statements (plan 025, assumption 4).
+2. **Render.** New → Blueprint, pick this repository and branch `main`: Render reads `render.yaml` and creates the `stridequest-api` web service (Docker, free, Singapore, `autoDeploy: false`, health check `/api/v1/health`). Enter the `sync: false` variables on the dashboard: `DATABASE_URL` (the Neon URL above), `JWT_SECRET` (`openssl rand -hex 32`), and `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`. `FORWARDED_ALLOW_IPS` comes from `render.yaml` (see below).
+3. **Render API key and service ID.** Account settings → API keys → create one. The service ID is the `srv-…` part of the service's dashboard URL.
+4. **GitHub.** In the `production` environment (Settings → Environments; deployment tags `v*`, `api-v*`, `ios-v*`, `android-v*`), add the secrets below. Add the repository variable `API_BASE_URL`, for example `https://stridequest-api.onrender.com/api/v1/` (with the trailing slash; the apps use it too).
+5. **First deploy.** Push a tag (`/release-api` once task 5 of the plan has added it). After it, check the client IP behind Render's proxy as described below.
+
+| Secret or variable | Where | Value |
+| --- | --- | --- |
+| `NEON_DATABASE_URL` | `production` secret | the asyncpg URL from step 1 |
+| `RENDER_API_KEY` | `production` secret | the API key from step 3 |
+| `RENDER_SERVICE_ID` | `production` secret | `srv-…` from step 3 |
+| `API_BASE_URL` | repository variable | the public API base URL, ending in `/api/v1/` |
+
+### Client IP behind Render's proxy
+
+`render.yaml` sets `FORWARDED_ALLOW_IPS` to the private ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10`). Only Render's proxy connects to the container, and uvicorn reads `X-Forwarded-For` from the right, skipping trusted addresses, so it takes the last public address, the one Render appends; a client can only add entries to the left of it. Render does not publish its proxy addresses, so check this after the first deploy: sign in with a wrong password from two different networks and confirm in the logs that the two attempts come from two client addresses. If every request shows the same address, the proxy connects from a public address: add that address to `FORWARDED_ALLOW_IPS` on the dashboard. Never `*`.
+
+### Migrations must be backward compatible
+
+The migration runs before the new code is live, and a rollback redeploys older code on the new schema. So a migration must work with the code before it: add columns as nullable or with a default, add tables freely, and drop or rename a column only in a later release, after no deployed code reads it.
+
+### Rollback
+
+- **Code:** on the Render dashboard, open the service, Events, and choose "Rollback" on the last good deploy (or redeploy its commit). The schema stays as it is, which is safe because migrations are backward compatible.
+- **Schema:** only when a migration itself is wrong. Write a new migration that fixes it and release it; don't run `alembic downgrade` against production.
+
+### Free-tier limits
+
+- Render free web services sleep after 15 minutes without traffic; the first request after that takes about a minute (accepted in plan 025). One service stays within the 750 free hours a month.
+- Neon free has 0.5 GB of storage; the project's dashboard shows how much is used.
 
 ## iOS release (TestFlight)
 
