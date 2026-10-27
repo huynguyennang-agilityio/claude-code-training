@@ -14,3 +14,4 @@ A task that touches `mobile/` too also writes a line in `mobile/PROGRESS.md`. Re
 - 2026-10-26 [profile] #122 feat: PUT /users/me/profile (backend). Adds `PUT /api/v1/users/me/profile`, an upsert that replaces the whole profile, with every contract field rule checked as `422 validation_error`.
 - 2026-10-27 [auth] #123 feat: PUT /users/me/email (backend). Adds `PUT /api/v1/users/me/email` with the current-password check, the shared sign-in rate limit, `403 incorrect_password` and `409 email_taken`.
 - 2026-10-27 [auth] #124 feat: PUT /users/me/password (backend). Adds `PUT /api/v1/users/me/password`, which checks the current password like the email change, revokes every refresh token of the user and returns a new token pair.
+- 2026-10-27 [infra] #150 chore: backend Docker image for production. Adds `backend/Dockerfile` (python:3.12-slim, non-root, uvicorn on `$PORT`) and `.dockerignore`, builds the image in the `backend` CI job, and starts `docs/deploy.md`.

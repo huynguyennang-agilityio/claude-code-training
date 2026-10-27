@@ -97,3 +97,8 @@ jobs:
       - if: steps.changes.outputs.backend == 'true'
         name: integration tests
         run: pytest -q tests/integration
+
+      # The production image (docs/deploy.md), so a PR that breaks it fails here.
+      - if: steps.changes.outputs.backend == 'true'
+        name: docker build
+        run: docker build -t stridequest-api:ci .
