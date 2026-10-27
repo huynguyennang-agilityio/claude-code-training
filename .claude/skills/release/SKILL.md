@@ -21,4 +21,4 @@ Follow [`steps.md`](steps.md) with:
 | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | secret | 5 (Android keystore) |
 | `FIREBASE_ANDROID_APP_ID`, `FIREBASE_SERVICE_ACCOUNT_JSON` | secret | 6 (Firebase) |
 
-The last tag in step 4 is the last `vX.Y.Z` tag. The per-part tags (`api-v…`, `ios-v…`, `android-v…`) have their own versions and do not count here.
+In step 4 the last release is the newest tag of any prefix, since `/release` releases every part. The version in step 5 is the next one after the highest of all release tags, as for the other skills.

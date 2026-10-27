@@ -19,7 +19,7 @@
 #     DELETE or PATCH on git/refs/tags/<tag> (deleting or moving a tag);
 #     DELETE on issues/<n>/labels/human-merge; DELETE or PUT on issues/<n>/labels; PATCH on
 #     issues/<n> or pulls/<n> with a labels field; DELETE or PATCH on labels/human-merge;
-#     PATCH on the repository with delete_branch_on_merge; GraphQL deleteRef, updateRefs,
+#     PATCH on the repository with delete_branch_on_merge; GraphQL deleteRef, updateRef(s),
 #     removeLabelsFromLabelable, clearLabelsFromLabelable, deleteLabel, updateLabel
 # human-merge is the label that makes /run-tasks stop for the user (plan 021).
 #
@@ -272,7 +272,7 @@ check_gh_api() {
 
   if [ "$endpoint" = graphql ]; then
     case "$*" in
-      *deleteRef* | *updateRefs* | *removeLabelsFromLabelable* | *clearLabelsFromLabelable* | *deleteLabel* | *updateLabel*)
+      *deleteRef* | *updateRef* | *removeLabelsFromLabelable* | *clearLabelsFromLabelable* | *deleteLabel* | *updateLabel*)
         block "deleting a branch or removing a label through gh api graphql"
         ;;
     esac

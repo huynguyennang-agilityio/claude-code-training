@@ -285,6 +285,7 @@ blocked on-feature 'gh api --method PATCH repos/o/r/git/refs/tags/v1 -f sha=abc 
 blocked on-feature 'gh release delete v1.2.3 --cleanup-tag'
 blocked on-feature 'gh release delete v1.2.3 --yes --cleanup-tag=true'
 blocked on-feature 'gh release delete -R o/r v1.2.3 --cleanup-tag'
+blocked on-feature "gh api graphql -f query='mutation { updateRef(input: {refId: \"x\", oid: \"y\", force: true}) { clientMutationId } }'"
 
 # --- input the hook cannot use is allowed ---
 for raw in '' 'not json' '{}' '{"tool_input":{}}'; do
