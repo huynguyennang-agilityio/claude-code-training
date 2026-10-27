@@ -75,7 +75,7 @@ jobs:
         env:
           REF_NAME: ${{ github.ref_name }}
         run: |
-          if [[ "$REF_NAME" =~ ^([a-z]+-)?v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+          if [[ "$REF_NAME" =~ ^(android-)?v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
             version="${BASH_REMATCH[2]}"
           elif [[ "$DRY_RUN" == "true" ]]; then
             # A PR or a dispatch from a branch: the version in pubspec.yaml.
