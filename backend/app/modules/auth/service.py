@@ -20,7 +20,13 @@ from app.core.security import (
 )
 from app.modules.auth.models import RefreshToken, User, UserRole
 from app.modules.auth.repository import AuthRepository
-from app.modules.auth.schemas import ChangeEmailRequest, SignInRequest, SignUpRequest, TokenPair
+from app.modules.auth.schemas import (
+    ChangeEmailRequest,
+    ChangePasswordRequest,
+    SignInRequest,
+    SignUpRequest,
+    TokenPair,
+)
 
 MAX_FAILED_SIGN_INS_PER_EMAIL = 5
 MAX_FAILED_SIGN_INS_PER_IP = 20
@@ -70,6 +76,11 @@ class IncorrectPasswordError(DomainError):
 
 
 class SameEmailError(DomainError):
+    status_code = 422
+    code = VALIDATION_ERROR_CODE
+
+
+class SamePasswordError(DomainError):
     status_code = 422
     code = VALIDATION_ERROR_CODE
 
@@ -146,6 +157,10 @@ class AuthService:
         password_ok = await verify_password_async(
             data.password, user.password_hash if user else None
         )
+        # Serialized with `change_password`: a password that changed while it was being
+        # checked is wrong now, and must not get a refresh token the change never revoked.
+        if password_ok and user is not None:
+            password_ok = await self._password_unchanged_after_lock(user)
         if user is None or not password_ok:
             await self._repository.add_login_attempt(data.email, ip, now)
             await self._session.commit()
@@ -185,10 +200,42 @@ class AuthService:
         await self._session.commit()
         return user
 
+    async def change_password(self, user: User, data: ChangePasswordRequest, ip: str) -> TokenPair:
+        """Give `user` a new password and sign every device out. The order of checks is part
+        of the contract: rate limit, current password, same password (see `docs/api/auth.md`).
+
+        Returns a new token pair for the device that made the call.
+        """
+        now = self._now()
+        await self._verify_current_password(user, data.current_password, ip, now)
+        if data.new_password == data.current_password:
+            raise SamePasswordError(
+                "The new password is the same as the current one.",
+                fields=[
+                    FieldError(
+                        field="new_password",
+                        message="The new password must differ from the current one.",
+                    )
+                ],
+            )
+        password_hash = await hash_password_async(data.new_password)
+        if not await self._password_unchanged_after_lock(user):
+            # Another change committed after the check: the current password is wrong now.
+            await self._repository.add_login_attempt(user.email, ip, now)
+            await self._session.commit()
+            raise IncorrectPasswordError("The current password is incorrect.")
+        await self._repository.update_password_hash(user, password_hash)
+        await self._repository.revoke_all_refresh_tokens(user.id, now)
+        await self._repository.clear_login_attempts(user.email)
+        tokens = await self._issue_tokens(user.id)
+        await self._session.commit()
+        return tokens
+
     async def refresh(self, refresh_token: str) -> TokenPair:
-        user_id = await self._repository.consume_refresh_token(
-            hash_refresh_token(refresh_token), self._now()
-        )
+        token_hash = hash_refresh_token(refresh_token)
+        # Serialized with `change_password`, so a password change revokes this pair too.
+        await self._repository.lock_refresh_token_owner(token_hash)
+        user_id = await self._repository.consume_refresh_token(token_hash, self._now())
         if user_id is None:
             raise InvalidRefreshTokenError("The refresh token is unknown, expired or used.")
         tokens = await self._issue_tokens(user_id)
@@ -249,6 +296,12 @@ class AuthService:
             refresh_token=refresh_token,
             expires_in=int(self._settings.access_token_ttl.total_seconds()),
         )
+
+    async def _password_unchanged_after_lock(self, user: User) -> bool:
+        """Take the lock on `user`'s refresh tokens, then check that the stored password hash
+        is still the one that was verified. The lock is held until the transaction ends."""
+        await self._repository.lock_user_refresh_tokens(user.id)
+        return await self._repository.stored_password_hash(user.id) == user.password_hash
 
     async def _verify_current_password(
         self, user: User, password: str, ip: str, now: datetime

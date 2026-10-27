@@ -23,6 +23,7 @@ from tests.api_docs import (
     API_DOCS_DIR,
     AUTH_MODULE_ERROR_CODES,
     DOCUMENTED_NOT_YET_SERVED_ERROR_CODES,
+    DOCUMENTED_NOT_YET_SERVED_PATHS,
     error_codes,
     load_example,
 )
@@ -103,14 +104,14 @@ def test_codes_not_yet_served_have_no_route_yet() -> None:
     """`DOCUMENTED_NOT_YET_SERVED_ERROR_CODES` is only for codes whose routes don't exist yet.
 
     The set is empty once every documented route is served. A code listed in it (a route
-    documented before it is built) must not have its route yet, and the task that adds the
-    route moves the code into `AUTH_MODULE_ERROR_CODES` and empties the set again.
+    documented before it is built) comes with its planned path in
+    `DOCUMENTED_NOT_YET_SERVED_PATHS`, which must not be served yet. The task that adds the
+    route moves the code into `AUTH_MODULE_ERROR_CODES` and empties both sets again.
     """
-    if not DOCUMENTED_NOT_YET_SERVED_ERROR_CODES:
-        return
+    assert bool(DOCUMENTED_NOT_YET_SERVED_ERROR_CODES) == bool(DOCUMENTED_NOT_YET_SERVED_PATHS)
     paths = {getattr(route, "path", "") for route in create_app().routes}
 
-    assert "/api/v1/users/me/password" not in paths
+    assert not DOCUMENTED_NOT_YET_SERVED_PATHS & paths
 
 
 @pytest.mark.anyio

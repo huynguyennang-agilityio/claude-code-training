@@ -1,10 +1,23 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import ColumnElement, delete, select, update
+from sqlalchemy import ColumnElement, String, Uuid, cast, delete, func, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import SQLCoreOperations
 
 from app.modules.auth.models import LoginAttempt, RefreshToken, User
+
+# Salts the advisory lock key, so it can't equal a key another feature derives from the id.
+_REFRESH_TOKENS_LOCK_SALT = 7_301_224
+
+
+def _refresh_tokens_lock(user_id: SQLCoreOperations[uuid.UUID]) -> ColumnElement[Any]:
+    """Take the advisory lock on one user's refresh tokens. The key is computed in SQL, so a
+    refresh can find the token's owner and take the lock in one query."""
+    return func.pg_advisory_xact_lock(
+        func.hashtextextended(cast(user_id, String), _REFRESH_TOKENS_LOCK_SALT)
+    )
 
 
 class AuthRepository:
@@ -53,6 +66,40 @@ class AuthRepository:
             .where(RefreshToken.token_hash == token_hash, RefreshToken.revoked_at.is_(None))
             .values(revoked_at=now)
         )
+
+    async def lock_user_refresh_tokens(self, user_id: uuid.UUID) -> None:
+        """Wait for any other transaction that is issuing or revoking this user's refresh
+        tokens, then hold the lock until this transaction ends. Without it a refresh that
+        commits during a password change keeps a token the change never saw."""
+        await self._session.execute(select(_refresh_tokens_lock(literal(user_id, Uuid))))
+
+    async def stored_password_hash(self, user_id: uuid.UUID) -> str | None:
+        """The password hash as committed now, read with a new query: not the copy of the
+        `User` loaded earlier in this session. Call it after `lock_user_refresh_tokens`, in a
+        statement of its own, so it sees a password change that committed while waiting."""
+        return await self._session.scalar(select(User.password_hash).where(User.id == user_id))
+
+    async def lock_refresh_token_owner(self, token_hash: str) -> None:
+        """`lock_user_refresh_tokens` for the owner of `token_hash`, found in the same query.
+        An unknown token takes no lock."""
+        await self._session.execute(
+            select(_refresh_tokens_lock(RefreshToken.user_id)).where(
+                RefreshToken.token_hash == token_hash
+            )
+        )
+
+    async def revoke_all_refresh_tokens(self, user_id: uuid.UUID, now: datetime) -> None:
+        """Revoke every refresh token of `user_id` that is not revoked yet."""
+        await self._session.execute(
+            update(RefreshToken)
+            .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+            .values(revoked_at=now)
+        )
+        await self._session.flush()
+
+    async def update_password_hash(self, user: User, password_hash: str) -> None:
+        user.password_hash = password_hash
+        await self._session.flush()
 
     async def add_login_attempt(self, email: str, ip: str, attempted_at: datetime) -> None:
         self._session.add(LoginAttempt(email=email, ip=ip, attempted_at=attempted_at))

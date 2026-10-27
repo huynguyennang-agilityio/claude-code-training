@@ -16,7 +16,12 @@ from app.core.security import (
 )
 from app.modules.auth.models import RefreshToken, User
 from app.modules.auth.repository import AuthRepository
-from app.modules.auth.schemas import ChangeEmailRequest, SignInRequest, SignUpRequest
+from app.modules.auth.schemas import (
+    ChangeEmailRequest,
+    ChangePasswordRequest,
+    SignInRequest,
+    SignUpRequest,
+)
 from app.modules.auth.service import (
     FAILED_SIGN_IN_WINDOW,
     MAX_FAILED_SIGN_INS_PER_EMAIL,
@@ -31,6 +36,7 @@ from app.modules.auth.service import (
     InvalidRefreshTokenError,
     RateLimitedError,
     SameEmailError,
+    SamePasswordError,
     _utcnow,
 )
 
@@ -78,6 +84,8 @@ def repository() -> AsyncMock:
     repository.get_user_by_email.return_value = None
     repository.failed_attempts_by_email.return_value = []
     repository.failed_attempts_by_ip.return_value = []
+    # No password change commits while a request waits for the user's token lock.
+    repository.stored_password_hash.return_value = PASSWORD_HASH
     return repository
 
 
@@ -201,6 +209,39 @@ async def test_sign_in_with_the_right_password_issues_tokens(
     assert decode_access_token(tokens.access_token, SECRET, START) == str(user.id)
     repository.clear_login_attempts.assert_awaited_once_with("runner@example.com")
     repository.add_login_attempt.assert_not_awaited()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_sign_in_takes_the_users_token_lock_before_issuing_tokens(
+    service: AuthService, repository: AsyncMock
+) -> None:
+    user = make_user()
+    repository.get_user_by_email.return_value = user
+
+    await service.sign_in(sign_in_request(), IP)
+
+    repository.lock_user_refresh_tokens.assert_awaited_once_with(user.id)
+    names = [c[0] for c in repository.method_calls]
+    assert (
+        names.index("lock_user_refresh_tokens")
+        < names.index("stored_password_hash")
+        < names.index("add_refresh_token")
+    )
+
+
+@pytest.mark.anyio
+async def test_sign_in_fails_when_the_password_changed_while_it_was_checked(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    repository.get_user_by_email.return_value = make_user()
+    repository.stored_password_hash.return_value = hash_password("newrun5medals")
+
+    with pytest.raises(InvalidCredentialsError):
+        await service.sign_in(sign_in_request(), IP)
+
+    repository.add_login_attempt.assert_awaited_once_with("runner@example.com", IP, START)
+    repository.add_refresh_token.assert_not_awaited()
     session.commit.assert_awaited_once()
 
 
@@ -464,6 +505,141 @@ async def test_change_email_does_not_hide_other_integrity_errors(
 # refresh and sign out
 
 
+# change password
+
+NEW_PASSWORD = "newrun5medals"
+
+
+def change_password_request(
+    new_password: str = NEW_PASSWORD, password: str = PASSWORD
+) -> ChangePasswordRequest:
+    return ChangePasswordRequest(current_password=password, new_password=new_password)
+
+
+@pytest.mark.anyio
+async def test_change_password_rehashes_revokes_everything_and_issues_a_pair(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    user = make_user()
+
+    tokens = await service.change_password(user, change_password_request(), IP)
+
+    repository.update_password_hash.assert_awaited_once()
+    new_hash = repository.update_password_hash.await_args.args[1]
+    assert new_hash != PASSWORD_HASH
+    assert verify_password(NEW_PASSWORD, new_hash)
+    repository.revoke_all_refresh_tokens.assert_awaited_once_with(user.id, START)
+    repository.clear_login_attempts.assert_awaited_once_with("runner@example.com")
+    assert stored_refresh_token(repository).user_id == user.id
+    assert tokens.token_type == "bearer"
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_change_password_revokes_before_issuing_the_new_token(
+    service: AuthService, repository: AsyncMock
+) -> None:
+    await service.change_password(make_user(), change_password_request(), IP)
+
+    names = [c[0] for c in repository.method_calls]
+    assert names.index("revoke_all_refresh_tokens") < names.index("add_refresh_token")
+
+
+@pytest.mark.anyio
+async def test_change_password_takes_the_users_token_lock_before_changing_anything(
+    service: AuthService, repository: AsyncMock
+) -> None:
+    user = make_user()
+
+    await service.change_password(user, change_password_request(), IP)
+
+    repository.lock_user_refresh_tokens.assert_awaited_once_with(user.id)
+    names = [c[0] for c in repository.method_calls]
+    assert names.index("lock_user_refresh_tokens") < names.index("update_password_hash")
+    assert names.index("lock_user_refresh_tokens") < names.index("revoke_all_refresh_tokens")
+
+
+@pytest.mark.anyio
+async def test_change_password_fails_when_another_change_committed_first(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    repository.stored_password_hash.return_value = hash_password("other5medals")
+
+    with pytest.raises(IncorrectPasswordError):
+        await service.change_password(make_user(), change_password_request(), IP)
+
+    repository.add_login_attempt.assert_awaited_once_with("runner@example.com", IP, START)
+    repository.update_password_hash.assert_not_awaited()
+    repository.revoke_all_refresh_tokens.assert_not_awaited()
+    repository.add_refresh_token.assert_not_awaited()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_change_password_with_a_wrong_password_records_the_failure(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    with pytest.raises(IncorrectPasswordError) as error:
+        await service.change_password(
+            make_user(), change_password_request(password="wrong-pass1"), IP
+        )
+
+    assert error.value.status_code == 403
+    repository.add_login_attempt.assert_awaited_once_with("runner@example.com", IP, START)
+    repository.update_password_hash.assert_not_awaited()
+    repository.revoke_all_refresh_tokens.assert_not_awaited()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("password", [PASSWORD, "wrong-pass1"])
+async def test_change_password_is_blocked_after_too_many_failures(
+    service: AuthService, repository: AsyncMock, session: AsyncMock, password: str
+) -> None:
+    repository.failed_attempts_by_email.return_value = full_window(
+        MAX_FAILED_SIGN_INS_PER_EMAIL, timedelta(minutes=10)
+    )
+
+    with pytest.raises(RateLimitedError) as error:
+        await service.change_password(make_user(), change_password_request(password=password), IP)
+
+    assert error.value.headers is not None
+    assert int(error.value.headers["Retry-After"]) >= 1
+    repository.update_password_hash.assert_not_awaited()
+    session.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_change_password_to_the_same_password_names_new_password(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    with pytest.raises(SamePasswordError) as error:
+        await service.change_password(make_user(), change_password_request(PASSWORD), IP)
+
+    assert error.value.code == "validation_error"
+    assert error.value.status_code == 422
+    assert [field.field for field in error.value.fields] == ["new_password"]
+    repository.update_password_hash.assert_not_awaited()
+    repository.revoke_all_refresh_tokens.assert_not_awaited()
+    session.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_change_password_checks_the_password_before_the_same_password(
+    service: AuthService,
+) -> None:
+    with pytest.raises(IncorrectPasswordError):
+        await service.change_password(
+            make_user(), change_password_request("wrong-pass1", "wrong-pass1"), IP
+        )
+
+
+def test_change_password_rejects_a_new_password_that_breaks_the_rule() -> None:
+    for bad in ["short1", "onlyletters", "12345678", "a1" * 65]:
+        with pytest.raises(ValueError, match="new_password"):
+            change_password_request(bad)
+
+
 @pytest.mark.anyio
 async def test_refresh_rotates_the_token(
     service: AuthService, repository: AsyncMock, session: AsyncMock
@@ -480,6 +656,21 @@ async def test_refresh_rotates_the_token(
     assert tokens.refresh_token != "old-refresh-token"
     assert stored_refresh_token(repository).user_id == user_id
     session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_refresh_takes_the_owners_token_lock_before_consuming(
+    service: AuthService, repository: AsyncMock
+) -> None:
+    repository.consume_refresh_token.return_value = uuid.uuid4()
+
+    await service.refresh("old-refresh-token")
+
+    repository.lock_refresh_token_owner.assert_awaited_once_with(
+        hash_refresh_token("old-refresh-token")
+    )
+    names = [c[0] for c in repository.method_calls]
+    assert names.index("lock_refresh_token_owner") < names.index("consume_refresh_token")
 
 
 @pytest.mark.anyio
@@ -627,7 +818,11 @@ async def test_every_error_the_service_raises_has_a_message(
         )
     )
 
-    assert len(errors) == 11
+    errors.append(
+        await raised(service.change_password(make_user(), change_password_request(PASSWORD), IP))
+    )
+
+    assert len(errors) == 12
     for error in errors:
         assert isinstance(error.message, str), type(error).__name__
         assert error.message.strip(), type(error).__name__

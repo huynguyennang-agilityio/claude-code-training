@@ -1,7 +1,7 @@
 import re
 import uuid
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from email_validator import EmailNotValidError, validate_email
 from pydantic import (
@@ -41,17 +41,30 @@ def _lowercase(email: str) -> str:
     return email.lower()
 
 
-class SignUpRequest(BaseModel):
-    email: Email
-    password: str = Field(
+def _check_password_rule(value: str) -> str:
+    """The contract's password rule beyond its length: a letter and a digit."""
+    if not re.search(r"[A-Za-z]", value):
+        raise ValueError("Password must contain at least one letter.")
+    if not re.search(r"[0-9]", value):
+        raise ValueError("Password must contain at least one digit.")
+    return value
+
+
+def _new_password_field() -> Any:
+    return Field(
         min_length=8,
         max_length=128,
-        # The validator below enforces this and gives the messages; the schema states it
+        # The validator enforces this and gives the messages; the schema states it
         # so the OpenAPI document describes what the API accepts. ASCII ranges, because
         # `\w` and `\d` mean different things in Python and in JSON Schema's ECMA-262
         # regular expressions, and the schema must mean the same to every reader.
         json_schema_extra={"allOf": [{"pattern": "[A-Za-z]"}, {"pattern": "[0-9]"}]},
     )
+
+
+class SignUpRequest(BaseModel):
+    email: Email
+    password: str = _new_password_field()
     display_name: DisplayName = Field(json_schema_extra={"pattern": r"^[^\x00-\x1f\x7f]*$"})
 
     @field_validator("display_name", mode="before")
@@ -74,11 +87,7 @@ class SignUpRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def password_has_letter_and_digit(cls, value: str) -> str:
-        if not re.search(r"[A-Za-z]", value):
-            raise ValueError("Password must contain at least one letter.")
-        if not re.search(r"[0-9]", value):
-            raise ValueError("Password must contain at least one digit.")
-        return value
+        return _check_password_rule(value)
 
 
 class SignInRequest(BaseModel):
@@ -101,6 +110,17 @@ class ChangeEmailRequest(BaseModel):
     @classmethod
     def new_email_is_lowercase(cls, value: str) -> str:
         return _lowercase(value)
+
+
+class ChangePasswordRequest(BaseModel):
+    # Only presence is checked: the password rules are not repeated here.
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = _new_password_field()
+
+    @field_validator("new_password")
+    @classmethod
+    def new_password_has_letter_and_digit(cls, value: str) -> str:
+        return _check_password_rule(value)
 
 
 class RefreshTokenRequest(BaseModel):
