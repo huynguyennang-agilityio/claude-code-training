@@ -1,5 +1,16 @@
 import 'package:dio/dio.dart';
 
+/// Hands out the authenticated [Dio] when it is first needed. For classes
+/// that the authenticated [Dio] itself depends on (the auth repository is its
+/// token handler), so the dependency graph has no cycle.
+class DioProvider {
+  const DioProvider(this._create);
+
+  final Dio Function() _create;
+
+  Dio call() => _create();
+}
+
 /// Creates a [Dio] for the StrideQuest API.
 ///
 /// Paths are joined to [baseUrl], so a base such as `https://example.com/api`

@@ -1,6 +1,10 @@
+import 'package:mocktail/mocktail.dart';
 import 'package:stridequest/features/auth/data/models/auth_session_model.dart';
 import 'package:stridequest/features/auth/data/models/auth_user_model.dart';
 import 'package:stridequest/features/auth/data/models/token_pair_model.dart';
+import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
+
+class MockAuthRepository extends Mock implements AuthRepository {}
 
 final testUser = AuthUserModel(
   id: 'user-1',

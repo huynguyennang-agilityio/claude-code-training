@@ -220,4 +220,141 @@ void main() {
     await expired;
     expect(local.session, isNull);
   });
+
+  group('changeEmail', () {
+    final updated = testUser.copyWith(email: 'new.runner@example.com');
+
+    setUp(() {
+      when(
+        () => remote.changeEmail(
+          newEmail: 'new.runner@example.com',
+          currentPassword: 'run4medals',
+        ),
+      ).thenAnswer((_) async => updated);
+    });
+
+    test('stores the new user, keeps the tokens and announces it', () async {
+      local.session = testSession();
+      final announced = <Object>[];
+      final subscription = repository.userUpdated.listen(announced.add);
+      addTearDown(subscription.cancel);
+
+      final user = await repository.changeEmail(
+        newEmail: 'new.runner@example.com',
+        currentPassword: 'run4medals',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(user, updated.toEntity());
+      expect(local.session, testSession().copyWith(user: updated));
+      expect(announced, [user]);
+    });
+
+    test('a failure changes and announces nothing', () async {
+      local.session = testSession();
+      final announced = <Object>[];
+      final subscription = repository.userUpdated.listen(announced.add);
+      addTearDown(subscription.cancel);
+      when(
+        () => remote.changeEmail(
+          newEmail: any(named: 'newEmail'),
+          currentPassword: any(named: 'currentPassword'),
+        ),
+      ).thenThrow(AuthFailure(AuthFailureCode.incorrectPassword));
+
+      await expectLater(
+        repository.changeEmail(newEmail: 'x@y.co', currentPassword: 'bad'),
+        throwsA(
+          isA<AuthFailure>().having(
+            (f) => f.code,
+            'code',
+            AuthFailureCode.incorrectPassword,
+          ),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(local.session, testSession());
+      expect(announced, isEmpty);
+    });
+
+    test(
+      'a sign-out during the request stores and announces nothing',
+      () async {
+        local.session = testSession();
+        final announced = <Object>[];
+        final subscription = repository.userUpdated.listen(announced.add);
+        addTearDown(subscription.cancel);
+        when(
+          () => remote.changeEmail(
+            newEmail: any(named: 'newEmail'),
+            currentPassword: any(named: 'currentPassword'),
+          ),
+        ).thenAnswer((_) async {
+          local.session = null;
+          return updated;
+        });
+
+        await repository.changeEmail(
+          newEmail: 'new.runner@example.com',
+          currentPassword: 'run4medals',
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(local.session, isNull);
+        expect(announced, isEmpty);
+      },
+    );
+
+    test('a response for another user stores and announces nothing', () async {
+      final other = testSession().copyWith(
+        user: testUser.copyWith(id: 'user-2'),
+      );
+      local.session = testSession();
+      final announced = <Object>[];
+      final subscription = repository.userUpdated.listen(announced.add);
+      addTearDown(subscription.cancel);
+      when(
+        () => remote.changeEmail(
+          newEmail: any(named: 'newEmail'),
+          currentPassword: any(named: 'currentPassword'),
+        ),
+      ).thenAnswer((_) async {
+        // User B signs in while user A's request is in flight.
+        local.session = other;
+        return updated;
+      });
+
+      await repository.changeEmail(
+        newEmail: 'new.runner@example.com',
+        currentPassword: 'run4medals',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(local.session, other);
+      expect(announced, isEmpty);
+    });
+
+    test('a refresh during the request does not deadlock', () async {
+      local.session = testSession();
+      when(
+        () => remote.changeEmail(
+          newEmail: any(named: 'newEmail'),
+          currentPassword: any(named: 'currentPassword'),
+        ),
+      ).thenAnswer((_) async {
+        // What the auth interceptor does on a 401.
+        await repository.refreshTokens();
+        return updated;
+      });
+      when(() => remote.refresh(any())).thenAnswer((_) async => testTokens(2));
+
+      await repository
+          .changeEmail(newEmail: 'x@y.co', currentPassword: 'p')
+          .timeout(const Duration(seconds: 2));
+
+      expect(local.session?.tokens, testTokens(2));
+      expect(local.session?.user, updated);
+    });
+  });
 }

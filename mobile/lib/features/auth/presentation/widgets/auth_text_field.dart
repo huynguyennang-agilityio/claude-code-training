@@ -23,6 +23,7 @@ class AuthTextField extends StatelessWidget {
     this.trailing,
     this.helperText,
     this.inputFormatters,
+    this.scrollPadding,
   });
 
   final String label;
@@ -42,6 +43,10 @@ class AuthTextField extends StatelessWidget {
   /// A hint under the box, shown while there is no error.
   final String? helperText;
   final List<TextInputFormatter>? inputFormatters;
+
+  /// Room kept around the focused field when it scrolls into view. Forms in
+  /// `SettingsFormLayout` pass `SettingsFormLayout.scrollPadding`.
+  final EdgeInsets? scrollPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +71,7 @@ class AuthTextField extends StatelessWidget {
           autocorrect: false,
           enableSuggestions: !obscureText,
           inputFormatters: inputFormatters,
+          scrollPadding: scrollPadding ?? const EdgeInsets.all(AppSpacing.lg),
           style: theme.textTheme.bodyLarge,
           decoration: InputDecoration(
             hintText: hint,
@@ -104,6 +110,7 @@ class PasswordField extends StatefulWidget {
     this.textInputAction,
     this.autofillHints,
     this.helperText,
+    this.scrollPadding,
   });
 
   final TextEditingController controller;
@@ -117,6 +124,7 @@ class PasswordField extends StatefulWidget {
   final TextInputAction? textInputAction;
   final Iterable<String>? autofillHints;
   final String? helperText;
+  final EdgeInsets? scrollPadding;
 
   @override
   State<PasswordField> createState() => _PasswordFieldState();
@@ -140,6 +148,7 @@ class _PasswordFieldState extends State<PasswordField> {
       textInputAction: widget.textInputAction,
       autofillHints: widget.autofillHints,
       helperText: widget.helperText,
+      scrollPadding: widget.scrollPadding,
       obscureText: !_visible,
       trailing: TextButton(
         onPressed: widget.enabled

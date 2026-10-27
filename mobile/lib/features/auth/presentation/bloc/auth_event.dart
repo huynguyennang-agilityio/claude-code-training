@@ -26,6 +26,16 @@ final class _AuthSessionStarted extends AuthEvent {
   List<Object?> get props => [user];
 }
 
+/// The repository changed the signed-in user's details, for example the email.
+final class _AuthUserUpdated extends AuthEvent {
+  const _AuthUserUpdated(this.user);
+
+  final AuthUser user;
+
+  @override
+  List<Object?> get props => [user];
+}
+
 /// The repository ended the session, for example after a failed refresh.
 final class _AuthSessionExpired extends AuthEvent {
   const _AuthSessionExpired();

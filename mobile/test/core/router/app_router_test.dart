@@ -90,6 +90,9 @@ void main() {
       () => repository.sessionExpired,
     ).thenAnswer((_) => sessionExpired.stream);
     when(
+      () => repository.userUpdated,
+    ).thenAnswer((_) => const Stream<AuthUser>.empty());
+    when(
       () => repository.sessionStarted,
     ).thenAnswer((_) => const Stream<AuthUser>.empty());
     registerAuthFormBlocs(repository);

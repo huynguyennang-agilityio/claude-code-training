@@ -17,6 +17,7 @@ import 'package:injectable/injectable.dart' as _i526;
 import 'package:stridequest/core/di/mock_api_module.dart' as _i292;
 import 'package:stridequest/core/di/network_module.dart' as _i245;
 import 'package:stridequest/core/network/auth_token_handler.dart' as _i713;
+import 'package:stridequest/core/network/dio_client.dart' as _i228;
 import 'package:stridequest/features/auth/auth_module.dart' as _i670;
 import 'package:stridequest/features/auth/data/datasources/auth_local_data_source.dart'
     as _i851;
@@ -28,6 +29,8 @@ import 'package:stridequest/features/auth/domain/repositories/auth_repository.da
     as _i231;
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart'
     as _i649;
+import 'package:stridequest/features/auth/presentation/bloc/change_email_bloc.dart'
+    as _i231;
 import 'package:stridequest/features/auth/presentation/bloc/sign_in_bloc.dart'
     as _i696;
 import 'package:stridequest/features/auth/presentation/bloc/sign_up_bloc.dart'
@@ -89,6 +92,9 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i558.FlutterSecureStorage>(
       () => networkModule.secureStorage,
     );
+    gh.lazySingleton<_i228.DioProvider>(
+      () => networkModule.authenticatedDioProvider,
+    );
     gh.lazySingleton<_i645.HealthDataSource>(
       () => _i645.PluginHealthDataSource(),
     );
@@ -107,14 +113,15 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i851.AuthLocalDataSource>(
       () => _i851.SecureAuthLocalDataSource(gh<_i558.FlutterSecureStorage>()),
     );
+    gh.lazySingleton<_i306.HealthPromptStore>(
+      () => _i306.SecureHealthPromptStore(gh<_i558.FlutterSecureStorage>()),
+    );
     gh.lazySingleton<_i397.AuthRemoteDataSource>(
       () => _i397.DioAuthRemoteDataSource(
         gh<_i361.Dio>(instanceName: 'publicDio'),
+        gh<_i228.DioProvider>(),
       ),
       registerFor: {_real},
-    );
-    gh.lazySingleton<_i306.HealthPromptStore>(
-      () => _i306.SecureHealthPromptStore(gh<_i558.FlutterSecureStorage>()),
     );
     gh.lazySingleton<_i203.HealthRepository>(
       () => _i21.HealthRepositoryImpl(
@@ -137,6 +144,9 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i713.AuthTokenHandler>(
       () => authModule.authTokenHandler(gh<_i663.AuthRepositoryImpl>()),
+    );
+    gh.factory<_i231.ChangeEmailBloc>(
+      () => _i231.ChangeEmailBloc(gh<_i231.AuthRepository>()),
     );
     gh.factory<_i696.SignInBloc>(
       () => _i696.SignInBloc(gh<_i231.AuthRepository>()),

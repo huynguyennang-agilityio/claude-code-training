@@ -17,6 +17,17 @@ abstract interface class AuthRepository {
 
   Future<AuthUser> signIn({required String email, required String password});
 
+  /// Changes the account email (`PUT /users/me/email`) and returns the updated
+  /// user, also announced on [userUpdated].
+  ///
+  /// Extra failures: [AuthFailureCode.incorrectPassword] (403),
+  /// [AuthFailureCode.emailTaken] (409), [AuthFailureCode.validation] (422)
+  /// and [AuthFailureCode.rateLimited] (429, with `retryAfter`).
+  Future<AuthUser> changeEmail({
+    required String newEmail,
+    required String currentPassword,
+  });
+
   /// Clears the local session and revokes the refresh token on the backend.
   Future<void> signOut();
 
@@ -24,6 +35,10 @@ abstract interface class AuthRepository {
   /// session state (the `AuthBloc`) learns of it without the sign-in and
   /// sign-up forms having to tell it.
   Stream<AuthUser> get sessionStarted;
+
+  /// Emits the signed-in user after their account changed (a new email), so
+  /// the `AuthBloc` shows it without the form that made the change telling it.
+  Stream<AuthUser> get userUpdated;
 
   /// Emits when the session ends without the user signing out, for example
   /// when a token refresh fails.

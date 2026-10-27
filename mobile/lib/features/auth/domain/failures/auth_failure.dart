@@ -14,6 +14,7 @@ enum AuthFailureCode {
     'invalid_refresh_token',
     'Your session has expired. Sign in again.',
   ),
+  incorrectPassword('incorrect_password', 'The current password is incorrect.'),
   notAuthenticated('not_authenticated', 'Sign in to continue.'),
   invalidToken('invalid_token', 'Your session has expired. Sign in again.'),
   tokenExpired('token_expired', 'Your session has expired. Sign in again.'),
@@ -57,6 +58,15 @@ class AuthFailure extends Failure {
   /// Per-field messages from a `validation_error`, keyed by field name
   /// (for example `password`).
   final Map<String, String> fieldErrors;
+
+  /// [message], plus how long to wait when the backend sent `Retry-After`.
+  String get messageWithWait {
+    final wait = retryAfter;
+    if (code != AuthFailureCode.rateLimited || wait == null) return message;
+    final minutes = (wait.inSeconds / 60).ceil();
+    return '$message Try again in $minutes '
+        '${minutes == 1 ? 'minute' : 'minutes'}.';
+  }
 
   @override
   String toString() => 'AuthFailure(${code.wireCode})';

@@ -16,11 +16,14 @@ void main() {
   late _MockRepository repository;
   late StreamController<void> sessionExpired;
   late StreamController<AuthUser> sessionStarted;
+  late StreamController<AuthUser> userUpdated;
 
   setUp(() {
     repository = _MockRepository();
     sessionExpired = StreamController<void>.broadcast();
     sessionStarted = StreamController<AuthUser>.broadcast();
+    userUpdated = StreamController<AuthUser>.broadcast();
+    when(() => repository.userUpdated).thenAnswer((_) => userUpdated.stream);
     when(
       () => repository.sessionStarted,
     ).thenAnswer((_) => sessionStarted.stream);
@@ -32,6 +35,7 @@ void main() {
   tearDown(() async {
     await sessionExpired.close();
     await sessionStarted.close();
+    await userUpdated.close();
   });
 
   test('starts unknown', () async {
@@ -90,5 +94,28 @@ void main() {
     seed: () => AuthAuthenticated(user),
     act: (_) => sessionExpired.add(null),
     expect: () => [const AuthUnauthenticated(sessionExpired: true)],
+  );
+
+  final updated = AuthUser(
+    id: user.id,
+    email: 'new.runner@example.com',
+    displayName: user.displayName,
+    createdAt: user.createdAt,
+  );
+
+  blocTest<AuthBloc, AuthState>(
+    'shows the new email when the repository updates the user',
+    build: () => AuthBloc(repository),
+    seed: () => AuthAuthenticated(user),
+    act: (_) => userUpdated.add(updated),
+    expect: () => [AuthAuthenticated(updated)],
+  );
+
+  blocTest<AuthBloc, AuthState>(
+    'a late user update does not sign anyone back in',
+    build: () => AuthBloc(repository),
+    seed: () => const AuthUnauthenticated(),
+    act: (_) => userUpdated.add(updated),
+    expect: () => <AuthState>[],
   );
 }

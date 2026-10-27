@@ -3,9 +3,13 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:stridequest/core/network/auth_interceptor.dart';
+import 'package:stridequest/core/network/auth_token_handler.dart';
 import 'package:stridequest/core/network/dio_client.dart';
 import 'package:stridequest/core/network/network_simulation.dart';
 import 'package:stridequest/features/auth/data/datasources/auth_remote_data_source.dart';
+import 'package:stridequest/features/auth/data/models/auth_user_model.dart';
 import 'package:stridequest/features/auth/data/models/token_pair_model.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 
@@ -23,6 +27,8 @@ const _tokens = {
   'token_type': 'bearer',
   'expires_in': 900,
 };
+
+class _MockTokens extends Mock implements AuthTokenHandler {}
 
 ResponseBody _json(Object body, int status, {Map<String, String>? headers}) {
   return jsonBody(body, status, headers: headers ?? const {});
@@ -48,10 +54,8 @@ DioAuthRemoteDataSource _repository(
   String baseUrl = 'http://api.test/',
   Duration timeout = const Duration(seconds: 15),
 }) {
-  return DioAuthRemoteDataSource(
-    createDio(baseUrl: baseUrl, adapter: FakeHttpAdapter(handler)),
-    timeout: timeout,
-  );
+  final dio = createDio(baseUrl: baseUrl, adapter: FakeHttpAdapter(handler));
+  return DioAuthRemoteDataSource(dio, DioProvider(() => dio), timeout: timeout);
 }
 
 Future<AuthFailure> _signInFailure(FakeHttpHandler handler) {
@@ -416,15 +420,14 @@ void main() {
       final adapter = FakeHttpAdapter(
         (_) async => _json({'user': _user, 'tokens': _tokens}, 200),
       );
-      return DioAuthRemoteDataSource(
-        createDio(
-          baseUrl: 'http://api.test/',
-          adapter: adapter,
-          interceptors: [
-            NetworkSimulationInterceptor(NetworkSimulation(fault: fault)),
-          ],
-        ),
+      final dio = createDio(
+        baseUrl: 'http://api.test/',
+        adapter: adapter,
+        interceptors: [
+          NetworkSimulationInterceptor(NetworkSimulation(fault: fault)),
+        ],
       );
+      return DioAuthRemoteDataSource(dio, DioProvider(() => dio));
     }
 
     for (final fault in [SimulatedFault.offline, SimulatedFault.timeout]) {
@@ -436,5 +439,171 @@ void main() {
         expect(failure.code, AuthFailureCode.network);
       });
     }
+  });
+
+  group('changeEmail', () {
+    test('puts the new email and password and reads the user', () async {
+      late RequestOptions sent;
+      final repository = _repository((request) async {
+        sent = request;
+        return _json(_user, 200);
+      });
+
+      final user = await repository.changeEmail(
+        newEmail: 'new.runner@example.com',
+        currentPassword: 'run4medals',
+      );
+
+      expect(sent.method, 'PUT');
+      expect(sent.uri.path, '/users/me/email');
+      expect(sentJson(sent), {
+        'new_email': 'new.runner@example.com',
+        'current_password': 'run4medals',
+      });
+      expect(user, AuthUserModel.fromJson(_user));
+    });
+
+    for (final (status, code, expected) in [
+      (403, 'incorrect_password', AuthFailureCode.incorrectPassword),
+      (409, 'email_taken', AuthFailureCode.emailTaken),
+      (422, 'validation_error', AuthFailureCode.validation),
+      (429, 'rate_limited', AuthFailureCode.rateLimited),
+      (401, 'not_authenticated', AuthFailureCode.notAuthenticated),
+    ]) {
+      test('maps $status $code', () async {
+        final failure = await _failureOf(
+          _repository(
+            (_) async => _error(code, status, headers: {'retry-after': '90'}),
+          ).changeEmail(newEmail: 'a@b.co', currentPassword: 'p'),
+        );
+
+        expect(failure.code, expected);
+      });
+    }
+
+    test('keeps Retry-After and the field messages', () async {
+      final limited = await _failureOf(
+        _repository(
+          (_) async =>
+              _error('rate_limited', 429, headers: {'retry-after': '90'}),
+        ).changeEmail(newEmail: 'a@b.co', currentPassword: 'p'),
+      );
+      final invalid = await _failureOf(
+        _repository(
+          (_) async => _error(
+            'validation_error',
+            422,
+            fields: [
+              {'field': 'new_email', 'message': 'Must differ.'},
+            ],
+          ),
+        ).changeEmail(newEmail: 'a@b.co', currentPassword: 'p'),
+      );
+
+      expect(limited.retryAfter, const Duration(seconds: 90));
+      expect(invalid.fieldErrors, {'new_email': 'Must differ.'});
+    });
+
+    test('an unreadable success body is unknown', () async {
+      final failure = await _failureOf(
+        _repository(
+          (_) async => textBody('<html>', 200),
+        ).changeEmail(newEmail: 'a@b.co', currentPassword: 'p'),
+      );
+
+      expect(failure.code, AuthFailureCode.unknown);
+    });
+
+    test('a refused connection is network', () async {
+      final failure = await _failureOf(
+        _repository(
+          (_) async => throw const SocketException('refused'),
+        ).changeEmail(newEmail: 'a@b.co', currentPassword: 'p'),
+      );
+
+      expect(failure.code, AuthFailureCode.network);
+    });
+  });
+
+  group('changeEmail behind the auth interceptor', () {
+    late _MockTokens tokens;
+    late FakeHttpAdapter adapter;
+    var accessToken = 'access-1';
+
+    DioAuthRemoteDataSource build(FakeHttpHandler handler) {
+      adapter = FakeHttpAdapter(handler);
+      final authenticated = createDio(
+        baseUrl: 'http://api.test/',
+        adapter: adapter,
+        interceptors: [
+          AuthInterceptor(
+            tokens: tokens,
+            retryClient: createDio(
+              baseUrl: 'http://api.test/',
+              adapter: adapter,
+            ),
+          ),
+        ],
+      );
+      // The public Dio must never be used for this call.
+      final public = createDio(
+        baseUrl: 'http://public.test/',
+        adapter: FakeHttpAdapter((_) async => fail('used the public Dio')),
+      );
+      return DioAuthRemoteDataSource(public, DioProvider(() => authenticated));
+    }
+
+    setUp(() {
+      accessToken = 'access-1';
+      tokens = _MockTokens();
+      when(() => tokens.accessToken()).thenAnswer((_) async => accessToken);
+      when(() => tokens.expireSession()).thenAnswer((_) async {});
+    });
+
+    test('sends the bearer token', () async {
+      final source = build((_) async => _json(_user, 200));
+
+      await source.changeEmail(newEmail: 'a@b.co', currentPassword: 'p');
+
+      expect(
+        adapter.requests.single.headers['Authorization'],
+        'Bearer access-1',
+      );
+    });
+
+    test('a token_expired 401 refreshes once and the retry succeeds', () async {
+      when(() => tokens.refreshTokens()).thenAnswer((_) async {
+        accessToken = 'access-2';
+        return TokenRefreshResult.refreshed;
+      });
+      final source = build(
+        (request) async => request.headers['Authorization'] == 'Bearer access-1'
+            ? _error('token_expired', 401)
+            : _json(_user, 200),
+      );
+
+      final user = await source.changeEmail(
+        newEmail: 'a@b.co',
+        currentPassword: 'p',
+      );
+
+      expect(user, AuthUserModel.fromJson(_user));
+      expect(adapter.requests, hasLength(2));
+      expect(adapter.requests.last.headers['Authorization'], 'Bearer access-2');
+      verify(() => tokens.refreshTokens()).called(1);
+      verifyNever(() => tokens.expireSession());
+    });
+
+    test('a 403 incorrect_password is not refreshed or retried', () async {
+      final source = build((_) async => _error('incorrect_password', 403));
+
+      final failure = await _failureOf(
+        source.changeEmail(newEmail: 'a@b.co', currentPassword: 'p'),
+      );
+
+      expect(failure.code, AuthFailureCode.incorrectPassword);
+      expect(adapter.requests, hasLength(1));
+      verifyNever(() => tokens.refreshTokens());
+    });
   });
 }

@@ -8,6 +8,7 @@ import '../network/auth_interceptor.dart';
 import '../network/auth_token_handler.dart';
 import '../network/dio_client.dart';
 import '../network/network_simulation.dart';
+import 'injection.dart';
 
 @module
 abstract class NetworkModule {
@@ -36,6 +37,13 @@ abstract class NetworkModule {
       ),
     ],
   );
+
+  /// The authenticated [Dio], resolved on first use. `AuthRemoteDataSource`
+  /// needs it for `PUT /users/me/email`, but the authenticated [Dio] needs the
+  /// auth repository (its token handler), which needs `AuthRemoteDataSource`.
+  @lazySingleton
+  DioProvider get authenticatedDioProvider =>
+      DioProvider(() => getIt<Dio>(instanceName: 'authenticatedDio'));
 
   /// The dev-only network simulation, only in debug builds and only when a
   /// `SIMULATE_*` setting is given, so release builds can never carry it.
