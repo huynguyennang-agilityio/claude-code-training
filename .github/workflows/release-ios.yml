@@ -76,7 +76,7 @@ jobs:
         env:
           REF_NAME: ${{ github.ref_name }}
         run: |
-          if [[ "$REF_NAME" =~ ^([a-z]+-)?v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+          if [[ "$REF_NAME" =~ ^(ios-)?v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
             version="${BASH_REMATCH[2]}"
           elif [[ "$DRY_RUN" == "true" ]]; then
             # A PR or a dispatch from a branch: the version in pubspec.yaml.
@@ -187,15 +187,25 @@ jobs:
             target = project.targets.find { |t| t.name == "Runner" }
             settings = target.build_configurations.find { |c| c.name == "Release" }.build_settings
             settings["CODE_SIGN_STYLE"] = "Manual"
-            settings["DEVELOPMENT_TEAM"] = "KHAR8S7L52"
             settings["CODE_SIGN_IDENTITY"] = "Apple Distribution"
             settings["CODE_SIGN_IDENTITY[sdk=iphoneos*]"] = "Apple Distribution"
             settings["PROVISIONING_PROFILE_SPECIFIER"] = ENV.fetch("PROFILE_UUID")
             project.save
+            # The team and bundle ID come from the project, so the export options never drift.
+            File.open(ENV.fetch("GITHUB_ENV"), "a") do |env|
+              env.puts "TEAM_ID=#{settings.fetch("DEVELOPMENT_TEAM")}"
+              env.puts "BUNDLE_ID=#{settings.fetch("PRODUCT_BUNDLE_IDENTIFIER")}"
+            end
           '
+
+      - name: Export options with the profile
+        if: env.DRY_RUN != 'true'
+        working-directory: mobile/ios
+        run: |
           cp ExportOptions.plist "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Set :teamID $TEAM_ID" "$RUNNER_TEMP/ExportOptions.plist"
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$RUNNER_TEMP/ExportOptions.plist"
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:huynang.stridequest string $PROFILE_UUID" \
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$BUNDLE_ID string $PROFILE_UUID" \
             "$RUNNER_TEMP/ExportOptions.plist"
 
       # `flutter build ipa` always runs its own export after the archive, which cannot upload

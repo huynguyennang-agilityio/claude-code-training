@@ -3,7 +3,8 @@
 <!--
   Export options for the TestFlight upload in .github/workflows/release-ios.yml
   (plan docs/plans/025-release-pipeline.md). The workflow adds provisioningProfiles
-  to a temporary copy, from the profile in the IOS_PROVISIONING_PROFILE secret.
+  to a temporary copy, from the profile in the IOS_PROVISIONING_PROFILE secret,
+  and sets teamID from DEVELOPMENT_TEAM in Runner.xcodeproj, so keep the two equal.
 -->
 <plist version="1.0">
 <dict>
