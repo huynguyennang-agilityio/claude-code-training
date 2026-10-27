@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:stridequest/core/theme/app_theme.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 import 'package:stridequest/features/auth/presentation/bloc/change_password_bloc.dart';
 import 'package:stridequest/features/auth/presentation/pages/change_password_page.dart';
@@ -103,7 +102,8 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 
-      expect(passwordHasFocus(tester, confirmLabel), isFalse);
+      // The save pops the page, which takes the keyboard focus with it.
+      expect(find.text(parentText), findsOneWidget);
       verify(
         () => repository.changePassword(
           currentPassword: 'run4medals',
@@ -133,29 +133,7 @@ void main() {
     testWidgets('sends both passwords, shows a message and goes back', (
       tester,
     ) async {
-      tester.view
-        ..devicePixelRatio = 1
-        ..physicalSize = smallPhone;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.dark,
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => changePasswordPage(repository),
-                  ),
-                ),
-                child: const Text('Open'),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
+      await pumpChangePassword(tester, repository);
       await fillPasswords(tester);
 
       await tapSave(tester);
@@ -167,7 +145,45 @@ void main() {
         ),
       ).called(1);
       expect(find.byType(ChangePasswordPage), findsNothing);
+      expect(find.text(parentText), findsOneWidget);
       expect(find.text('Password changed'), findsOneWidget);
+    });
+
+    testWidgets('goes back even when the save also refreshes the router, as '
+        'the session update does', (tester) async {
+      final refresh = ChangeNotifier();
+      addTearDown(refresh.dispose);
+      when(
+        () => repository.changePassword(
+          currentPassword: any(named: 'currentPassword'),
+          newPassword: any(named: 'newPassword'),
+        ),
+      ).thenAnswer((_) async {
+        // `AuthBloc` handles the announced session a little later and emits
+        // it, which refreshes the router.
+        unawaited(Future<void>(refresh.notifyListeners));
+      });
+      await pumpChangePassword(tester, repository, refreshListenable: refresh);
+      await fillPasswords(tester);
+
+      await tapSave(tester);
+
+      expect(find.byType(ChangePasswordPage), findsNothing);
+      expect(find.text(parentText), findsOneWidget);
+    });
+
+    testWidgets('goes to the Profile tab when it is the only page', (
+      tester,
+    ) async {
+      await pumpChangePassword(tester, repository, pushed: false);
+      expect(find.byType(BackButton), findsNothing);
+      await fillPasswords(tester);
+
+      await tapSave(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ChangePasswordPage), findsNothing);
+      expect(find.text(profileRouteText), findsOneWidget);
     });
 
     testWidgets('shows progress and locks the form while it saves', (

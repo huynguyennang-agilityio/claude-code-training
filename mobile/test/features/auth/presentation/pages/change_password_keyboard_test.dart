@@ -189,7 +189,8 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 
-      expect(passwordHasFocus(tester, confirmLabel), isFalse);
+      // The save pops the page, which takes the keyboard focus with it.
+      expect(find.text(parentText), findsOneWidget);
       verify(
         () => repository.changePassword(
           currentPassword: 'run4medals',

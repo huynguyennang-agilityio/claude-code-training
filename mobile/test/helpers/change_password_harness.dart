@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:stridequest/core/theme/app_theme.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 import 'package:stridequest/features/auth/presentation/bloc/change_password_bloc.dart';
 import 'package:stridequest/features/auth/presentation/pages/change_password_page.dart';
@@ -36,17 +40,63 @@ void failChangePassword(MockAuthRepository repository, AuthFailure failure) =>
       ),
     ).thenThrow(failure);
 
+/// Text of the screen under the Password page, to tell that the page popped.
+const parentText = 'Profile tab';
+
+/// What the `/profile` route shows, so a test can tell it from the parent.
+const profileRouteText = 'Profile route';
+
+/// Pumps the Password page pushed over a parent route under a [GoRouter], as
+/// the app does, so a save can pop back to the parent. [refreshListenable] is
+/// the router's, as `AuthBloc`'s stream is in the app. With [pushed] false the
+/// page is the only one on the stack (a deep link).
 Future<void> pumpChangePassword(
   WidgetTester tester,
   MockAuthRepository repository, {
   Size size = smallPhone,
   double textScale = 1,
-}) => pumpScreen(
-  tester,
-  changePasswordPage(repository),
-  size: size,
-  textScale: textScale,
-);
+  Listenable? refreshListenable,
+  bool pushed = true,
+}) async {
+  tester.view
+    ..devicePixelRatio = 1
+    ..physicalSize = size;
+  addTearDown(tester.view.reset);
+  final router = GoRouter(
+    initialLocation: pushed ? '/' : ChangePasswordPage.path,
+    refreshListenable: refreshListenable,
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const Scaffold(body: Text(parentText)),
+      ),
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) =>
+            const Scaffold(body: Text(profileRouteText)),
+      ),
+      GoRoute(
+        path: ChangePasswordPage.path,
+        builder: (context, state) => changePasswordPage(repository),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+  await tester.pumpWidget(
+    MaterialApp.router(
+      theme: AppTheme.dark,
+      routerConfig: router,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
+    ),
+  );
+  if (pushed) unawaited(router.push(ChangePasswordPage.path));
+  await tester.pumpAndSettle();
+}
 
 const currentLabel = 'Current Password';
 const newLabel = 'New Password';
