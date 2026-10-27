@@ -1,0 +1,256 @@
+# iOS release: build the app and upload it to TestFlight. Plan: docs/plans/025-release-pipeline.md
+#
+# Runs on:
+#   push of a tag ios-vX.Y.Z      a real release, from a commit on main, with the production environment
+#   workflow_call                 from release.yml (tag vX.Y.Z), with its dry_run input
+#   workflow_dispatch             by hand; dry_run is on by default
+#   pull_request into develop     always a dry run, when this workflow or mobile/ios/ changes
+#
+# A dry run builds with --no-codesign and uploads nothing, so it needs no secret. GitHub only
+# dispatches a workflow that is already on the default branch, so a PR checks this file through
+# its pull_request run. Setup and secret names: docs/deploy.md.
+name: release-ios
+
+on:
+  push:
+    tags: ["ios-v*"]
+  workflow_call:
+    inputs:
+      dry_run:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build only; no signing, no upload
+        type: boolean
+        default: true
+  pull_request:
+    branches: [develop]
+    paths:
+      - ".github/workflows/release-ios.yml"
+      - "mobile/ios/**"
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: ios
+    # Pinned label, never macos-latest, like the goldens job in mobile-ci.yml.
+    runs-on: macos-15
+    timeout-minutes: 60
+    # A tag push gets production; a PR or a dry run gets no environment, so the environment's
+    # "tags only" rule does not block it. Not `inputs.dry_run && '' || 'production'`: '' is
+    # falsy, so that form always gives 'production'.
+    environment: ${{ github.event_name != 'pull_request' && !inputs.dry_run && 'production' || '' }}
+    concurrency:
+      # A PR's runs cancel the older run on the same branch, and each dispatched dry run has
+      # its own group. Real releases share one group: one runs, and a newer pending release
+      # replaces an older pending one, so a dry run can never cancel a release.
+      group: release-ios-${{ github.event_name == 'pull_request' && github.ref || inputs.dry_run && format('dry-{0}', github.run_id) || 'release' }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    env:
+      DRY_RUN: ${{ github.event_name == 'pull_request' || inputs.dry_run == true }}
+      XCODE_APP: /Applications/Xcode_26.2.app
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The full history and origin/main, for the merge-base check below.
+          fetch-depth: 0
+
+      - name: Check the tag is on main
+        if: env.DRY_RUN != 'true'
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_SHA is not on main. Release only from a tag on main."
+            exit 1
+          fi
+
+      - name: Version and build number
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$REF_NAME" =~ ^(ios-)?v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            version="${BASH_REMATCH[2]}"
+          elif [[ "$DRY_RUN" == "true" ]]; then
+            # A PR or a dispatch from a branch: the version in pubspec.yaml.
+            version="$(sed -n 's/^version: *\([0-9.]*\).*/\1/p' pubspec.yaml)"
+          else
+            echo "::error::A release needs a tag vX.Y.Z or ios-vX.Y.Z, not '$REF_NAME'."
+            exit 1
+          fi
+          # Unix minutes: always higher than the last upload, whichever workflow runs it.
+          build_number=$(( $(date +%s) / 60 ))
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
+          echo "Version $version, build $build_number"
+
+      - name: Select Xcode
+        run: |
+          if [[ ! -d "$XCODE_APP" ]]; then
+            echo "::error::$XCODE_APP is not on this runner. Available:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE_APP"
+          xcodebuild -version
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          # The same version as mobile-ci.yml.
+          flutter-version: 3.38.5
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Dry run build (no signing, no upload)
+        if: env.DRY_RUN == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          defines=()
+          if [[ -n "$API_BASE_URL" ]]; then defines+=("--dart-define=API_BASE_URL=$API_BASE_URL"); fi
+          flutter build ios --release --no-codesign \
+            --build-name="$VERSION" --build-number="$BUILD_NUMBER" "${defines[@]}"
+
+      - name: Install the certificate, profile and API key
+        if: env.DRY_RUN != 'true'
+        env:
+          IOS_DIST_CERT_P12: ${{ secrets.IOS_DIST_CERT_P12 }}
+          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          IOS_PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          for name in IOS_DIST_CERT_P12 IOS_DIST_CERT_PASSWORD IOS_PROVISIONING_PROFILE \
+                      APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_KEY_P8 APP_STORE_CONNECT_ISSUER_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Secret $name is missing in the production environment (docs/deploy.md)."
+              exit 1
+            fi
+          done
+
+          # A temporary keychain with a random password, deleted in the last step.
+          keychain="$RUNNER_TEMP/release.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          echo "::add-mask::$keychain_password"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          printf '%s' "$IOS_DIST_CERT_P12" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          security import "$RUNNER_TEMP/dist.p12" -k "$keychain" -P "$IOS_DIST_CERT_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/dist.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" > /dev/null
+          existing=()
+          while IFS= read -r line; do existing+=("$(echo "$line" | tr -d '" ')"); done \
+            < <(security list-keychains -d user)
+          security list-keychains -d user -s "$keychain" "${existing[@]}"
+
+          # The provisioning profile, where Xcode looks for it.
+          profile="$RUNNER_TEMP/release.mobileprovision"
+          printf '%s' "$IOS_PROVISIONING_PROFILE" | base64 --decode > "$profile"
+          security cms -D -i "$profile" > "$RUNNER_TEMP/profile.plist"
+          profile_uuid="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")"
+          for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" \
+                     "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$dir"
+            cp "$profile" "$dir/$profile_uuid.mobileprovision"
+          done
+          echo "PROFILE_UUID=$profile_uuid" >> "$GITHUB_ENV"
+
+          # The App Store Connect API key, for the upload.
+          key_path="$RUNNER_TEMP/AuthKey_$APP_STORE_CONNECT_KEY_ID.p8"
+          printf '%s' "$APP_STORE_CONNECT_KEY_P8" | base64 --decode > "$key_path"
+          echo "ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      # Manual signing for the Runner target's Release configuration, in this checkout only;
+      # the committed project keeps automatic Debug signing. Set on the Runner target alone,
+      # because PROVISIONING_PROFILE_SPECIFIER on the xcodebuild command line also reaches the
+      # Pods targets, which refuse a profile.
+      - name: Use manual signing in CI
+        if: env.DRY_RUN != 'true'
+        working-directory: mobile/ios
+        run: |
+          ruby -rxcodeproj -e '
+            project = Xcodeproj::Project.open("Runner.xcodeproj")
+            target = project.targets.find { |t| t.name == "Runner" }
+            settings = target.build_configurations.find { |c| c.name == "Release" }.build_settings
+            settings["CODE_SIGN_STYLE"] = "Manual"
+            settings["CODE_SIGN_IDENTITY"] = "Apple Distribution"
+            settings["CODE_SIGN_IDENTITY[sdk=iphoneos*]"] = "Apple Distribution"
+            settings["PROVISIONING_PROFILE_SPECIFIER"] = ENV.fetch("PROFILE_UUID")
+            project.save
+            # The team and bundle ID come from the project, so the export options never drift.
+            File.open(ENV.fetch("GITHUB_ENV"), "a") do |env|
+              env.puts "TEAM_ID=#{settings.fetch("DEVELOPMENT_TEAM")}"
+              env.puts "BUNDLE_ID=#{settings.fetch("PRODUCT_BUNDLE_IDENTIFIER")}"
+            end
+          '
+
+      - name: Export options with the profile
+        if: env.DRY_RUN != 'true'
+        working-directory: mobile/ios
+        run: |
+          cp ExportOptions.plist "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Set :teamID $TEAM_ID" "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$BUNDLE_ID string $PROFILE_UUID" \
+            "$RUNNER_TEMP/ExportOptions.plist"
+
+      # `flutter build ipa` always runs its own export after the archive, which cannot upload
+      # with an API key. So Flutter writes the build settings (version, build number, defines)
+      # and xcodebuild makes the archive.
+      - name: Archive
+        if: env.DRY_RUN != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          if [[ -z "$API_BASE_URL" ]]; then
+            echo "::error::Repository variable API_BASE_URL is missing (docs/deploy.md)."
+            exit 1
+          fi
+          flutter build ios --release --config-only \
+            --build-name="$VERSION" --build-number="$BUILD_NUMBER" \
+            --dart-define=API_BASE_URL="$API_BASE_URL"
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/ios/archive/Runner.xcarchive
+
+      - name: Upload to TestFlight
+        if: env.DRY_RUN != 'true'
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath build/ios/export \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+
+      - name: Clean up the keychain and key files
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/release.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP"/AuthKey_*.p8 "$RUNNER_TEMP/release.mobileprovision" \
+                "$RUNNER_TEMP/profile.plist" "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP/ExportOptions.plist"
+          if [[ -n "${PROFILE_UUID:-}" ]]; then
+            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision" \
+                  "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          fi

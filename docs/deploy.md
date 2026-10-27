@@ -47,6 +47,42 @@ docker run --rm -e DATABASE_URL='…' stridequest-api alembic upgrade head
 
 Never bake a value into the image or commit it: set them on the host (Render's dashboard in production).
 
+## iOS release (TestFlight)
+
+`.github/workflows/release-ios.yml` builds the app on a `macos-15` runner with a pinned Xcode (`XCODE_APP` in the workflow) and the same Flutter version as `mobile-ci.yml`, then uploads it to TestFlight. It runs on a tag `ios-vX.Y.Z` on `main`, from `release.yml` for a tag `vX.Y.Z`, by hand (`workflow_dispatch`, a dry run by default), and on every PR into `develop` that changes the workflow or `mobile/ios/` (always a dry run). A dry run runs `flutter build ios --release --no-codesign` and uploads nothing, so it needs no secret.
+
+- **Version:** `--build-name` is `X.Y.Z` from the tag; `--build-number` is Unix minutes, `$(( $(date +%s) / 60 ))`, so App Store Connect never sees a duplicate or lower build number.
+- **API:** the build passes `--dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}`. A real release fails when the variable is missing.
+- **Signing:** the committed project keeps automatic signing for local Debug builds. In CI only, the workflow switches the `Runner` target's Release configuration to manual signing with the distribution certificate and the App Store profile (through the `xcodeproj` gem, so the Pods targets are untouched), imports both into a temporary keychain, and deletes the keychain, the profile and the API key file in an `always()` step.
+- **Upload:** Flutter writes the build settings (`flutter build ios --config-only`), `xcodebuild archive` makes `build/ios/archive/Runner.xcarchive`, and `xcodebuild -exportArchive` with `mobile/ios/ExportOptions.plist` (`app-store-connect`, `destination: upload`) and the App Store Connect API key (`-authenticationKeyPath`, `-authenticationKeyID`, `-authenticationKeyIssuerID`) uploads it. No `altool`, no third-party action.
+
+### One-time setup
+
+1. **App record.** In App Store Connect → Apps, create the app with bundle ID `huynang.stridequest` (register the ID first under Certificates, Identifiers & Profiles with the HealthKit capability if it is not there).
+2. **API key.** Users and Access → Integrations → App Store Connect API: create a team key with the App Manager role. Note its Key ID and the Issuer ID, and download the `.p8` (it can be downloaded only once).
+3. **Distribution certificate.** In Certificates, create an Apple Distribution certificate from a CSR made in Keychain Access, install it, and export it with its private key as a `.p12` with a password.
+4. **Provisioning profile.** In Profiles, create an App Store Connect profile for `huynang.stridequest` with that certificate, and download the `.mobileprovision`. The workflow reads the profile's UUID, so its name is free.
+5. **Secrets** in the GitHub environment `production` (names only; enter the values yourself on GitHub or with `gh secret set <NAME> --env production`). Encode a file with `base64 -i <file> | pbcopy`:
+
+   | Secret | Value |
+   | --- | --- |
+   | `APP_STORE_CONNECT_KEY_ID` | the Key ID |
+   | `APP_STORE_CONNECT_ISSUER_ID` | the Issuer ID |
+   | `APP_STORE_CONNECT_KEY_P8` | the `.p8`, base64 |
+   | `IOS_DIST_CERT_P12` | the `.p12`, base64 |
+   | `IOS_DIST_CERT_PASSWORD` | the `.p12` password |
+   | `IOS_PROVISIONING_PROFILE` | the `.mobileprovision`, base64 |
+
+   Keep the `.p8`, `.p12` and `.mobileprovision` outside the repo.
+
+### TestFlight testers
+
+Internal testers (members of the App Store Connect team) can install a build as soon as it finishes processing: add them in TestFlight → Internal Testing. External testers need Beta App Review first; submit the build for review in TestFlight → External Testing.
+
+### Renewal
+
+The distribution certificate and the profile expire after a year, and the workflow then fails at signing. Create a new certificate, export a new `.p12`, regenerate the profile with it, and update `IOS_DIST_CERT_P12`, `IOS_DIST_CERT_PASSWORD` and `IOS_PROVISIONING_PROFILE`. When the runner image drops the pinned Xcode, the "Select Xcode" step fails and lists the Xcode versions it has; update `XCODE_APP`.
+
 ## Android release (Firebase App Distribution)
 
 `.github/workflows/release-android.yml` builds a release APK and sends it to the `testers` group in Firebase App Distribution. It runs on a tag `android-vX.Y.Z` on `main`, from `release.yml` for a tag `vX.Y.Z`, by hand (`workflow_dispatch`, a dry run by default), and on every PR into `develop` that changes the workflow or `mobile/android/` (always a dry run). A dry run builds the APK signed with the debug key and uploads nothing, so it needs no secret.
