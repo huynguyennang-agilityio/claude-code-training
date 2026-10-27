@@ -46,7 +46,7 @@ The backend is a modular monolith (see `docs/architecture.md`). Existing models,
 ## Hard constraints
 
 - **One GitHub issue per branch.** Work against a single issue at a time, on a branch named `<type>/<issue-id>-<short-name>` (e.g. `feat/14-quest-progress`), branched from `develop`. Never push directly to `develop` or `main`.
-- **No commits unless explicitly asked.** When a task is done, stop and suggest a short commit message instead of committing.
+- **Don't commit or push.** The main session commits your work once its checks pass. When a task is done, stop and suggest a short commit message.
 - **No pull requests unless explicitly asked.** If one is warranted, say so and describe it; don't open it yourself.
 - **Never add a dependency silently.** New libraries (auth, migrations, etc.) go into `requirements.txt`/`requirements-dev.txt` with a version pin, called out explicitly in your report.
 - **Every feature or fix needs a test.** Don't report work done without adding or updating pytest coverage for it.

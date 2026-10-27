@@ -56,7 +56,7 @@ General rules:
 - `develop` is the default branch. `main` holds released code and only receives merges from `develop`.
 - Never push directly to `develop` or `main`.
 - GitHub is the primary repository. GitLab is a read-only mirror that the user updates by hand from a machine on the VPN (see [GitLab mirror](README.md#gitlab-mirror)). Claude never pushes to the `gitlab` remote.
-- Don't commit unless asked. After each task, suggest a short commit message.
+- Commit a finished task without asking once lint, type checks and tests pass, on its own branch, never on `develop` or `main`, and report the commit hash. Don't commit unfinished or failing work; say what is left instead.
 - A grant such as "go ahead without asking" or "skip the review" covers only the tasks or the session the user named. Don't carry it to new work.
 
 ### Git and GitHub permissions
@@ -70,8 +70,8 @@ Being able to run a command is not permission to run it.
 | Set `Status: approved` on a plan | Only through `/approve-plan <NNN>`, which only the user can run: typing the command is the approval, and the skill quotes it. Otherwise the user does it |
 | Create an issue | Only from an approved plan, exactly as the plan lists it: through `/approve-plan` (from the approved artifact, or on the plan PR), or from a plan the user approved on `develop` |
 | Create a branch and edit files for an issue from an approved plan | Yes |
-| Commit | Only when the user asks. Running `/approve-plan` counts for the plan PR, and running `/run-tasks` counts for the issues it names |
-| Push, open a PR | Only when the user asks or the task explicitly includes it. `/approve-plan` and `/run-tasks` count, as for Commit |
+| Commit | Yes, for a finished task whose lint, type checks and tests pass, on a branch other than `develop`/`main`. `/approve-plan` commits the plan PR, and `/run-tasks` the issues it names |
+| Push, open a PR | Only when the user asks or the task explicitly includes it. Running `/approve-plan` counts for the plan PR, and running `/run-tasks` counts for the issues it names |
 | Merge a PR, close an issue | Only when the user explicitly authorizes that PR or issue. `/approve-plan` merges the plan PR it approves. `/run-tasks` merges the PRs of the issues the user named in that run when every merge condition holds, never when the issue or the PR has the `human-merge` label |
 | Edit `backend/DECISIONS.md` or `mobile/DECISIONS.md` | Only through a "decisions from run" PR with the entries the user picked in their own chat message; that message authorizes opening and merging that one PR. Never during `/run-tasks` itself |
 | Push to `develop`/`main`, force-push, delete branches | Never |
