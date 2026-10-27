@@ -84,6 +84,8 @@ def repository() -> AsyncMock:
     repository.get_user_by_email.return_value = None
     repository.failed_attempts_by_email.return_value = []
     repository.failed_attempts_by_ip.return_value = []
+    # No password change commits while a request waits for the user's token lock.
+    repository.stored_password_hash.return_value = PASSWORD_HASH
     return repository
 
 
@@ -207,6 +209,39 @@ async def test_sign_in_with_the_right_password_issues_tokens(
     assert decode_access_token(tokens.access_token, SECRET, START) == str(user.id)
     repository.clear_login_attempts.assert_awaited_once_with("runner@example.com")
     repository.add_login_attempt.assert_not_awaited()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_sign_in_takes_the_users_token_lock_before_issuing_tokens(
+    service: AuthService, repository: AsyncMock
+) -> None:
+    user = make_user()
+    repository.get_user_by_email.return_value = user
+
+    await service.sign_in(sign_in_request(), IP)
+
+    repository.lock_user_refresh_tokens.assert_awaited_once_with(user.id)
+    names = [c[0] for c in repository.method_calls]
+    assert (
+        names.index("lock_user_refresh_tokens")
+        < names.index("stored_password_hash")
+        < names.index("add_refresh_token")
+    )
+
+
+@pytest.mark.anyio
+async def test_sign_in_fails_when_the_password_changed_while_it_was_checked(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    repository.get_user_by_email.return_value = make_user()
+    repository.stored_password_hash.return_value = hash_password("newrun5medals")
+
+    with pytest.raises(InvalidCredentialsError):
+        await service.sign_in(sign_in_request(), IP)
+
+    repository.add_login_attempt.assert_awaited_once_with("runner@example.com", IP, START)
+    repository.add_refresh_token.assert_not_awaited()
     session.commit.assert_awaited_once()
 
 
@@ -522,6 +557,22 @@ async def test_change_password_takes_the_users_token_lock_before_changing_anythi
     names = [c[0] for c in repository.method_calls]
     assert names.index("lock_user_refresh_tokens") < names.index("update_password_hash")
     assert names.index("lock_user_refresh_tokens") < names.index("revoke_all_refresh_tokens")
+
+
+@pytest.mark.anyio
+async def test_change_password_fails_when_another_change_committed_first(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    repository.stored_password_hash.return_value = hash_password("other5medals")
+
+    with pytest.raises(IncorrectPasswordError):
+        await service.change_password(make_user(), change_password_request(), IP)
+
+    repository.add_login_attempt.assert_awaited_once_with("runner@example.com", IP, START)
+    repository.update_password_hash.assert_not_awaited()
+    repository.revoke_all_refresh_tokens.assert_not_awaited()
+    repository.add_refresh_token.assert_not_awaited()
+    session.commit.assert_awaited_once()
 
 
 @pytest.mark.anyio

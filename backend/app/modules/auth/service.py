@@ -157,6 +157,10 @@ class AuthService:
         password_ok = await verify_password_async(
             data.password, user.password_hash if user else None
         )
+        # Serialized with `change_password`: a password that changed while it was being
+        # checked is wrong now, and must not get a refresh token the change never revoked.
+        if password_ok and user is not None:
+            password_ok = await self._password_unchanged_after_lock(user)
         if user is None or not password_ok:
             await self._repository.add_login_attempt(data.email, ip, now)
             await self._session.commit()
@@ -215,7 +219,11 @@ class AuthService:
                 ],
             )
         password_hash = await hash_password_async(data.new_password)
-        await self._repository.lock_user_refresh_tokens(user.id)
+        if not await self._password_unchanged_after_lock(user):
+            # Another change committed after the check: the current password is wrong now.
+            await self._repository.add_login_attempt(user.email, ip, now)
+            await self._session.commit()
+            raise IncorrectPasswordError("The current password is incorrect.")
         await self._repository.update_password_hash(user, password_hash)
         await self._repository.revoke_all_refresh_tokens(user.id, now)
         await self._repository.clear_login_attempts(user.email)
@@ -288,6 +296,12 @@ class AuthService:
             refresh_token=refresh_token,
             expires_in=int(self._settings.access_token_ttl.total_seconds()),
         )
+
+    async def _password_unchanged_after_lock(self, user: User) -> bool:
+        """Take the lock on `user`'s refresh tokens, then check that the stored password hash
+        is still the one that was verified. The lock is held until the transaction ends."""
+        await self._repository.lock_user_refresh_tokens(user.id)
+        return await self._repository.stored_password_hash(user.id) == user.password_hash
 
     async def _verify_current_password(
         self, user: User, password: str, ip: str, now: datetime

@@ -73,6 +73,12 @@ class AuthRepository:
         commits during a password change keeps a token the change never saw."""
         await self._session.execute(select(_refresh_tokens_lock(literal(user_id, Uuid))))
 
+    async def stored_password_hash(self, user_id: uuid.UUID) -> str | None:
+        """The password hash as committed now, read with a new query: not the copy of the
+        `User` loaded earlier in this session. Call it after `lock_user_refresh_tokens`, in a
+        statement of its own, so it sees a password change that committed while waiting."""
+        return await self._session.scalar(select(User.password_hash).where(User.id == user_id))
+
     async def lock_refresh_token_owner(self, token_hash: str) -> None:
         """`lock_user_refresh_tokens` for the owner of `token_hash`, found in the same query.
         An unknown token takes no lock."""
