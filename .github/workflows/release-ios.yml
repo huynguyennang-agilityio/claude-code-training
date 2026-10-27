@@ -45,8 +45,10 @@ jobs:
     # falsy, so that form always gives 'production'.
     environment: ${{ github.event_name != 'pull_request' && !inputs.dry_run && 'production' || '' }}
     concurrency:
-      # A PR's dry runs queue per branch; real releases share one group and never cancel.
-      group: release-ios-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
+      # A PR's runs cancel the older run on the same branch, and each dispatched dry run has
+      # its own group. Real releases share one group: one runs, and a newer pending release
+      # replaces an older pending one, so a dry run can never cancel a release.
+      group: release-ios-${{ github.event_name == 'pull_request' && github.ref || inputs.dry_run && format('dry-{0}', github.run_id) || 'release' }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     env:
       DRY_RUN: ${{ github.event_name == 'pull_request' || inputs.dry_run == true }}
