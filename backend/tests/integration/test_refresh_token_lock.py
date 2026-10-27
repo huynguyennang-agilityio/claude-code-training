@@ -11,13 +11,13 @@ import uuid
 from collections.abc import AsyncIterator, Iterator
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import hash_password
 from app.modules.auth.deps import get_auth_settings
-from app.modules.auth.models import RefreshToken, User
+from app.modules.auth.models import LoginAttempt, RefreshToken, User
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import ChangePasswordRequest, SignInRequest, SignUpRequest, TokenPair
 from app.modules.auth.service import (
@@ -31,8 +31,8 @@ SECRET = "an-integration-test-secret-that-is-long-enough"
 PASSWORD = "run4medals"
 OTHER_PASSWORD = "newrun5medals"
 IP = "203.0.113.9"
-# Long enough for the waiting request to verify its password and reach the lock.
-WAIT = 1.0
+# How long the waiting request may take to verify its password and reach the lock.
+REACH_THE_LOCK_TIMEOUT = 10.0
 
 
 @pytest.fixture(autouse=True)
@@ -61,7 +61,34 @@ async def signed_up(engine: AsyncEngine) -> AsyncIterator[tuple[User, TokenPair]
     yield user, tokens
     async with AsyncSession(engine) as session:
         await session.execute(delete(User).where(User.id == user.id))
+        # The refused sign-ins and changes record failed attempts, which have no foreign key
+        # to the user and would count against this IP for the rest of the test session.
+        await session.execute(
+            delete(LoginAttempt).where(or_(LoginAttempt.email == user.email, LoginAttempt.ip == IP))
+        )
         await session.commit()
+
+
+async def _wait_until_a_session_waits_for_an_advisory_lock(
+    engine: AsyncEngine, task: "asyncio.Future[str]"
+) -> None:
+    """Poll `pg_stat_activity` until another connection is blocked on an advisory lock, so
+    the test exercises the wait and not a request that is still hashing. Each poll runs in a
+    new transaction: PostgreSQL keeps one activity snapshot per transaction."""
+    deadline = asyncio.get_running_loop().time() + REACH_THE_LOCK_TIMEOUT
+    while True:
+        assert not task.done(), "the request finished without waiting for the lock"
+        async with engine.connect() as connection:
+            waiting = await connection.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
+                    "AND wait_event_type = 'Lock' AND wait_event = 'advisory'"
+                )
+            )
+        if waiting:
+            return
+        assert asyncio.get_running_loop().time() < deadline, "no request reached the lock"
+        await asyncio.sleep(0.05)
 
 
 async def _change_password_while_holding_the_lock(
@@ -75,9 +102,7 @@ async def _change_password_while_holding_the_lock(
         assert stored is not None
         await repository.lock_user_refresh_tokens(user.id)
         task = asyncio.ensure_future(waiting)
-        await asyncio.sleep(WAIT)
-
-        assert not task.done()
+        await _wait_until_a_session_waits_for_an_advisory_lock(engine, task)
 
         await repository.update_password_hash(stored, hash_password(OTHER_PASSWORD))
         await repository.revoke_all_refresh_tokens(user.id, user.created_at)
