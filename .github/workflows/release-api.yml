@@ -131,8 +131,8 @@ jobs:
           done
           exit "$missing"
 
-      # Each migration runs in a transaction; when one fails this step fails and the deploy
-      # below never starts, so the old code keeps running on the old schema.
+      # All migrations run in one transaction (alembic/env.py): when one fails none is applied,
+      # this step fails and the deploy below never starts, so the old code keeps running.
       - name: Migrate the database
         if: env.DRY_RUN != 'true'
         env:
