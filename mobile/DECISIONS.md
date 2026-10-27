@@ -17,3 +17,6 @@ Loaded through `mobile/CLAUDE.md` whenever Claude works on files under `mobile/`
 - **2026-10-23, CLAUDE.md.** Regenerate `freezed` and `json_serializable` code with `dart run build_runner build --force-jit` and commit the generated files.
 - **2026-10-26, #125.** A screen without the tab bar is a top-level `GoRoute` above the `StatefulShellRoute` (like `ChallengeDetailPage`), not a `parentNavigatorKey` route: the app has no navigator keys.
 - **2026-10-26, #125.** A text field inside `SettingsFormLayout` passes `scrollPadding: SettingsFormLayout.scrollPadding`, or its error line can end up under the keyboard.
+- **2026-10-27, #127.** `AuthRemoteDataSource` reaches the authenticated Dio through `DioProvider`, resolved on first use: injecting `authenticatedDio` directly makes a DI cycle (Dio → token handler → repository → data source) that crashes `injectable_generator`.
+- **2026-10-27, #127.** In `AuthRepositoryImpl`, an API call that can hit a `401` runs outside `_serialized`; only the local write and the announcement run inside it, or the token refresh waits on the same queue and deadlocks.
+- **2026-10-27, #129.** In an integration test, hide the snackbar left by a previous save before reopening a form: it can cover the next form's Save button.
