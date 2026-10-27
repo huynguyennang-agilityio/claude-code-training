@@ -85,6 +85,10 @@ class ChangeEmailBloc extends Bloc<ChangeEmailEvent, ChangeEmailState> {
       emit(_with(form, ChangeEmailStatus.saved));
     } on AuthFailure catch (failure) {
       emit(_failed(form, failure));
+    } on Object {
+      // For example the secure storage failing after a 200: go back to
+      // editing instead of staying on "saving".
+      emit(_failed(form, AuthFailure(AuthFailureCode.unknown)));
     }
   }
 

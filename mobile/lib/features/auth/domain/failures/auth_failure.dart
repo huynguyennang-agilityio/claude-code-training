@@ -15,6 +15,13 @@ enum AuthFailureCode {
     'Your session has expired. Sign in again.',
   ),
   incorrectPassword('incorrect_password', 'The current password is incorrect.'),
+  // Not a backend code: the app raises it when the password changed but the
+  // new tokens could not be stored.
+  passwordChangedSignInAgain(
+    'password_changed_sign_in_again',
+    'Your password was changed, but this device could not keep the new '
+        'session. Sign in again with your new password.',
+  ),
   notAuthenticated('not_authenticated', 'Sign in to continue.'),
   invalidToken('invalid_token', 'Your session has expired. Sign in again.'),
   tokenExpired('token_expired', 'Your session has expired. Sign in again.'),

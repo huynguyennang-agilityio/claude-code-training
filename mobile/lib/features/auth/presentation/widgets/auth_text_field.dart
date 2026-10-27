@@ -133,6 +133,16 @@ class PasswordField extends StatefulWidget {
 class _PasswordFieldState extends State<PasswordField> {
   var _visible = false;
 
+  // Skipped by Next and Previous, so Next goes to the next field and not to
+  // the Show/Hide button.
+  final _toggleFocus = FocusNode(skipTraversal: true);
+
+  @override
+  void dispose() {
+    _toggleFocus.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -151,6 +161,7 @@ class _PasswordFieldState extends State<PasswordField> {
       scrollPadding: widget.scrollPadding,
       obscureText: !_visible,
       trailing: TextButton(
+        focusNode: _toggleFocus,
         onPressed: widget.enabled
             ? () => setState(() => _visible = !_visible)
             : null,

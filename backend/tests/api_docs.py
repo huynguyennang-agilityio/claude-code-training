@@ -56,3 +56,5 @@ AUTH_MODULE_ERROR_CODES = frozenset(
 # add the routes move their codes into `AUTH_MODULE_ERROR_CODES` with the integration test
 # that produces them, and empty this set again.
 DOCUMENTED_NOT_YET_SERVED_ERROR_CODES: frozenset[str] = frozenset()
+# The documented paths of those not-yet-served routes, emptied with the set above.
+DOCUMENTED_NOT_YET_SERVED_PATHS: frozenset[str] = frozenset()

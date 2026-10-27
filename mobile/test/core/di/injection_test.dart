@@ -8,6 +8,7 @@ import 'package:stridequest/core/network/network_simulation.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/auth/presentation/bloc/change_email_bloc.dart';
+import 'package:stridequest/features/auth/presentation/bloc/change_password_bloc.dart';
 import 'package:stridequest/features/auth/presentation/bloc/sign_in_bloc.dart';
 import 'package:stridequest/features/auth/presentation/bloc/sign_up_bloc.dart';
 
@@ -23,6 +24,10 @@ void main() {
     expect(getIt<SignInBloc>(), isNot(same(getIt<SignInBloc>())));
     expect(getIt<SignUpBloc>(), isNot(same(getIt<SignUpBloc>())));
     expect(getIt<ChangeEmailBloc>(), isNot(same(getIt<ChangeEmailBloc>())));
+    expect(
+      getIt<ChangePasswordBloc>(),
+      isNot(same(getIt<ChangePasswordBloc>())),
+    );
   });
 
   test('one session object backs the repository and the token handler', () {

@@ -101,6 +101,45 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   }
 
   @override
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final before = await _local.readSession();
+    // Outside `_serialized`, for the same reason as `changeEmail`.
+    final tokens = await _remote.changePassword(
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
+    // The old refresh token is revoked now, so the new pair must be stored
+    // before this returns.
+    return _serialized(() async {
+      final session = await _local.readSession();
+      // A sign-out, or another user's session, while the request ran leaves
+      // nothing to update.
+      if (before == null ||
+          session == null ||
+          session.user.id != before.user.id) {
+        return;
+      }
+      try {
+        await _local.saveSession(session.copyWith(tokens: tokens));
+      } on Object {
+        // The password changed and the old refresh token is revoked, so the
+        // stored session is dead. End it as a failed refresh does, inside the
+        // queue (`expireSession` would wait for it).
+        try {
+          await _local.clear();
+        } on Object {
+          // Nothing more to do: the stored tokens are unusable either way.
+        }
+        _sessionExpired.add(null);
+        throw AuthFailure(AuthFailureCode.passwordChangedSignInAgain);
+      }
+    });
+  }
+
+  @override
   Future<void> signOut() {
     return _serialized(() async {
       final session = await _local.readSession();

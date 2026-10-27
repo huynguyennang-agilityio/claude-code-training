@@ -5,6 +5,7 @@ from app.modules.auth.deps import AuthServiceDep, CurrentUserDep
 from app.modules.auth.schemas import (
     AuthResponse,
     ChangeEmailRequest,
+    ChangePasswordRequest,
     RefreshTokenRequest,
     SignInRequest,
     SignUpRequest,
@@ -68,3 +69,17 @@ async def change_email(
 ) -> UserRead:
     updated = await service.change_email(user, body, _client_ip(request))
     return UserRead.model_validate(updated)
+
+
+@users_router.put(
+    "/me/password",
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        429: {"model": ErrorResponse},
+    },
+)
+async def change_password(
+    body: ChangePasswordRequest, request: Request, user: CurrentUserDep, service: AuthServiceDep
+) -> TokenPair:
+    return await service.change_password(user, body, _client_ip(request))
