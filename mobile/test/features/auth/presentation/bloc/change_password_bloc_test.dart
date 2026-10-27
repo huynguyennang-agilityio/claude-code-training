@@ -212,5 +212,22 @@ void main() {
       skip: 1,
       expect: () => [form(banner: 'Something went wrong. Try again.')],
     );
+
+    blocTest<ChangePasswordBloc, ChangePasswordState>(
+      'a password changed but not stored tells the user to sign in again',
+      setUp: () =>
+          failWith(AuthFailure(AuthFailureCode.passwordChangedSignInAgain)),
+      build: () => ChangePasswordBloc(repository),
+      seed: form,
+      act: (bloc) => bloc.add(const ChangePasswordSubmitted()),
+      skip: 1,
+      expect: () => [
+        form(
+          banner:
+              'Your password was changed, but this device could not keep the '
+              'new session. Sign in again with your new password.',
+        ),
+      ],
+    );
   });
 }

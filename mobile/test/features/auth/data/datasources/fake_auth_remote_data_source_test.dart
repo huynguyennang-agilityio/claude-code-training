@@ -467,6 +467,34 @@ void main() {
       expect(failure.code, AuthFailureCode.incorrectPassword);
     });
 
+    test('the same password with a wrong current one is incorrect_password '
+        'and counts as a failure', () async {
+      await signUp();
+      final first = await failureOf('wrong123', 'wrong123');
+      expect(first.code, AuthFailureCode.incorrectPassword);
+      for (var i = 1; i < FakeAuthRemoteDataSource.maxFailedSignIns; i++) {
+        await failureOf('wrong123', 'wrong123');
+      }
+
+      final limited = await failureOf('wrong123', 'wrong123');
+
+      expect(limited.code, AuthFailureCode.rateLimited);
+    });
+
+    test(
+      'a rate limited user sending the same password is rate_limited',
+      () async {
+        await signUp();
+        for (var i = 0; i < FakeAuthRemoteDataSource.maxFailedSignIns; i++) {
+          await failureOf('wrong123', 'newrun5medals');
+        }
+
+        final failure = await failureOf('run4medals', 'run4medals');
+
+        expect(failure.code, AuthFailureCode.rateLimited);
+      },
+    );
+
     test('the same password is a 422 naming new_password', () async {
       await signUp();
 

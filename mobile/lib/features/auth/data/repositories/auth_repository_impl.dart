@@ -122,7 +122,20 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
           session.user.id != before.user.id) {
         return;
       }
-      await _local.saveSession(session.copyWith(tokens: tokens));
+      try {
+        await _local.saveSession(session.copyWith(tokens: tokens));
+      } on Object {
+        // The password changed and the old refresh token is revoked, so the
+        // stored session is dead. End it as a failed refresh does, inside the
+        // queue (`expireSession` would wait for it).
+        try {
+          await _local.clear();
+        } on Object {
+          // Nothing more to do: the stored tokens are unusable either way.
+        }
+        _sessionExpired.add(null);
+        throw AuthFailure(AuthFailureCode.passwordChangedSignInAgain);
+      }
     });
   }
 

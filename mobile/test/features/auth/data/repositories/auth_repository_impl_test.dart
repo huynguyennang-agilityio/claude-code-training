@@ -406,19 +406,31 @@ void main() {
       expect(local.session, testSession());
     });
 
-    test('a failure to store the pair is thrown, not swallowed', () async {
-      local.session = testSession();
+    test('a failure to store the pair ends the session and says so', () async {
       final failing = _ThrowingLocal()..session = testSession();
       final repo = AuthRepositoryImpl(remote, failing);
       addTearDown(repo.dispose);
+      var expired = 0;
+      final subscription = repo.sessionExpired.listen((_) => expired++);
+      addTearDown(subscription.cancel);
 
       await expectLater(
         repo.changePassword(
           currentPassword: 'run4medals',
           newPassword: 'newrun5medals',
         ),
-        throwsStateError,
+        throwsA(
+          isA<AuthFailure>().having(
+            (f) => f.code,
+            'code',
+            AuthFailureCode.passwordChangedSignInAgain,
+          ),
+        ),
       );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(failing.session, isNull);
+      expect(expired, 1);
     });
 
     test('a sign-out during the request stores nothing', () async {

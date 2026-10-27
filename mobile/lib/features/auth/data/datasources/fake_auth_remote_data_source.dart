@@ -162,7 +162,8 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
     return _currentUser = user;
   }
 
-  /// Checks like the backend, in the order of `docs/api/auth.md`: field rules
+  /// Checks like the backend, in the order of `docs/api/auth.md` as changed by
+  /// #124 (PR #142): field rules
   /// (422), the rate limit (429), the current password (403), the same
   /// password (422, naming `new_password`). On success every refresh token of
   /// the user is revoked and a new pair is issued.
