@@ -193,6 +193,57 @@ void main() {
       );
     });
 
+    test('error_incorrect_password on the password route', () async {
+      final example = _example('error_incorrect_password');
+      final dataSource = _dataSource((_) async => jsonBody(example, 403));
+
+      final failure = await _failureOf(
+        dataSource.changePassword(
+          currentPassword: 'x',
+          newPassword: 'newrun5medals',
+        ),
+      );
+
+      expect(failure.code, AuthFailureCode.incorrectPassword);
+      expect(
+        failure.message,
+        (example['error'] as Map<String, dynamic>)['message'],
+      );
+    });
+
+    test(
+      'a validation_error naming new_password keeps the field message',
+      () async {
+        final dataSource = _dataSource(
+          (_) async => jsonBody({
+            'error': {
+              'code': 'validation_error',
+              'message': 'Request is invalid.',
+              'fields': [
+                {
+                  'field': 'new_password',
+                  'message':
+                      'The new password must differ from the current one.',
+                },
+              ],
+            },
+          }, 422),
+        );
+
+        final failure = await _failureOf(
+          dataSource.changePassword(
+            currentPassword: 'run4medals',
+            newPassword: 'run4medals',
+          ),
+        );
+
+        expect(failure.code, AuthFailureCode.validation);
+        expect(failure.fieldErrors, {
+          'new_password': 'The new password must differ from the current one.',
+        });
+      },
+    );
+
     test('error_invalid_credentials', () async {
       final dataSource = _dataSource(
         (_) async => jsonBody(_example('error_invalid_credentials'), 401),

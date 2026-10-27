@@ -8,6 +8,9 @@ import 'package:stridequest/features/auth/presentation/pages/change_password_pag
 
 import 'auth_fixtures.dart';
 import 'pump_screen.dart';
+import 'settings_page_harness.dart';
+
+export 'settings_page_harness.dart' show parentText, profileRouteText;
 
 /// The Password page on a real [ChangePasswordBloc] over [repository].
 Widget changePasswordPage(MockAuthRepository repository) => BlocProvider(
@@ -36,16 +39,22 @@ void failChangePassword(MockAuthRepository repository, AuthFailure failure) =>
       ),
     ).thenThrow(failure);
 
+/// Pumps the Password page under a GoRouter, as [pumpSettingsPage] does.
 Future<void> pumpChangePassword(
   WidgetTester tester,
   MockAuthRepository repository, {
   Size size = smallPhone,
   double textScale = 1,
-}) => pumpScreen(
+  Listenable? refreshListenable,
+  bool pushed = true,
+}) => pumpSettingsPage(
   tester,
-  changePasswordPage(repository),
+  path: ChangePasswordPage.path,
+  page: () => changePasswordPage(repository),
   size: size,
   textScale: textScale,
+  refreshListenable: refreshListenable,
+  pushed: pushed,
 );
 
 const currentLabel = 'Current Password';

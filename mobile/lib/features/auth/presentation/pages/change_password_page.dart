@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../shared/widgets/settings_form_layout.dart';
@@ -15,6 +16,9 @@ class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
 
   static const path = '/profile/password';
+
+  /// Where Save goes when the page is the only one on the stack (a deep link).
+  static const _profilePath = '/profile';
 
   @override
   State<ChangePasswordPage> createState() => _ChangePasswordPageState();
@@ -48,7 +52,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(const SnackBar(content: Text('Password changed')));
-        Navigator.of(context).maybePop();
+        // Pop through the router: the session update refreshes it, which
+        // would rebuild a route that Navigator.maybePop had removed.
+        context.canPop()
+            ? context.pop()
+            : context.go(ChangePasswordPage._profilePath);
       },
       builder: (context, form) {
         final editable = !form.isSaving;
