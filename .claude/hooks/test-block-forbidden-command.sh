@@ -260,7 +260,31 @@ allowed on-feature 'gh api -X PATCH repos/o/r/issues/5 -f title=x'
 allowed on-feature 'gh api -X PATCH repos/o/r -F delete_branch_on_merge=false'
 allowed on-feature 'gh api repos/o/r/git/refs/heads/main'
 allowed on-feature "gh api graphql -f query='query { viewer { login } }'"
-allowed on-feature 'gh api -X DELETE repos/o/r/git/refs/tags/v1'
+
+# --- release tags: pushing a new tag is allowed; deleting, moving or force-pushing one is not ---
+allowed on-feature 'git push origin refs/tags/v1.2.3'
+allowed on-feature 'git push origin refs/tags/api-v1.2.3'
+allowed on-develop 'git push origin refs/tags/ios-v0.1.0'
+allowed on-feature 'git push origin v1.2.3'
+allowed on-feature 'git tag -a v1.2.3 origin/main -m "StrideQuest v1.2.3"'
+allowed on-feature 'gh api repos/o/r/git/refs/tags/v1'
+allowed on-feature 'gh release delete v1.2.3 --yes'
+allowed on-feature 'gh release delete v1.2.3 --cleanup-tag=false'
+blocked on-feature 'git push origin :refs/tags/v1.2.3'
+blocked on-feature 'git push origin :v1.2.3'
+blocked on-feature 'git push --delete origin v1.2.3'
+blocked on-feature 'git push origin --delete refs/tags/v1.2.3'
+blocked on-feature 'git push -d origin v1.2.3'
+blocked on-feature 'git push -f origin refs/tags/v1.2.3'
+blocked on-feature 'git push --force origin v1.2.3'
+blocked on-feature 'git push origin +refs/tags/v1.2.3'
+blocked on-feature 'git push origin +v1.2.3'
+blocked on-feature 'git push --force origin --tags'
+blocked on-feature 'gh api -X DELETE repos/o/r/git/refs/tags/v1'
+blocked on-feature 'gh api --method PATCH repos/o/r/git/refs/tags/v1 -f sha=abc -F force=true'
+blocked on-feature 'gh release delete v1.2.3 --cleanup-tag'
+blocked on-feature 'gh release delete v1.2.3 --yes --cleanup-tag=true'
+blocked on-feature 'gh release delete -R o/r v1.2.3 --cleanup-tag'
 
 # --- input the hook cannot use is allowed ---
 for raw in '' 'not json' '{}' '{"tool_input":{}}'; do

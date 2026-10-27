@@ -1,6 +1,6 @@
 # Deploy
 
-How StrideQuest is built and released. The plan is [plan 025](plans/025-release-pipeline.md): the API on Render with a Neon database, iOS on TestFlight and Android on Firebase App Distribution, all released from GitHub Actions. Later tasks of that plan add the sections for each of them.
+How StrideQuest is built and released. The plan is [plan 025](plans/025-release-pipeline.md): the API on Render with a Neon database, iOS on TestFlight and Android on Firebase App Distribution, all released from GitHub Actions. The [Releasing](#releasing) section says how to start a release.
 
 ## Backend image
 
@@ -161,3 +161,20 @@ The distribution certificate and the profile expire after a year, and the workfl
    The repository variable `API_BASE_URL` is set with the API release (plan 025, Prerequisites row 3).
 
 Testers get an email from Firebase and install the APK from the App Distribution page; they need to allow installs from unknown sources.
+
+## Releasing
+
+A release runs from a tag on `main`. Merge `develop` into `main` through a pull request first: the workflows run the code of the tagged commit, so `main` must have `render.yaml` and the `release*.yml` workflows.
+
+| Tag | Workflow | What it does |
+| --- | --- | --- |
+| `vX.Y.Z` | `release.yml` | `release-api.yml`, then `release-ios.yml` and `release-android.yml` in parallel once the API is live (`needs: api`) |
+| `api-vX.Y.Z` | `release-api.yml` | Neon migrations, then the Render deploy of the same commit |
+| `ios-vX.Y.Z` | `release-ios.yml` | the build uploaded to TestFlight |
+| `android-vX.Y.Z` | `release-android.yml` | the APK sent to the Firebase App Distribution group `testers` |
+
+Start a release with the Claude Code commands `/release`, `/release-api`, `/release-ios` or `/release-android`, with `patch` (the default), `minor` or `major` (`.claude/skills/release/steps.md`). Each one checks the secret and variable names in GitHub (names only), checks that `main` has the workflows and that the `develop` commit it came from passed `backend` and `mobile` CI (CI runs on `develop`, not on `main`), shows the commits since the last tag of its prefix, proposes the next version, and asks you to confirm the tag. Then it pushes only `refs/tags/<tag>` and reports the run with its link. You can also push a tag yourself: `git tag -a v1.2.3 origin/main -m "StrideQuest v1.2.3"`, then `git push origin refs/tags/v1.2.3`.
+
+Each prefix has its own versions: `/release` looks only at `vX.Y.Z` tags, `/release-api` only at `api-vX.Y.Z`, and so on.
+
+A tag is never deleted, moved or force-pushed, and the `PreToolUse` hook (`.claude/hooks/block-forbidden-command.sh`) refuses it for Claude. When a release fails, fix the cause and release the next version. To check a workflow without releasing, run it by hand from the Actions tab (`workflow_dispatch`, `dry_run` on by default), or open a PR that changes it.
