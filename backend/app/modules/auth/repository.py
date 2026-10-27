@@ -22,6 +22,10 @@ class AuthRepository:
         await self._session.flush()
         return user
 
+    async def update_email(self, user: User, email: str) -> None:
+        user.email = email
+        await self._session.flush()
+
     async def add_refresh_token(self, token: RefreshToken) -> None:
         self._session.add(token)
         await self._session.flush()

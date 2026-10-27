@@ -7,7 +7,7 @@ from math import ceil
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import NOT_AUTHENTICATED_CODE, DomainError
+from app.core.errors import NOT_AUTHENTICATED_CODE, VALIDATION_ERROR_CODE, DomainError, FieldError
 from app.core.security import (
     ExpiredTokenError,
     TokenError,
@@ -20,13 +20,21 @@ from app.core.security import (
 )
 from app.modules.auth.models import RefreshToken, User, UserRole
 from app.modules.auth.repository import AuthRepository
-from app.modules.auth.schemas import SignInRequest, SignUpRequest, TokenPair
+from app.modules.auth.schemas import ChangeEmailRequest, SignInRequest, SignUpRequest, TokenPair
 
 MAX_FAILED_SIGN_INS_PER_EMAIL = 5
 MAX_FAILED_SIGN_INS_PER_IP = 20
 FAILED_SIGN_IN_WINDOW = timedelta(minutes=15)
 
 _BEARER = {"WWW-Authenticate": "Bearer"}
+_USERS_EMAIL_CONSTRAINT = "uq_users_email"
+
+
+def _violated_constraint(error: IntegrityError) -> str | None:
+    """The name of the constraint a PostgreSQL integrity error broke, when the driver says."""
+    cause = getattr(error.orig, "__cause__", None)
+    name = getattr(cause, "constraint_name", None) or getattr(error.orig, "constraint_name", None)
+    return name if isinstance(name, str) else None
 
 
 class EmailTakenError(DomainError):
@@ -54,6 +62,16 @@ class ForbiddenError(DomainError):
 
     status_code = 403
     code = "forbidden"
+
+
+class IncorrectPasswordError(DomainError):
+    status_code = 403
+    code = "incorrect_password"
+
+
+class SameEmailError(DomainError):
+    status_code = 422
+    code = VALIDATION_ERROR_CODE
 
 
 class UnknownUserError(Exception):
@@ -137,6 +155,36 @@ class AuthService:
         await self._session.commit()
         return user, tokens
 
+    async def change_email(self, user: User, data: ChangeEmailRequest, ip: str) -> User:
+        """Give `user` a new email. The order of checks is part of the contract: rate limit,
+        current password, same email, email in use (see `docs/api/auth.md`)."""
+        now = self._now()
+        old_email = user.email
+        await self._verify_current_password(user, data.current_password, ip, now)
+        if data.new_email == old_email:
+            raise SameEmailError(
+                "The new email is the same as the current one.",
+                fields=[
+                    FieldError(
+                        field="new_email", message="The new email must differ from the current one."
+                    )
+                ],
+            )
+        if await self._repository.get_user_by_email(data.new_email) is not None:
+            raise EmailTakenError("An account with this email already exists.")
+        try:
+            await self._repository.update_email(user, data.new_email)
+        except IntegrityError as error:
+            # Another request took the email between the check and the update.
+            constraint = _violated_constraint(error)
+            await self._session.rollback()
+            if constraint == _USERS_EMAIL_CONSTRAINT:
+                raise EmailTakenError("An account with this email already exists.") from None
+            raise
+        await self._repository.clear_login_attempts(old_email)
+        await self._session.commit()
+        return user
+
     async def refresh(self, refresh_token: str) -> TokenPair:
         user_id = await self._repository.consume_refresh_token(
             hash_refresh_token(refresh_token), self._now()
@@ -201,6 +249,20 @@ class AuthService:
             refresh_token=refresh_token,
             expires_in=int(self._settings.access_token_ttl.total_seconds()),
         )
+
+    async def _verify_current_password(
+        self, user: User, password: str, ip: str, now: datetime
+    ) -> None:
+        """Check the password of a signed-in user for a sensitive change.
+
+        Shares the sign-in rate limit: a wrong password is recorded as a failed sign-in for
+        the user's email and the IP, and a blocked caller gets `429` even with the right one.
+        """
+        await self._enforce_rate_limit(user.email, ip, now)
+        if not await verify_password_async(password, user.password_hash):
+            await self._repository.add_login_attempt(user.email, ip, now)
+            await self._session.commit()
+            raise IncorrectPasswordError("The current password is incorrect.")
 
     async def _enforce_rate_limit(self, email: str, ip: str, now: datetime) -> None:
         since = now - FAILED_SIGN_IN_WINDOW

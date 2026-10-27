@@ -92,6 +92,17 @@ class SignInRequest(BaseModel):
         return _lowercase(value)
 
 
+class ChangeEmailRequest(BaseModel):
+    new_email: Email
+    # Only presence is checked: the password rules are not repeated here.
+    current_password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("new_email")
+    @classmethod
+    def new_email_is_lowercase(cls, value: str) -> str:
+        return _lowercase(value)
+
+
 class RefreshTokenRequest(BaseModel):
     refresh_token: str = Field(min_length=1, max_length=512)
 

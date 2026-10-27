@@ -250,7 +250,7 @@ Request:
 
 `new_email` follows the `email` rule and is stored lowercase. The change applies at once: there is no verification email (see "Out of scope for the MVP").
 
-Order of checks: the body's field rules first (`422`), then the current password (`403`, `429`), and only with the right password the checks that need the database: the same email, compared after lowercasing (`422`), and an email that another account has (`409`). So a wrong password never reveals whether an email is registered.
+Order of checks: the body's field rules (`422`), the rate limit (`429`), the current password (`403`), the same email after lowercasing (`422`, naming `new_email` in `fields`), and last the email already in use (`409`). So a wrong password never reveals whether an email is registered, and the rate limit applies even with the right password.
 
 Responses:
 
@@ -269,11 +269,11 @@ Responses:
 ```
 
 - `409 email_taken` when another account has that email, including when two requests race and the database unique constraint fails.
-- `422 validation_error` when `new_email` breaks the rule, or equals the current email after lowercasing (`Runner@Example.com` against `runner@example.com` is a `422`).
+- `422 validation_error` when `new_email` breaks the rule, or equals the current email after lowercasing (`Runner@Example.com` against `runner@example.com` is a `422`); in both cases `fields[0].field` is `new_email`.
 - `429 rate_limited` with a `Retry-After` header.
 - `401 not_authenticated`, `401 invalid_token`, `401 token_expired`.
 
-A wrong `current_password` is recorded as a failed sign-in for the rate limit of `POST /api/v1/auth/signin` (by the user's email and by IP), so these routes cannot be used to guess the password. Once the limit is reached, the route answers `429` even with the right password. The count is kept for the email the user had when the attempt was made; a successful email or password change clears it, as a successful sign-in does.
+A wrong `current_password` is recorded as a failed sign-in for the rate limit of `POST /api/v1/auth/signin` (by the user's email and by IP), so these routes cannot be used to guess the password. Once the limit is reached, the route answers `429` even with the right password. The count is kept for the email the user had when the attempt was made; a successful email or password change clears the count for that email, as a successful sign-in does.
 
 ## `PUT /api/v1/users/me/password`
 

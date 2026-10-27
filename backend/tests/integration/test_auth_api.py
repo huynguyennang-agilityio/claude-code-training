@@ -475,6 +475,171 @@ async def test_users_me_for_a_deleted_user_returns_invalid_token(
     assert_error(response, 401, "invalid_token")
 
 
+# change email
+
+CHANGE_EMAIL = load_example("auth/change_email_request.json")
+NEW_EMAIL = "new.runner@example.com"
+
+
+async def change_email(client: AsyncClient, token: str, **changes: str) -> Response:
+    return await client.put(
+        f"{PREFIX}/users/me/email", json={**CHANGE_EMAIL, **changes}, headers=bearer(token)
+    )
+
+
+@pytest.mark.anyio
+async def test_change_email_then_sign_in_with_the_new_email_only(client: AsyncClient) -> None:
+    body = await sign_up(client)
+    token = body["tokens"]["access_token"]
+
+    response = await change_email(client, token, new_email="New.Runner@Example.com")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {**body["user"], "email": NEW_EMAIL}
+    assert_same_shape(response.json(), load_example("auth/user.json"))
+    assert (await sign_in(client, email=NEW_EMAIL)).status_code == 200
+    assert_error(await sign_in(client), 401, "invalid_credentials")
+    # Sessions are not revoked: the token in use and the refresh token still work.
+    assert (await client.get(f"{PREFIX}/users/me", headers=bearer(token))).json()["email"] == (
+        NEW_EMAIL
+    )
+    refreshed = await client.post(
+        f"{PREFIX}/auth/refresh", json={"refresh_token": body["tokens"]["refresh_token"]}
+    )
+    assert refreshed.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_change_email_with_a_wrong_password_matches_the_example(
+    client: AsyncClient,
+) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+
+    response = await change_email(client, token, current_password="wrong-pass1")
+
+    body = assert_error(response, 403, "incorrect_password")
+    assert body == load_example("auth/error_incorrect_password.json")
+
+
+@pytest.mark.anyio
+async def test_wrong_passwords_on_change_email_count_toward_the_sign_in_limit(
+    client: AsyncClient,
+) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+    for _ in range(MAX_FAILED_SIGN_INS_PER_EMAIL):
+        assert_error(
+            await change_email(client, token, current_password="wrong-pass1"),
+            403,
+            "incorrect_password",
+        )
+
+    blocked = await change_email(client, token)  # the right password
+
+    assert_error(blocked, 429, "rate_limited")
+    assert int(blocked.headers["retry-after"]) >= 1
+    assert_error(await sign_in(client), 429, "rate_limited")
+
+
+@pytest.mark.anyio
+async def test_a_successful_change_email_clears_the_failures_for_the_old_email(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+    for _ in range(MAX_FAILED_SIGN_INS_PER_EMAIL - 1):
+        await change_email(client, token, current_password="wrong-pass1")
+
+    assert (await change_email(client, token)).status_code == 200
+
+    count = await session.scalar(
+        text("SELECT count(*) FROM login_attempts WHERE email = :e"), {"e": SIGNUP["email"]}
+    )
+    assert count == 0
+
+
+@pytest.mark.anyio
+async def test_change_email_to_the_same_email_names_new_email(client: AsyncClient) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+
+    response = await change_email(client, token, new_email=SIGNUP["email"].upper())
+
+    body = assert_error(response, 422, "validation_error")
+    assert body["error"]["fields"][0]["field"] == "new_email"
+
+
+@pytest.mark.anyio
+async def test_change_email_with_an_invalid_email_is_a_validation_error(
+    client: AsyncClient,
+) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+
+    body = assert_error(
+        await change_email(client, token, new_email="nope"), 422, "validation_error"
+    )
+
+    assert body["error"]["fields"][0]["field"] == "new_email"
+
+
+@pytest.mark.anyio
+async def test_change_email_to_an_email_in_use_is_email_taken(client: AsyncClient) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+    other = await sign_up(client, email="other@example.com")
+
+    assert_error(
+        await change_email(client, token, new_email="Other@example.com"), 409, "email_taken"
+    )
+
+    # Nothing changed for either account.
+    assert (await client.get(f"{PREFIX}/users/me", headers=bearer(token))).json()["email"] == (
+        SIGNUP["email"]
+    )
+    me = await client.get(f"{PREFIX}/users/me", headers=bearer(other["tokens"]["access_token"]))
+    assert me.json()["email"] == "other@example.com"
+
+
+@pytest.mark.anyio
+async def test_change_email_loses_a_race_for_the_email_with_email_taken(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+    await sign_up(client, email="other@example.com")
+    original = AuthRepository.get_user_by_email
+
+    async def not_seen_yet(self: AuthRepository, email: str) -> User | None:
+        # The email check misses the other account, so the unique constraint decides.
+        return None if email == "other@example.com" else await original(self, email)
+
+    monkeypatch.setattr(AuthRepository, "get_user_by_email", not_seen_yet)
+
+    response = await change_email(client, token, new_email="other@example.com")
+
+    assert_error(response, 409, "email_taken")
+    monkeypatch.undo()
+    assert (await sign_in(client)).status_code == 200
+
+
+@pytest.mark.anyio
+async def test_change_email_checks_the_password_before_the_email_in_use(
+    client: AsyncClient,
+) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+    await sign_up(client, email="other@example.com")
+
+    response = await change_email(
+        client, token, new_email="other@example.com", current_password="wrong-pass1"
+    )
+
+    assert_error(response, 403, "incorrect_password")
+
+
+@pytest.mark.anyio
+async def test_change_email_without_a_token_returns_not_authenticated(
+    client: AsyncClient,
+) -> None:
+    response = await client.put(f"{PREFIX}/users/me/email", json=CHANGE_EMAIL)
+
+    assert_error(response, 401, "not_authenticated")
+
+
 # the contract
 
 
@@ -484,6 +649,7 @@ def test_the_error_codes_this_file_produces_are_the_documented_ones() -> None:
     assert documented >= AUTH_MODULE_ERROR_CODES
     produced = {
         "email_taken",  # test_sign_up_with_a_taken_email_returns_email_taken
+        "incorrect_password",  # test_change_email_with_a_wrong_password_matches_the_example
         "invalid_credentials",  # test_sign_in_with_a_wrong_password_matches_the_documented_example
         "invalid_refresh_token",  # test_refresh_with_an_unknown_token_is_rejected
         "invalid_token",  # test_users_me_with_a_garbage_token_returns_invalid_token

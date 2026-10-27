@@ -43,6 +43,7 @@ def error_codes(doc: Path) -> list[str]:
 AUTH_MODULE_ERROR_CODES = frozenset(
     {
         "email_taken",
+        "incorrect_password",
         "invalid_credentials",
         "invalid_refresh_token",
         "invalid_token",
@@ -52,6 +53,6 @@ AUTH_MODULE_ERROR_CODES = frozenset(
 )
 
 # Documented in `docs/api/auth.md` before the backend serves them (plan 024). The tasks that
-# add the routes (#123, #124) move `incorrect_password` into `AUTH_MODULE_ERROR_CODES` with
-# the integration test that produces it, and empty this set.
-DOCUMENTED_NOT_YET_SERVED_ERROR_CODES = frozenset({"incorrect_password"})
+# add the routes move their codes into `AUTH_MODULE_ERROR_CODES` with the integration test
+# that produces them, and empty this set again.
+DOCUMENTED_NOT_YET_SERVED_ERROR_CODES: frozenset[str] = frozenset()
