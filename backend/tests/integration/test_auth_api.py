@@ -640,6 +640,152 @@ async def test_change_email_without_a_token_returns_not_authenticated(
     assert_error(response, 401, "not_authenticated")
 
 
+# change password
+
+CHANGE_PASSWORD = load_example("auth/change_password_request.json")
+NEW_PASSWORD = CHANGE_PASSWORD["new_password"]
+
+
+async def change_password(client: AsyncClient, token: str, **changes: str) -> Response:
+    return await client.put(
+        f"{PREFIX}/users/me/password", json={**CHANGE_PASSWORD, **changes}, headers=bearer(token)
+    )
+
+
+async def refresh(client: AsyncClient, refresh_token: str) -> Response:
+    return await client.post(f"{PREFIX}/auth/refresh", json={"refresh_token": refresh_token})
+
+
+@pytest.mark.anyio
+async def test_change_password_returns_a_token_pair_and_revokes_every_session(
+    client: AsyncClient,
+) -> None:
+    first = (await sign_up(client))["tokens"]
+    second = (await sign_in(client)).json()["tokens"]  # another device
+
+    response = await change_password(client, first["access_token"])
+
+    assert response.status_code == 200, response.text
+    assert_same_shape(response.json(), load_example("auth/token_pair.json"))
+    new = response.json()
+    assert_error(await refresh(client, first["refresh_token"]), 401, "invalid_refresh_token")
+    assert_error(await refresh(client, second["refresh_token"]), 401, "invalid_refresh_token")
+    me = await client.get(f"{PREFIX}/users/me", headers=bearer(new["access_token"]))
+    assert me.status_code == 200
+    assert (await refresh(client, new["refresh_token"])).status_code == 200
+
+
+@pytest.mark.anyio
+async def test_after_changing_the_password_only_the_new_one_signs_in(client: AsyncClient) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+
+    assert (await change_password(client, token)).status_code == 200
+
+    assert (await sign_in(client, password=NEW_PASSWORD)).status_code == 200
+    assert_error(await sign_in(client), 401, "invalid_credentials")
+
+
+@pytest.mark.anyio
+async def test_change_password_with_a_wrong_password_matches_the_example(
+    client: AsyncClient,
+) -> None:
+    body = await sign_up(client)
+
+    response = await change_password(
+        client, body["tokens"]["access_token"], current_password="wrong-pass1"
+    )
+
+    assert assert_error(response, 403, "incorrect_password") == load_example(
+        "auth/error_incorrect_password.json"
+    )
+    # Nothing changed: the old password and the refresh token still work.
+    assert (await sign_in(client)).status_code == 200
+    assert (await refresh(client, body["tokens"]["refresh_token"])).status_code == 200
+
+
+@pytest.mark.anyio
+async def test_wrong_passwords_on_change_password_are_blocked_with_429(
+    client: AsyncClient,
+) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+    for _ in range(MAX_FAILED_SIGN_INS_PER_EMAIL):
+        assert_error(
+            await change_password(client, token, current_password="wrong-pass1"),
+            403,
+            "incorrect_password",
+        )
+
+    blocked = await change_password(client, token)  # the right password
+
+    assert_error(blocked, 429, "rate_limited")
+    assert int(blocked.headers["retry-after"]) >= 1
+    assert_error(await sign_in(client), 429, "rate_limited")
+
+
+@pytest.mark.anyio
+async def test_a_successful_change_password_clears_the_failures(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+    for _ in range(MAX_FAILED_SIGN_INS_PER_EMAIL - 1):
+        await change_password(client, token, current_password="wrong-pass1")
+
+    assert (await change_password(client, token)).status_code == 200
+
+    count = await session.scalar(
+        text("SELECT count(*) FROM login_attempts WHERE email = :e"), {"e": SIGNUP["email"]}
+    )
+    assert count == 0
+
+
+@pytest.mark.anyio
+async def test_change_password_to_the_same_password_names_new_password(
+    client: AsyncClient,
+) -> None:
+    body = await sign_up(client)
+
+    response = await change_password(client, body["tokens"]["access_token"], new_password=PASSWORD)
+
+    error = assert_error(response, 422, "validation_error")
+    assert error["error"]["fields"][0]["field"] == "new_password"
+    assert (await refresh(client, body["tokens"]["refresh_token"])).status_code == 200
+
+
+@pytest.mark.anyio
+async def test_change_password_checks_the_current_password_before_the_same_password(
+    client: AsyncClient,
+) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+
+    response = await change_password(
+        client, token, current_password="wrong-pass1", new_password="wrong-pass1"
+    )
+
+    assert_error(response, 403, "incorrect_password")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("new_password", ["short1", "onlyletters", "12345678"])
+async def test_change_password_with_a_new_password_that_breaks_the_rule(
+    client: AsyncClient, new_password: str
+) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+
+    response = await change_password(client, token, new_password=new_password)
+
+    error = assert_error(response, 422, "validation_error")
+    assert error["error"]["fields"][0]["field"] == "new_password"
+
+
+@pytest.mark.anyio
+async def test_change_password_without_a_token_returns_not_authenticated(
+    client: AsyncClient,
+) -> None:
+    response = await client.put(f"{PREFIX}/users/me/password", json=CHANGE_PASSWORD)
+
+    assert_error(response, 401, "not_authenticated")
+
+
 # the contract
 
 

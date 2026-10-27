@@ -289,13 +289,15 @@ Request:
 }
 ```
 
-`new_password` follows the `password` rule and must differ from `current_password`. Both are body rules, checked before the current password (`422` first, then `403` or `429`).
+`new_password` follows the `password` rule and must differ from `current_password`.
+
+Order of checks: the body's field rules (`422`), the rate limit (`429`), the current password (`403`), and last the same password (`422`, naming `new_password` in `fields`). So a wrong password never reveals whether the new one equals the current one, and the rate limit applies even with the right password.
 
 Responses:
 
 - `200 OK` with a new `TokenPair` for the device in use. Every refresh token of the user is revoked, including the one this device held, so the app must store the new pair at once and every other device is signed out when its access token expires. Access tokens issued before stay valid until they expire (15 minutes by default); there is no deny list.
 - `403 incorrect_password` (the example above).
-- `422 validation_error` when `new_password` breaks the rule or equals `current_password`.
+- `422 validation_error` when `new_password` breaks the rule or equals `current_password`; in both cases `fields[0].field` is `new_password`.
 - `429 rate_limited` with a `Retry-After` header, under the same rate limit as above.
 - `401 not_authenticated`, `401 invalid_token`, `401 token_expired`.
 

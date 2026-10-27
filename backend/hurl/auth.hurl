@@ -255,3 +255,110 @@ POST {{base}}/auth/signin
 HTTP 401
 [Asserts]
 jsonpath "$.error.code" == "invalid_credentials"
+
+# Change the password: sign in again to hold a refresh token (the email is new-{{email}} now)
+POST {{base}}/auth/signin
+{
+  "email": "new-{{email}}",
+  "password": "run4medals"
+}
+HTTP 200
+[Captures]
+pw_access_token: jsonpath "$.tokens.access_token"
+pw_refresh_token: jsonpath "$.tokens.refresh_token"
+
+# 401 without a token
+PUT {{base}}/users/me/password
+{
+  "current_password": "run4medals",
+  "new_password": "newrun5medals"
+}
+HTTP 401
+[Asserts]
+jsonpath "$.error.code" == "not_authenticated"
+
+# 403 incorrect_password
+PUT {{base}}/users/me/password
+Authorization: Bearer {{pw_access_token}}
+{
+  "current_password": "wrong-pass1",
+  "new_password": "newrun5medals"
+}
+HTTP 403
+[Asserts]
+jsonpath "$.error.code" == "incorrect_password"
+jsonpath "$.error.fields" count == 0
+
+# 422: the same password, naming new_password
+PUT {{base}}/users/me/password
+Authorization: Bearer {{pw_access_token}}
+{
+  "current_password": "run4medals",
+  "new_password": "run4medals"
+}
+HTTP 422
+[Asserts]
+jsonpath "$.error.code" == "validation_error"
+jsonpath "$.error.fields[0].field" == "new_password"
+
+# 422: a new password without a digit
+PUT {{base}}/users/me/password
+Authorization: Bearer {{pw_access_token}}
+{
+  "current_password": "run4medals",
+  "new_password": "newrunmedals"
+}
+HTTP 422
+[Asserts]
+jsonpath "$.error.fields[0].field" == "new_password"
+
+# 200: a new token pair; the old refresh token is revoked and the new one works
+PUT {{base}}/users/me/password
+Authorization: Bearer {{pw_access_token}}
+{
+  "current_password": "run4medals",
+  "new_password": "newrun5medals"
+}
+HTTP 200
+[Captures]
+changed_access_token: jsonpath "$.access_token"
+changed_refresh_token: jsonpath "$.refresh_token"
+[Asserts]
+jsonpath "$.token_type" == "bearer"
+jsonpath "$.expires_in" == 900
+jsonpath "$.refresh_token" != "{{pw_refresh_token}}"
+
+POST {{base}}/auth/refresh
+{
+  "refresh_token": "{{pw_refresh_token}}"
+}
+HTTP 401
+[Asserts]
+jsonpath "$.error.code" == "invalid_refresh_token"
+
+GET {{base}}/users/me
+Authorization: Bearer {{changed_access_token}}
+HTTP 200
+
+POST {{base}}/auth/refresh
+{
+  "refresh_token": "{{changed_refresh_token}}"
+}
+HTTP 200
+
+# Sign in works with the new password only
+POST {{base}}/auth/signin
+{
+  "email": "new-{{email}}",
+  "password": "newrun5medals"
+}
+HTTP 200
+
+POST {{base}}/auth/signin
+{
+  "email": "new-{{email}}",
+  "password": "run4medals"
+}
+HTTP 401
+[Asserts]
+jsonpath "$.error.code" == "invalid_credentials"

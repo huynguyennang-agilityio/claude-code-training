@@ -20,7 +20,13 @@ from app.core.security import (
 )
 from app.modules.auth.models import RefreshToken, User, UserRole
 from app.modules.auth.repository import AuthRepository
-from app.modules.auth.schemas import ChangeEmailRequest, SignInRequest, SignUpRequest, TokenPair
+from app.modules.auth.schemas import (
+    ChangeEmailRequest,
+    ChangePasswordRequest,
+    SignInRequest,
+    SignUpRequest,
+    TokenPair,
+)
 
 MAX_FAILED_SIGN_INS_PER_EMAIL = 5
 MAX_FAILED_SIGN_INS_PER_IP = 20
@@ -70,6 +76,11 @@ class IncorrectPasswordError(DomainError):
 
 
 class SameEmailError(DomainError):
+    status_code = 422
+    code = VALIDATION_ERROR_CODE
+
+
+class SamePasswordError(DomainError):
     status_code = 422
     code = VALIDATION_ERROR_CODE
 
@@ -184,6 +195,33 @@ class AuthService:
         await self._repository.clear_login_attempts(old_email)
         await self._session.commit()
         return user
+
+    async def change_password(self, user: User, data: ChangePasswordRequest, ip: str) -> TokenPair:
+        """Give `user` a new password and sign every device out. The order of checks is part
+        of the contract: rate limit, current password, same password (see `docs/api/auth.md`).
+
+        Returns a new token pair for the device that made the call.
+        """
+        now = self._now()
+        await self._verify_current_password(user, data.current_password, ip, now)
+        if data.new_password == data.current_password:
+            raise SamePasswordError(
+                "The new password is the same as the current one.",
+                fields=[
+                    FieldError(
+                        field="new_password",
+                        message="The new password must differ from the current one.",
+                    )
+                ],
+            )
+        await self._repository.update_password_hash(
+            user, await hash_password_async(data.new_password)
+        )
+        await self._repository.revoke_all_refresh_tokens(user.id, now)
+        await self._repository.clear_login_attempts(user.email)
+        tokens = await self._issue_tokens(user.id)
+        await self._session.commit()
+        return tokens
 
     async def refresh(self, refresh_token: str) -> TokenPair:
         user_id = await self._repository.consume_refresh_token(

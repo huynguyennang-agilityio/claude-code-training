@@ -54,6 +54,19 @@ class AuthRepository:
             .values(revoked_at=now)
         )
 
+    async def revoke_all_refresh_tokens(self, user_id: uuid.UUID, now: datetime) -> None:
+        """Revoke every refresh token of `user_id` that is not revoked yet."""
+        await self._session.execute(
+            update(RefreshToken)
+            .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+            .values(revoked_at=now)
+        )
+        await self._session.flush()
+
+    async def update_password_hash(self, user: User, password_hash: str) -> None:
+        user.password_hash = password_hash
+        await self._session.flush()
+
     async def add_login_attempt(self, email: str, ip: str, attempted_at: datetime) -> None:
         self._session.add(LoginAttempt(email=email, ip=ip, attempted_at=attempted_at))
         await self._session.flush()
