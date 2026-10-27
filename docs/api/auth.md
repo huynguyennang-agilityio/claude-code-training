@@ -291,7 +291,7 @@ Request:
 
 `new_password` follows the `password` rule and must differ from `current_password`.
 
-Order of checks: the body's field rules (`422`), the rate limit (`429`), the current password (`403`), and last the same password (`422`, naming `new_password` in `fields`). So a wrong password never reveals whether the new one equals the current one, and the rate limit applies even with the right password.
+Order of checks: the body's field rules (`422`), the rate limit (`429`), the current password (`403`), and last the same password (`422`, naming `new_password` in `fields`). This is the order of `PUT /users/me/email`: every request whose body passes the field rules, a same password included, goes through the rate limit and the password check, and the rate limit applies even with the right password.
 
 Responses:
 
