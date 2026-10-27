@@ -1,6 +1,13 @@
 # Environment
 .env
 
+# Release signing keys, anywhere in the repo (plan 025; mobile/android/.gitignore has them too)
+*.jks
+*.keystore
+*.p12
+*.p8
+*.mobileprovision
+
 # Python
 __pycache__/
 *.py[cod]
