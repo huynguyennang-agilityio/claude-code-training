@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The release build talks to the StrideQuest API; debug and profile add this in their own manifests. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Health Connect: read steps (required) and calories, distance and sleep (optional). -->
     <uses-permission android:name="android.permission.health.READ_STEPS"/>
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED"/>
