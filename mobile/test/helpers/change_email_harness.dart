@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:stridequest/core/theme/app_theme.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 import 'package:stridequest/features/auth/presentation/bloc/change_email_bloc.dart';
 import 'package:stridequest/features/auth/presentation/pages/change_email_page.dart';
@@ -42,17 +46,49 @@ void failChangeEmail(MockAuthRepository repository, AuthFailure failure) =>
       ),
     ).thenThrow(failure);
 
+/// Text of the screen under the Email page, to tell that the page popped.
+const parentText = 'Profile tab';
+
+/// Pumps the Email page pushed over a parent route under a [GoRouter], as the
+/// app does, so a save can pop back to the parent.
 Future<void> pumpChangeEmail(
   WidgetTester tester,
   MockAuthRepository repository, {
   Size size = smallPhone,
   double textScale = 1,
-}) => pumpScreen(
-  tester,
-  changeEmailPage(repository),
-  size: size,
-  textScale: textScale,
-);
+}) async {
+  tester.view
+    ..devicePixelRatio = 1
+    ..physicalSize = size;
+  addTearDown(tester.view.reset);
+  final router = GoRouter(
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const Scaffold(body: Text(parentText)),
+      ),
+      GoRoute(
+        path: ChangeEmailPage.path,
+        builder: (context, state) => changeEmailPage(repository),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+  await tester.pumpWidget(
+    MaterialApp.router(
+      theme: AppTheme.dark,
+      routerConfig: router,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
+    ),
+  );
+  unawaited(router.push(ChangeEmailPage.path));
+  await tester.pumpAndSettle();
+}
 
 const emailLabel = 'Email address';
 const passwordLabel = 'Current Password';

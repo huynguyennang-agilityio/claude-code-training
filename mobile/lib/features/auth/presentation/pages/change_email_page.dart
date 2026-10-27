@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../shared/widgets/settings_form_layout.dart';
@@ -30,7 +31,7 @@ class ChangeEmailPage extends StatelessWidget {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(content: Text('Email changed to $email')));
-        Navigator.of(context).maybePop();
+        GoRouter.of(context).pop();
       },
       builder: (context, state) => switch (state) {
         ChangeEmailLoading() => const SettingsFormLayout(
