@@ -2,7 +2,7 @@
 
 Status: approved
 Approved: 2026-10-27, by the user in chat: "/approve-plan 026"
-Issues: <filled in after approval>
+Issues: #146
 Draft: https://claude.ai/artifact/Ci8QQzLQxQfhzY2tyKzbDi, version 1793083437-6a54
 
 ## Context
@@ -110,4 +110,4 @@ The acceptance criteria are each task's checklist above, word for word.
 
 | # | Title | Labels | Acceptance criteria | Depends on |
 | --- | --- | --- | --- | --- |
-| 1 | `[infra] docs: commit finished work without asking` | docs, area:infra | - [ ] `CLAUDE.md` Workflow: Claude commits a finished task without asking once lint, type checks and tests pass, never on `develop`/`main`, and reports the commit hash<br>- [ ] `CLAUDE.md` permission table: the Commit row allows it; the Push/PR, Merge and Never rows keep their meaning<br>- [ ] `.claude/agents/fastapi-backend.md` and `.claude/agents/flutter-dev.md`: the subagent doesn't commit or push; the main session commits<br>- [ ] `grep -rn "Don't commit unless asked\|No commits unless explicitly asked" CLAUDE.md .claude/` finds nothing<br>- [ ] `.claude/hooks/test-block-forbidden-command.sh` passes | none |
+| 1 | `[infra] docs: commit finished work without asking` | docs, area:infra | - [ ] `CLAUDE.md` Workflow: Claude commits a finished task without asking once lint, type checks and tests pass, never on `develop`/`main`, and reports the commit hash<br>- [ ] `CLAUDE.md` permission table: the Commit row allows it; the Push/PR, Merge and Never rows keep their meaning<br>- [ ] `.claude/agents/fastapi-backend.md` and `.claude/agents/flutter-dev.md`: the subagent doesn't commit or push; the main session commits<br>- [ ] `grep -rn "Don't commit unless asked\|No commits unless explicitly asked" CLAUDE.md .claude/` finds nothing<br>- [ ] `.claude/hooks/test-block-forbidden-command.sh` passes | None |
