@@ -45,10 +45,11 @@ jobs:
     # falsy, so that form always gives 'production'.
     environment: ${{ github.event_name != 'pull_request' && !inputs.dry_run && 'production' || '' }}
     concurrency:
-      # A PR's runs cancel the older run on the same branch, and each dispatched dry run has
-      # its own group. Real releases share one group: one runs, and a newer pending release
+      # A PR's runs cancel the older run of the same workflow on the same branch (in a called
+      # workflow `github.workflow` is the caller's, so this run and the one inside a caller on
+      # the same PR do not cancel each other), and each dispatched dry run has its own group. Real releases share one group: one runs, and a newer pending release
       # replaces an older pending one, so a dry run can never cancel a release.
-      group: release-android-${{ github.event_name == 'pull_request' && github.ref || inputs.dry_run && format('dry-{0}', github.run_id) || 'release' }}
+      group: release-android-${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow, github.ref) || inputs.dry_run && format('dry-{0}', github.run_id) || 'release' }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     env:
       DRY_RUN: ${{ github.event_name == 'pull_request' || inputs.dry_run == true }}
@@ -147,7 +148,8 @@ jobs:
             --build-name="$VERSION" --build-number="$BUILD_NUMBER" "${defines[@]}"
 
       # The keystore is no longer needed: delete it before any third-party code (the Firebase
-      # CLI) runs. The last step deletes it again in case the build failed.
+      # CLI) runs. `always()` runs this even when the build failed; the last step removes the
+      # Firebase service-account file.
       - name: Delete the release keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks"
