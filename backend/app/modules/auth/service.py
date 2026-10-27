@@ -214,9 +214,9 @@ class AuthService:
                     )
                 ],
             )
-        await self._repository.update_password_hash(
-            user, await hash_password_async(data.new_password)
-        )
+        password_hash = await hash_password_async(data.new_password)
+        await self._repository.lock_user_refresh_tokens(user.id)
+        await self._repository.update_password_hash(user, password_hash)
         await self._repository.revoke_all_refresh_tokens(user.id, now)
         await self._repository.clear_login_attempts(user.email)
         tokens = await self._issue_tokens(user.id)
@@ -224,9 +224,10 @@ class AuthService:
         return tokens
 
     async def refresh(self, refresh_token: str) -> TokenPair:
-        user_id = await self._repository.consume_refresh_token(
-            hash_refresh_token(refresh_token), self._now()
-        )
+        token_hash = hash_refresh_token(refresh_token)
+        # Serialized with `change_password`, so a password change revokes this pair too.
+        await self._repository.lock_refresh_token_owner(token_hash)
+        user_id = await self._repository.consume_refresh_token(token_hash, self._now())
         if user_id is None:
             raise InvalidRefreshTokenError("The refresh token is unknown, expired or used.")
         tokens = await self._issue_tokens(user_id)

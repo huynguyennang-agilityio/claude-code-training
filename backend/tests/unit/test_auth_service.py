@@ -511,6 +511,20 @@ async def test_change_password_revokes_before_issuing_the_new_token(
 
 
 @pytest.mark.anyio
+async def test_change_password_takes_the_users_token_lock_before_changing_anything(
+    service: AuthService, repository: AsyncMock
+) -> None:
+    user = make_user()
+
+    await service.change_password(user, change_password_request(), IP)
+
+    repository.lock_user_refresh_tokens.assert_awaited_once_with(user.id)
+    names = [c[0] for c in repository.method_calls]
+    assert names.index("lock_user_refresh_tokens") < names.index("update_password_hash")
+    assert names.index("lock_user_refresh_tokens") < names.index("revoke_all_refresh_tokens")
+
+
+@pytest.mark.anyio
 async def test_change_password_with_a_wrong_password_records_the_failure(
     service: AuthService, repository: AsyncMock, session: AsyncMock
 ) -> None:
@@ -591,6 +605,21 @@ async def test_refresh_rotates_the_token(
     assert tokens.refresh_token != "old-refresh-token"
     assert stored_refresh_token(repository).user_id == user_id
     session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_refresh_takes_the_owners_token_lock_before_consuming(
+    service: AuthService, repository: AsyncMock
+) -> None:
+    repository.consume_refresh_token.return_value = uuid.uuid4()
+
+    await service.refresh("old-refresh-token")
+
+    repository.lock_refresh_token_owner.assert_awaited_once_with(
+        hash_refresh_token("old-refresh-token")
+    )
+    names = [c[0] for c in repository.method_calls]
+    assert names.index("lock_refresh_token_owner") < names.index("consume_refresh_token")
 
 
 @pytest.mark.anyio
