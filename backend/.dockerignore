@@ -1,0 +1,15 @@
+.env
+.env.*
+tests/
+demo/
+hurl/
+.venv/
+**/__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+.ua/
+*.md
+requirements-dev.txt
