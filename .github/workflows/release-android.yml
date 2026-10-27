@@ -155,8 +155,14 @@ jobs:
       - name: Check the APK signature
         run: |
           apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
-          certs="$("$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk)"
-          echo "$certs" | grep -E 'Signer #1 certificate (DN|SHA-256)'
+          echo "Using $apksigner ($("$apksigner" --version))"
+          if ! certs="$("$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk 2>&1)"; then
+            echo "$certs"
+            echo "::error::apksigner could not verify the APK."
+            exit 1
+          fi
+          # Print the signer; the whole output when its format is not the expected one.
+          echo "$certs" | grep -E 'certificate (DN|SHA-256)' || echo "$certs"
           if [[ "$DRY_RUN" != "true" ]] && echo "$certs" | grep -q 'CN=Android Debug'; then
             echo "::error::The release APK is signed with the debug key."
             exit 1
