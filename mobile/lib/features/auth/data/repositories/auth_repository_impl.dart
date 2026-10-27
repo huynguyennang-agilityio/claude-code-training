@@ -88,8 +88,11 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
     );
     return _serialized(() async {
       final session = await _local.readSession();
-      // A sign-out while the request ran leaves nothing to update.
-      if (session == null) return user.toEntity();
+      // A sign-out, or another user's session, while the request ran leaves
+      // nothing to update.
+      if (session == null || session.user.id != user.id) {
+        return user.toEntity();
+      }
       await _local.saveSession(session.copyWith(user: user));
       final entity = user.toEntity();
       _userUpdated.add(entity);

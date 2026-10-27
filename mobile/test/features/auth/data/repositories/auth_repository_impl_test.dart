@@ -281,9 +281,19 @@ void main() {
     test(
       'a sign-out during the request stores and announces nothing',
       () async {
+        local.session = testSession();
         final announced = <Object>[];
         final subscription = repository.userUpdated.listen(announced.add);
         addTearDown(subscription.cancel);
+        when(
+          () => remote.changeEmail(
+            newEmail: any(named: 'newEmail'),
+            currentPassword: any(named: 'currentPassword'),
+          ),
+        ).thenAnswer((_) async {
+          local.session = null;
+          return updated;
+        });
 
         await repository.changeEmail(
           newEmail: 'new.runner@example.com',
@@ -295,6 +305,35 @@ void main() {
         expect(announced, isEmpty);
       },
     );
+
+    test('a response for another user stores and announces nothing', () async {
+      final other = testSession().copyWith(
+        user: testUser.copyWith(id: 'user-2'),
+      );
+      local.session = testSession();
+      final announced = <Object>[];
+      final subscription = repository.userUpdated.listen(announced.add);
+      addTearDown(subscription.cancel);
+      when(
+        () => remote.changeEmail(
+          newEmail: any(named: 'newEmail'),
+          currentPassword: any(named: 'currentPassword'),
+        ),
+      ).thenAnswer((_) async {
+        // User B signs in while user A's request is in flight.
+        local.session = other;
+        return updated;
+      });
+
+      await repository.changeEmail(
+        newEmail: 'new.runner@example.com',
+        currentPassword: 'run4medals',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(local.session, other);
+      expect(announced, isEmpty);
+    });
 
     test('a refresh during the request does not deadlock', () async {
       local.session = testSession();

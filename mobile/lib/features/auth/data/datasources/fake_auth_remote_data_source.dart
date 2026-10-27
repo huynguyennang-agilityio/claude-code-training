@@ -165,7 +165,8 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
   @override
   Future<void> signOut(String refreshToken) async {
     await Future<void>.delayed(latency);
-    _refreshTokens.remove(refreshToken);
+    final user = _refreshTokens.remove(refreshToken);
+    if (user != null && user.id == _currentUser?.id) _currentUser = null;
   }
 
   /// Applies the field rules from `docs/api/auth.md`, like the backend does

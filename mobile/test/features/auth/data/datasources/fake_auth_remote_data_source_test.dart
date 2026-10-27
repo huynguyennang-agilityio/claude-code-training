@@ -358,6 +358,19 @@ void main() {
       expect(failure.retryAfter, isNotNull);
     });
 
+    test('after sign out it is not_authenticated', () async {
+      await signUp();
+      final session = await repository.signIn(
+        email: 'runner@example.com',
+        password: 'run4medals',
+      );
+      await repository.signOut(session.tokens.refreshToken);
+
+      final failure = await failureOf('new.runner@example.com', 'run4medals');
+
+      expect(failure.code, AuthFailureCode.notAuthenticated);
+    });
+
     test('without a session it is not_authenticated', () async {
       final failure = await failureOf('new.runner@example.com', 'run4medals');
 
