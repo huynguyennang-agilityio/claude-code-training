@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stridequest/features/auth/data/datasources/fake_auth_remote_data_source.dart';
+import 'package:stridequest/features/auth/data/models/auth_session_model.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 
 void main() {
@@ -373,6 +374,122 @@ void main() {
 
     test('without a session it is not_authenticated', () async {
       final failure = await failureOf('new.runner@example.com', 'run4medals');
+
+      expect(failure.code, AuthFailureCode.notAuthenticated);
+    });
+  });
+
+  group('changePassword', () {
+    Future<AuthFailure> failureOf(String current, String next) async {
+      try {
+        await repository.changePassword(
+          currentPassword: current,
+          newPassword: next,
+        );
+      } on AuthFailure catch (failure) {
+        return failure;
+      }
+      fail('Expected an AuthFailure');
+    }
+
+    Future<AuthSessionModel> signUp() => repository.signUp(
+      email: 'runner@example.com',
+      password: 'run4medals',
+      displayName: 'Lan',
+    );
+
+    test('signs in with the new password only, with a new pair', () async {
+      final first = await signUp();
+
+      final tokens = await repository.changePassword(
+        currentPassword: 'run4medals',
+        newPassword: 'newrun5medals',
+      );
+      final session = await repository.signIn(
+        email: 'runner@example.com',
+        password: 'newrun5medals',
+      );
+
+      expect(tokens.refreshToken, isNot(first.tokens.refreshToken));
+      expect(session.user, first.user);
+      await expectLater(
+        repository.signIn(email: 'runner@example.com', password: 'run4medals'),
+        throwsA(isA<AuthFailure>()),
+      );
+    });
+
+    test(
+      'the refresh token held before is revoked, the new one works',
+      () async {
+        final first = await signUp();
+        final tokens = await repository.changePassword(
+          currentPassword: 'run4medals',
+          newPassword: 'newrun5medals',
+        );
+
+        await expectLater(
+          repository.refresh(first.tokens.refreshToken),
+          throwsA(
+            isA<AuthFailure>().having(
+              (f) => f.code,
+              'code',
+              AuthFailureCode.invalidRefreshToken,
+            ),
+          ),
+        );
+        await repository.refresh(tokens.refreshToken);
+      },
+    );
+
+    test('a rule-breaking new password is a 422 naming new_password', () async {
+      await signUp();
+
+      for (final bad in ['short1', 'allletters', '123456789', 'a1' * 65]) {
+        final failure = await failureOf('run4medals', bad);
+        expect(failure.code, AuthFailureCode.validation, reason: bad);
+        expect(failure.fieldErrors.keys, ['new_password'], reason: bad);
+      }
+    });
+
+    test('field rules come before the password check', () async {
+      await signUp();
+
+      final failure = await failureOf('wrong123', 'short');
+
+      expect(failure.code, AuthFailureCode.validation);
+    });
+
+    test('a wrong password is incorrect_password', () async {
+      await signUp();
+
+      final failure = await failureOf('wrong123', 'newrun5medals');
+
+      expect(failure.code, AuthFailureCode.incorrectPassword);
+    });
+
+    test('the same password is a 422 naming new_password', () async {
+      await signUp();
+
+      final failure = await failureOf('run4medals', 'run4medals');
+
+      expect(failure.code, AuthFailureCode.validation);
+      expect(failure.fieldErrors.keys, ['new_password']);
+    });
+
+    test('wrong passwords are rate limited, even with the right one', () async {
+      await signUp();
+      for (var i = 0; i < FakeAuthRemoteDataSource.maxFailedSignIns; i++) {
+        await failureOf('wrong123', 'newrun5medals');
+      }
+
+      final failure = await failureOf('run4medals', 'newrun5medals');
+
+      expect(failure.code, AuthFailureCode.rateLimited);
+      expect(failure.retryAfter, isNotNull);
+    });
+
+    test('without a session it is not_authenticated', () async {
+      final failure = await failureOf('run4medals', 'newrun5medals');
 
       expect(failure.code, AuthFailureCode.notAuthenticated);
     });

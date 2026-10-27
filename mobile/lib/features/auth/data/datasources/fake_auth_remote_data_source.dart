@@ -162,6 +162,52 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
     return _currentUser = user;
   }
 
+  /// Checks like the backend, in the order of `docs/api/auth.md`: field rules
+  /// (422), the rate limit (429), the current password (403), the same
+  /// password (422, naming `new_password`). On success every refresh token of
+  /// the user is revoked and a new pair is issued.
+  @override
+  Future<TokenPairModel> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await Future<void>.delayed(latency);
+    final current = _currentUser;
+    if (current == null) throw AuthFailure(AuthFailureCode.notAuthenticated);
+    if (!_isValidPassword(newPassword)) {
+      throw AuthFailure(
+        AuthFailureCode.validation,
+        fieldErrors: const {'new_password': _passwordRule},
+      );
+    }
+
+    final failures = _recentFailures(current.email);
+    if (failures.length >= maxFailedSignIns) {
+      throw AuthFailure(
+        AuthFailureCode.rateLimited,
+        retryAfter: failures.first.add(signInFailureWindow).difference(_now()),
+      );
+    }
+    final account = _users[current.email];
+    if (account == null || account.password != currentPassword) {
+      failures.add(_now());
+      throw AuthFailure(AuthFailureCode.incorrectPassword);
+    }
+    _failedSignIns.remove(current.email);
+
+    if (newPassword == currentPassword) {
+      throw AuthFailure(
+        AuthFailureCode.validation,
+        fieldErrors: const {
+          'new_password': 'New password must differ from the current password.',
+        },
+      );
+    }
+    _users[current.email] = (user: account.user, password: newPassword);
+    _refreshTokens.removeWhere((_, user) => user.id == current.id);
+    return _issueTokens(current);
+  }
+
   @override
   Future<void> signOut(String refreshToken) async {
     await Future<void>.delayed(latency);
@@ -178,15 +224,20 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
   ) {
     return {
       if (!_isValidEmail(email)) 'email': 'Enter a valid email address.',
-      if (password.length < 8 ||
-          password.length > 128 ||
-          !password.contains(RegExp('[A-Za-z]')) ||
-          !password.contains(RegExp('[0-9]')))
-        'password':
-            'Password must be 8 to 128 characters with a letter and a digit.',
+      if (!_isValidPassword(password)) 'password': _passwordRule,
       if (displayName.isEmpty || displayName.length > 50)
         'display_name': 'Display name must be 1 to 50 characters.',
     };
+  }
+
+  static const _passwordRule =
+      'Password must be 8 to 128 characters with a letter and a digit.';
+
+  bool _isValidPassword(String password) {
+    return password.length >= 8 &&
+        password.length <= 128 &&
+        password.contains(RegExp('[A-Za-z]')) &&
+        password.contains(RegExp('[0-9]'));
   }
 
   bool _isValidEmail(String email) {

@@ -37,12 +37,19 @@ abstract interface class AuthRemoteDataSource {
     required String newEmail,
     required String currentPassword,
   });
+
+  /// `PUT /users/me/password`: needs the access token. Returns the new token
+  /// pair for this device; every refresh token issued before is revoked.
+  Future<TokenPairModel> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  });
 }
 
 /// [AuthRemoteDataSource] backed by the StrideQuest REST API.
 ///
 /// Sign up, sign in, refresh and sign out use the public [Dio] (no auth
-/// interceptor): they take no access token. Changing the email uses the
+/// interceptor): they take no access token. Changing the email or password uses the
 /// authenticated [Dio] (through a [DioProvider]), which adds the token and refreshes it once.
 @realApi
 @LazySingleton(as: AuthRemoteDataSource)
@@ -102,15 +109,37 @@ class DioAuthRemoteDataSource implements AuthRemoteDataSource {
     required String newEmail,
     required String currentPassword,
   }) async {
+    final json = await _authenticatedPut('users/me/email', {
+      'new_email': newEmail,
+      'current_password': currentPassword,
+    });
+    return _parse(json, AuthUserModel.fromJson);
+  }
+
+  @override
+  Future<TokenPairModel> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final json = await _authenticatedPut('users/me/password', {
+      'current_password': currentPassword,
+      'new_password': newPassword,
+    });
+    return _parse(json, TokenPairModel.fromJson);
+  }
+
+  /// Puts [body] as JSON through the authenticated [Dio] and returns the
+  /// decoded response.
+  Future<Map<String, dynamic>?> _authenticatedPut(
+    String path,
+    Map<String, Object> body,
+  ) async {
     final Response<String> response;
     try {
       response = await _authenticatedDio()
           .put<String>(
-            'users/me/email',
-            data: jsonEncode({
-              'new_email': newEmail,
-              'current_password': currentPassword,
-            }),
+            path,
+            data: jsonEncode(body),
             // The default `validateStatus` is kept so a 401 reaches the auth
             // interceptor, which refreshes the token or ends the session.
             options: Options(
@@ -130,7 +159,7 @@ class DioAuthRemoteDataSource implements AuthRemoteDataSource {
     } on TimeoutException {
       throw AuthFailure(AuthFailureCode.network);
     }
-    return _parse(_decode(response.data ?? ''), AuthUserModel.fromJson);
+    return _decode(response.data ?? '');
   }
 
   /// Posts [body] as JSON and returns the decoded response, or null when the

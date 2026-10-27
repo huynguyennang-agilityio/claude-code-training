@@ -28,6 +28,18 @@ abstract interface class AuthRepository {
     required String currentPassword,
   });
 
+  /// Changes the password (`PUT /users/me/password`). The backend revokes
+  /// every refresh token and answers with a new pair; the repository stores
+  /// it before it returns, so the next request already uses it.
+  ///
+  /// Extra failures: [AuthFailureCode.incorrectPassword] (403),
+  /// [AuthFailureCode.validation] (422, `new_password`) and
+  /// [AuthFailureCode.rateLimited] (429, with `retryAfter`).
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  });
+
   /// Clears the local session and revokes the refresh token on the backend.
   Future<void> signOut();
 

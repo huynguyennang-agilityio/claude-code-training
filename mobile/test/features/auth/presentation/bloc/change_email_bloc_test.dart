@@ -226,5 +226,20 @@ void main() {
         form(banner: 'Cannot reach StrideQuest. Check your connection.'),
       ],
     );
+
+    blocTest<ChangeEmailBloc, ChangeEmailState>(
+      'an error that is not an AuthFailure is a banner, not a stuck save',
+      setUp: () => when(
+        () => repository.changeEmail(
+          newEmail: any(named: 'newEmail'),
+          currentPassword: any(named: 'currentPassword'),
+        ),
+      ).thenThrow(StateError('storage failed')),
+      build: () => ChangeEmailBloc(repository),
+      seed: form,
+      act: (bloc) => bloc.add(const ChangeEmailSubmitted()),
+      skip: 1,
+      expect: () => [form(banner: 'Something went wrong. Try again.')],
+    );
   });
 }
