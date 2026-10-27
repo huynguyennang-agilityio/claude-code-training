@@ -33,10 +33,14 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   final AuthLocalDataSource _local;
   final _sessionStarted = StreamController<AuthUser>.broadcast();
   final _sessionExpired = StreamController<void>.broadcast();
+  final _userUpdated = StreamController<AuthUser>.broadcast();
   Future<void> _lastChange = Future.value();
 
   @override
   Stream<AuthUser> get sessionStarted => _sessionStarted.stream;
+
+  @override
+  Stream<AuthUser> get userUpdated => _userUpdated.stream;
 
   @override
   Stream<void> get sessionExpired => _sessionExpired.stream;
@@ -68,6 +72,28 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
     return _serialized(() async {
       final session = await _remote.signIn(email: email, password: password);
       return _startSession(session);
+    });
+  }
+
+  @override
+  Future<AuthUser> changeEmail({
+    required String newEmail,
+    required String currentPassword,
+  }) async {
+    // Outside `_serialized`: a 401 here makes the auth interceptor call
+    // `refreshTokens`, which waits for the queue; holding it would deadlock.
+    final user = await _remote.changeEmail(
+      newEmail: newEmail,
+      currentPassword: currentPassword,
+    );
+    return _serialized(() async {
+      final session = await _local.readSession();
+      // A sign-out while the request ran leaves nothing to update.
+      if (session == null) return user.toEntity();
+      await _local.saveSession(session.copyWith(user: user));
+      final entity = user.toEntity();
+      _userUpdated.add(entity);
+      return entity;
     });
   }
 
@@ -136,5 +162,6 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   Future<void> dispose() async {
     await _sessionStarted.close();
     await _sessionExpired.close();
+    await _userUpdated.close();
   }
 }

@@ -20,6 +20,11 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
 
   static const maxFailedSignIns = 5;
   static const signInFailureWindow = Duration(minutes: 15);
+
+  /// An email that already has an account, so the taken-email error can be
+  /// seen in mock mode without a second sign up.
+  static const takenEmail = 'taken@example.com';
+
   static const _accessTokenLifetime = Duration(minutes: 15);
 
   /// Delay added to every call, so loading states can be seen in the UI.
@@ -29,6 +34,8 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
   final _users = <String, ({AuthUserModel user, String password})>{};
   final _failedSignIns = <String, List<DateTime>>{};
   final _refreshTokens = <String, AuthUserModel>{};
+  // The user of the latest session: the fake has no access token to look up.
+  AuthUserModel? _currentUser;
   var _nextId = 1;
   var _tokenCounter = 0;
 
@@ -101,6 +108,60 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
     return _issueTokens(user);
   }
 
+  /// Checks like the backend, in the order of `docs/api/auth.md`: field rules
+  /// (422), the current password (403, and 429 after [maxFailedSignIns] wrong
+  /// ones), the same email (422), an email another account has (409).
+  @override
+  Future<AuthUserModel> changeEmail({
+    required String newEmail,
+    required String currentPassword,
+  }) async {
+    await Future<void>.delayed(latency);
+    final current = _currentUser;
+    if (current == null) throw AuthFailure(AuthFailureCode.notAuthenticated);
+    final key = newEmail.trim().toLowerCase();
+    if (!_isValidEmail(key)) {
+      throw AuthFailure(
+        AuthFailureCode.validation,
+        fieldErrors: const {'new_email': 'Enter a valid email address.'},
+      );
+    }
+
+    final failures = _recentFailures(current.email);
+    if (failures.length >= maxFailedSignIns) {
+      throw AuthFailure(
+        AuthFailureCode.rateLimited,
+        retryAfter: failures.first.add(signInFailureWindow).difference(_now()),
+      );
+    }
+    final account = _users[current.email];
+    if (account == null || account.password != currentPassword) {
+      failures.add(_now());
+      throw AuthFailure(AuthFailureCode.incorrectPassword);
+    }
+    _failedSignIns.remove(current.email);
+
+    if (key == current.email) {
+      throw AuthFailure(
+        AuthFailureCode.validation,
+        fieldErrors: const {
+          'new_email': 'New email must differ from the current email.',
+        },
+      );
+    }
+    if (key == takenEmail || _users.containsKey(key)) {
+      throw AuthFailure(AuthFailureCode.emailTaken);
+    }
+    final user = current.copyWith(email: key);
+    _users
+      ..remove(current.email)
+      ..[key] = (user: user, password: account.password);
+    for (final entry in _refreshTokens.entries.toList()) {
+      if (entry.value.id == user.id) _refreshTokens[entry.key] = user;
+    }
+    return _currentUser = user;
+  }
+
   @override
   Future<void> signOut(String refreshToken) async {
     await Future<void>.delayed(latency);
@@ -143,6 +204,7 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
     _tokenCounter++;
     final refreshToken = 'fake-refresh-${user.id}-$_tokenCounter';
     _refreshTokens[refreshToken] = user;
+    _currentUser = user;
     return TokenPairModel(
       accessToken: 'fake-access-${user.id}-$_tokenCounter',
       refreshToken: refreshToken,

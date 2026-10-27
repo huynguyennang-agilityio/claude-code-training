@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../features/auth/presentation/bloc/change_email_bloc.dart';
 import '../../features/auth/presentation/bloc/sign_in_bloc.dart';
 import '../../features/auth/presentation/bloc/sign_up_bloc.dart';
 import '../../features/auth/presentation/pages/change_email_page.dart';
@@ -119,7 +120,10 @@ final appRoutes = <RouteBase>[
   ),
   GoRoute(
     path: ChangeEmailPage.path,
-    builder: (context, state) => const ChangeEmailPage(),
+    builder: (context, state) => BlocProvider(
+      create: (_) => getIt<ChangeEmailBloc>()..add(const ChangeEmailStarted()),
+      child: const ChangeEmailPage(),
+    ),
   ),
   GoRoute(
     path: ChangePasswordPage.path,

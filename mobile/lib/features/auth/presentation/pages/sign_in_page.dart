@@ -103,7 +103,7 @@ class _SignInPageState extends State<SignInPage> {
             ],
             children: [
               if (failure != null)
-                AuthBanner(message: _failureMessage(failure), isError: true)
+                AuthBanner(message: failure.messageWithWait, isError: true)
               else if (sessionExpired)
                 const AuthBanner(
                   message: 'Your session has expired. Sign in again.',
@@ -151,16 +151,5 @@ class _SignInPageState extends State<SignInPage> {
 
   static String? _validatePassword(String? value) {
     return (value == null || value.isEmpty) ? 'Enter your password.' : null;
-  }
-
-  /// The failure's message, plus how long to wait when the backend said so.
-  static String _failureMessage(AuthFailure failure) {
-    final wait = failure.retryAfter;
-    if (failure.code != AuthFailureCode.rateLimited || wait == null) {
-      return failure.message;
-    }
-    final minutes = (wait.inSeconds / 60).ceil();
-    return '${failure.message} Try again in $minutes '
-        '${minutes == 1 ? 'minute' : 'minutes'}.';
   }
 }

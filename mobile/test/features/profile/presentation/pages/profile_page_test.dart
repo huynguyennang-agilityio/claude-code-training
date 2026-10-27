@@ -9,6 +9,7 @@ import 'package:stridequest/core/router/app_router.dart';
 import 'package:stridequest/core/theme/app_theme.dart';
 import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:stridequest/features/auth/presentation/bloc/change_email_bloc.dart';
 import 'package:stridequest/features/auth/presentation/pages/sign_in_page.dart';
 import 'package:stridequest/features/home/presentation/pages/home_shell.dart';
 import 'package:stridequest/features/profile/data/datasources/fake_profile_remote_data_source.dart';
@@ -16,6 +17,7 @@ import 'package:stridequest/features/profile/data/repositories/profile_repositor
 import 'package:stridequest/features/profile/presentation/bloc/profile_info_bloc.dart';
 import 'package:stridequest/features/profile/presentation/pages/profile_page.dart';
 
+import '../../../../helpers/auth_fixtures.dart';
 import '../../../../helpers/expect_accessible.dart';
 import '../../../../helpers/mock_auth_bloc.dart';
 import '../../../../helpers/pump_screen.dart';
@@ -63,7 +65,10 @@ void main() {
   setUpAll(() => registerFallbackValue(const AuthStarted()));
   setUp(() {
     bloc = MockAuthBloc();
-    // The Profile info route builds its bloc from `getIt`.
+    // The account routes build their blocs from `getIt`.
+    final auth = MockAuthRepository();
+    when(auth.restoreSession).thenAnswer((_) async => _user);
+    getIt.registerFactory<ChangeEmailBloc>(() => ChangeEmailBloc(auth));
     getIt.registerFactory<ProfileInfoBloc>(
       () =>
           ProfileInfoBloc(ProfileRepositoryImpl(FakeProfileRemoteDataSource())),
@@ -187,9 +192,13 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(NavigationBar), findsNothing);
-        // Profile is the real form; Email and Password are still placeholders.
+        // Profile and Email are real forms; Password is still a placeholder.
         expect(
-          find.text(row == 'Profile' ? 'First Name' : 'Coming soon'),
+          find.text(switch (row) {
+            'Profile' => 'First Name',
+            'Email' => 'Email address',
+            _ => 'Coming soon',
+          }),
           findsOneWidget,
         );
         expect(find.widgetWithText(AppBar, row), findsOneWidget);
@@ -200,6 +209,7 @@ void main() {
         expect(find.byType(NavigationBar), findsOneWidget);
         expect(find.text('Coming soon'), findsNothing);
         expect(find.text('First Name'), findsNothing);
+        expect(find.text('Email address'), findsNothing);
         expect(find.text('Sign out'), findsOneWidget);
       });
     }

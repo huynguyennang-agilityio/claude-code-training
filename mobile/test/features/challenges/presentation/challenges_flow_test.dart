@@ -42,6 +42,7 @@ void main() {
 
     final auth = _MockAuthRepository();
     when(() => auth.sessionStarted).thenAnswer((_) => const Stream.empty());
+    when(() => auth.userUpdated).thenAnswer((_) => const Stream.empty());
     when(() => auth.sessionExpired).thenAnswer((_) => const Stream.empty());
     when(() => auth.restoreSession()).thenAnswer(
       (_) async => AuthUser(

@@ -234,4 +234,134 @@ void main() {
       expect(session.user.email, 'runner@example.com');
     });
   });
+
+  group('changeEmail', () {
+    Future<void> signUp() => repository.signUp(
+      email: 'runner@example.com',
+      password: 'run4medals',
+      displayName: 'Lan',
+    );
+
+    Future<AuthFailure> failureOf(String email, String password) async {
+      try {
+        await repository.changeEmail(
+          newEmail: email,
+          currentPassword: password,
+        );
+      } on AuthFailure catch (failure) {
+        return failure;
+      }
+      fail('Expected an AuthFailure');
+    }
+
+    test('changes the email, lowercase, and signs in with it', () async {
+      await signUp();
+
+      final user = await repository.changeEmail(
+        newEmail: ' New.Runner@Example.com ',
+        currentPassword: 'run4medals',
+      );
+      final session = await repository.signIn(
+        email: 'new.runner@example.com',
+        password: 'run4medals',
+      );
+
+      expect(user.email, 'new.runner@example.com');
+      expect(session.user, user);
+      await expectLater(
+        repository.signIn(email: 'runner@example.com', password: 'run4medals'),
+        throwsA(isA<AuthFailure>()),
+      );
+    });
+
+    test('a refresh token issued before still works', () async {
+      final first = await repository.signUp(
+        email: 'runner@example.com',
+        password: 'run4medals',
+        displayName: 'Lan',
+      );
+      await repository.changeEmail(
+        newEmail: 'new.runner@example.com',
+        currentPassword: 'run4medals',
+      );
+
+      await repository.refresh(first.tokens.refreshToken);
+    });
+
+    test('a wrong password is incorrect_password', () async {
+      await signUp();
+
+      final failure = await failureOf('new.runner@example.com', 'wrong123');
+
+      expect(failure.code, AuthFailureCode.incorrectPassword);
+    });
+
+    test(
+      'the password is checked before the email is revealed as taken',
+      () async {
+        await signUp();
+
+        final failure = await failureOf(
+          FakeAuthRemoteDataSource.takenEmail,
+          'bad',
+        );
+
+        expect(failure.code, AuthFailureCode.incorrectPassword);
+      },
+    );
+
+    test('a known or registered email is email_taken', () async {
+      await signUp();
+      await repository.signUp(
+        email: 'other@example.com',
+        password: 'run4medals',
+        displayName: 'Other',
+      );
+      // `other` signed up last, so it is the current user: it takes `runner`.
+      final registered = await failureOf('runner@example.com', 'run4medals');
+      final known = await failureOf(
+        FakeAuthRemoteDataSource.takenEmail,
+        'run4medals',
+      );
+
+      expect(registered.code, AuthFailureCode.emailTaken);
+      expect(known.code, AuthFailureCode.emailTaken);
+    });
+
+    test('the same email in any case is a 422 naming new_email', () async {
+      await signUp();
+
+      final failure = await failureOf('Runner@Example.com', 'run4medals');
+
+      expect(failure.code, AuthFailureCode.validation);
+      expect(failure.fieldErrors.keys, ['new_email']);
+    });
+
+    test('a malformed email is a 422 naming new_email', () async {
+      await signUp();
+
+      final failure = await failureOf('nope', 'run4medals');
+
+      expect(failure.code, AuthFailureCode.validation);
+      expect(failure.fieldErrors.keys, ['new_email']);
+    });
+
+    test('wrong passwords are rate limited, with the wait', () async {
+      await signUp();
+      for (var i = 0; i < FakeAuthRemoteDataSource.maxFailedSignIns; i++) {
+        await failureOf('new.runner@example.com', 'wrong123');
+      }
+
+      final failure = await failureOf('new.runner@example.com', 'run4medals');
+
+      expect(failure.code, AuthFailureCode.rateLimited);
+      expect(failure.retryAfter, isNotNull);
+    });
+
+    test('without a session it is not_authenticated', () async {
+      final failure = await failureOf('new.runner@example.com', 'run4medals');
+
+      expect(failure.code, AuthFailureCode.notAuthenticated);
+    });
+  });
 }

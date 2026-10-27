@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:stridequest/features/auth/presentation/bloc/change_email_bloc.dart';
 import 'package:stridequest/features/auth/presentation/bloc/sign_in_bloc.dart';
 import 'package:stridequest/features/auth/presentation/bloc/sign_up_bloc.dart';
 
@@ -10,3 +11,6 @@ class MockSignInBloc extends MockBloc<SignInEvent, SignInState>
 
 class MockSignUpBloc extends MockBloc<SignUpEvent, SignUpState>
     implements SignUpBloc {}
+
+class MockChangeEmailBloc extends MockBloc<ChangeEmailEvent, ChangeEmailState>
+    implements ChangeEmailBloc {}

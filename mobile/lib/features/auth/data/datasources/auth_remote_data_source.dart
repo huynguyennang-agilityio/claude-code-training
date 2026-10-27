@@ -5,8 +5,10 @@ import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 
 import '../../../../core/di/api_environments.dart';
+import '../../../../core/network/dio_client.dart';
 import '../../domain/failures/auth_failure.dart';
 import '../models/auth_session_model.dart';
+import '../models/auth_user_model.dart';
 import '../models/token_pair_model.dart';
 
 /// The backend `/api/v1/auth/*` endpoints.
@@ -29,21 +31,30 @@ abstract interface class AuthRemoteDataSource {
 
   /// Revokes [refreshToken] on the backend.
   Future<void> signOut(String refreshToken);
+
+  /// `PUT /users/me/email`: needs the access token. Returns the updated user.
+  Future<AuthUserModel> changeEmail({
+    required String newEmail,
+    required String currentPassword,
+  });
 }
 
 /// [AuthRemoteDataSource] backed by the StrideQuest REST API.
 ///
-/// Uses the public [Dio] (no auth interceptor): these endpoints take no
-/// access token.
+/// Sign up, sign in, refresh and sign out use the public [Dio] (no auth
+/// interceptor): they take no access token. Changing the email uses the
+/// authenticated [Dio] (through a [DioProvider]), which adds the token and refreshes it once.
 @realApi
 @LazySingleton(as: AuthRemoteDataSource)
 class DioAuthRemoteDataSource implements AuthRemoteDataSource {
   DioAuthRemoteDataSource(
-    @Named('publicDio') this._dio, {
+    @Named('publicDio') this._dio,
+    this._authenticatedDio, {
     @ignoreParam this.timeout = const Duration(seconds: 15),
   });
 
   final Dio _dio;
+  final DioProvider _authenticatedDio;
 
   /// How long to wait for a response before failing with
   /// [AuthFailureCode.network], whatever HTTP adapter is in use.
@@ -84,6 +95,42 @@ class DioAuthRemoteDataSource implements AuthRemoteDataSource {
   @override
   Future<void> signOut(String refreshToken) async {
     await _post('auth/signout', {'refresh_token': refreshToken});
+  }
+
+  @override
+  Future<AuthUserModel> changeEmail({
+    required String newEmail,
+    required String currentPassword,
+  }) async {
+    final Response<String> response;
+    try {
+      response = await _authenticatedDio()
+          .put<String>(
+            'users/me/email',
+            data: jsonEncode({
+              'new_email': newEmail,
+              'current_password': currentPassword,
+            }),
+            // The default `validateStatus` is kept so a 401 reaches the auth
+            // interceptor, which refreshes the token or ends the session.
+            options: Options(
+              responseType: ResponseType.plain,
+              contentType: Headers.jsonContentType,
+            ),
+          )
+          .timeout(timeout);
+    } on DioException catch (error) {
+      final failed = error.response;
+      if (failed == null) throw AuthFailure(AuthFailureCode.network);
+      throw _failure(
+        failed.statusCode ?? 0,
+        failed.headers,
+        _decode(failed.data as String? ?? ''),
+      );
+    } on TimeoutException {
+      throw AuthFailure(AuthFailureCode.network);
+    }
+    return _parse(_decode(response.data ?? ''), AuthUserModel.fromJson);
   }
 
   /// Posts [body] as JSON and returns the decoded response, or null when the

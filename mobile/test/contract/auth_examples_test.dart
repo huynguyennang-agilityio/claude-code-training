@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stridequest/core/network/dio_client.dart';
 import 'package:stridequest/features/auth/data/datasources/auth_remote_data_source.dart';
+import 'package:stridequest/features/auth/data/datasources/fake_auth_remote_data_source.dart';
 import 'package:stridequest/features/auth/data/models/auth_session_model.dart';
 import 'package:stridequest/features/auth/data/models/auth_user_model.dart';
 import 'package:stridequest/features/auth/data/models/token_pair_model.dart';
@@ -22,9 +23,11 @@ Map<String, dynamic> _example(String name) {
 }
 
 DioAuthRemoteDataSource _dataSource(FakeHttpHandler handler) {
-  return DioAuthRemoteDataSource(
-    createDio(baseUrl: 'http://api.test/', adapter: FakeHttpAdapter(handler)),
+  final dio = createDio(
+    baseUrl: 'http://api.test/',
+    adapter: FakeHttpAdapter(handler),
   );
+  return DioAuthRemoteDataSource(dio, DioProvider(() => dio));
 }
 
 Future<AuthFailure> _failureOf(Future<Object?> call) async {
@@ -134,7 +137,40 @@ void main() {
     });
   });
 
+  test('change email sends change_email_request and reads user', () async {
+    late RequestOptions sent;
+    final dataSource = _dataSource((request) async {
+      sent = request;
+      return jsonBody(_example('user'), 200);
+    });
+    final request = _example('change_email_request');
+
+    final user = await dataSource.changeEmail(
+      newEmail: request['new_email'] as String,
+      currentPassword: request['current_password'] as String,
+    );
+
+    expect(sent.method, 'PUT');
+    expect(sentJson(sent), request);
+    expect(user, AuthUserModel.fromJson(_example('user')));
+  });
+
   group('error examples map to failures', () {
+    test('error_incorrect_password', () async {
+      final example = _example('error_incorrect_password');
+      final dataSource = _dataSource((_) async => jsonBody(example, 403));
+
+      final failure = await _failureOf(
+        dataSource.changeEmail(newEmail: 'a@b.co', currentPassword: 'x'),
+      );
+
+      expect(failure.code, AuthFailureCode.incorrectPassword);
+      expect(
+        failure.message,
+        (example['error'] as Map<String, dynamic>)['message'],
+      );
+    });
+
     test('error_invalid_credentials', () async {
       final dataSource = _dataSource(
         (_) async => jsonBody(_example('error_invalid_credentials'), 401),
@@ -165,6 +201,49 @@ void main() {
       expect(failure.fieldErrors, {
         'password': 'Password must contain at least one digit.',
       });
+    });
+  });
+
+  group('the fake data source matches the examples', () {
+    test(
+      'change email accepts change_email_request and answers like user',
+      () async {
+        final fake = FakeAuthRemoteDataSource();
+        final user = AuthUserModel.fromJson(_example('user'));
+        final request = _example('change_email_request');
+        await fake.signUp(
+          email: user.email,
+          password: request['current_password'] as String,
+          displayName: user.displayName,
+        );
+
+        final changed = await fake.changeEmail(
+          newEmail: request['new_email'] as String,
+          currentPassword: request['current_password'] as String,
+        );
+
+        expect(changed.toJson().keys, user.toJson().keys);
+        expect(changed.email, request['new_email']);
+        expect(changed.displayName, user.displayName);
+      },
+    );
+
+    test('a wrong password is error_incorrect_password', () async {
+      final fake = FakeAuthRemoteDataSource();
+      final example = _example('error_incorrect_password')['error'] as Map;
+      await fake.signUp(
+        email: 'runner@example.com',
+        password: 'run4medals',
+        displayName: 'Lan',
+      );
+
+      final failure = await _failureOf(
+        fake.changeEmail(newEmail: 'a@b.co', currentPassword: 'wrong123'),
+      );
+
+      expect(failure.code.wireCode, example['code']);
+      expect(failure.message, example['message']);
+      expect(failure.fieldErrors, isEmpty);
     });
   });
 }
