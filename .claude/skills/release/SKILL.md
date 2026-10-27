@@ -21,4 +21,6 @@ Follow [`steps.md`](steps.md) with:
 | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | secret | 5 (Android keystore) |
 | `FIREBASE_ANDROID_APP_ID`, `FIREBASE_SERVICE_ACCOUNT_JSON` | secret | 6 (Firebase) |
 
-In step 4 the last release is the newest tag of any prefix, since `/release` releases every part. The version in step 5 is the next one after the highest of all release tags, as for the other skills.
+In step 4 the baseline is the oldest of the three parts' last releases, since `/release` ships every part. The version in step 5 is the next one after the highest of all release tags, as for the other skills.
+
+Before step 6, show the migrations that will run against production, measured from the API's last release (its newest `api-v` or `v` tag): `git diff --name-only <that tag>..origin/main -- backend/alembic/versions/` (all of them when there is no such tag). They must be backward compatible ("Migrations must be backward compatible" in `docs/deploy.md`); when one drops or renames a column, say so in the confirmation question.

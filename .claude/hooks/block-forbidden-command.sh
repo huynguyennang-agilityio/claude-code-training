@@ -273,7 +273,7 @@ check_gh_api() {
   if [ "$endpoint" = graphql ]; then
     case "$*" in
       *deleteRef* | *updateRef* | *removeLabelsFromLabelable* | *clearLabelsFromLabelable* | *deleteLabel* | *updateLabel*)
-        block "deleting a branch or removing a label through gh api graphql"
+        block "deleting or moving a ref, or removing a label, through gh api graphql"
         ;;
     esac
     return
