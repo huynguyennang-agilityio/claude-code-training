@@ -81,7 +81,7 @@ Skip the issues that depend on a stopped one.
   git diff --name-only "$(jq -r .gitCommitHash mobile/.ua/meta.json)"  HEAD -- mobile/  | head -1
   ```
   then `/understand backend` and/or `/understand mobile` (incremental). Never `--full` or `--review`. Once per area is enough: an update covers every commit since the last one.
-- **Final DM:** the merged PRs, the stopped issues and why, the left-out issues, the PRs above 400 lines with how each could have been split, the proposed decisions numbered across the run with their PR links, and a reminder to mirror `develop` to GitLab.
+- **Final DM:** the merged PRs, the stopped issues and why, the left-out issues, the PRs above 400 lines with how each could have been split, the merged PRs that touch auth, `backend/alembic/` or another Phase 2 risk category (for the user to look at later), the proposed decisions numbered across the run with their PR links, and a reminder to mirror `develop` to GitLab.
 - **Decisions.** When the user later picks entries in chat ("keep 1 and 3"), that message authorizes one PR: open `[infra] docs: decisions from run <date>` with only those entries in `backend/DECISIONS.md` or `mobile/DECISIONS.md`, and merge it when its checks are green (the permission table in `CLAUDE.md` allows this). It has no issue: its description names `Plan: docs/plans/019-area-autopilot.md`, has no `Closes` line, and quotes the user's message.
 
 ## Slack

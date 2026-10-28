@@ -160,12 +160,14 @@ blocked on-feature 'gh repo edit o/r --delete-branch-on-merge=true'
 
 # --- gh: hidden behind other syntax ---
 blocked on-feature 'bash -c "gh pr merge 5 --merge -d"'
+blocked on-feature "sh -c 'gh pr merge 5 --merge -d'"
 blocked on-feature 'eval "gh pr close 5 -d"'
 blocked on-feature 'gh pr checks 5 && gh pr merge 5 --merge -d'
 blocked on-feature '(gh pr close 5 -d)'
 blocked on-feature 'GH_REPO=o/r gh pr merge 5 -d'
 blocked on-feature 'env GH_REPO=o/r gh pr merge 5 -d'
 blocked on-feature '/opt/homebrew/bin/gh pr merge 5 -d'
+blocked on-feature $'gh pr view 5\ngh pr merge 5 -d'
 
 # --- gh: allowed ---
 allowed on-feature 'gh pr merge 5 --merge'
@@ -191,6 +193,7 @@ allowed on-feature 'gh api repos/o/r/pulls/5/files --paginate'
 
 # --- nested quotes and parentheses inside quotes (review of #109) ---
 blocked on-feature "bash -c \"gh pr merge 5 --merge -t 'Release' -d\""
+blocked on-feature "sh -c 'gh pr merge 5 -t \"a b\" -d'"
 blocked on-feature "bash -c \"git -c user.name='A B' push origin main\""
 blocked on-feature 'gh pr merge 5 -t "fix (x)" -d'
 blocked on-feature 'gh pr close 5 -c "done (for now)" --delete-branch'
