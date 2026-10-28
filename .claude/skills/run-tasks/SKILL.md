@@ -68,7 +68,7 @@ The app continues the parent whenever no child session is working at that moment
 
 The brief a child session gets, filled in for its issue. It starts with the user's command, word for word, and the line "This session is authorized for issue #<issue> only."
 
-1. **Set up the worktree.** First `git fetch origin` and `git switch -c <type>/<issue>-<short-name> origin/develop` (`<type>` is the title's type: `feat`, `fix`, `chore`, `docs`, `ci`, `test`), so the setup installs `develop`'s dependencies. Never `git switch develop`: it fails while `develop` is checked out in the main folder. Then `.claude/scripts/worktree-setup.sh <main checkout> <issue>`: it copies `.env` with the issue's own test database (`stridequest_i<issue>_test`), creates `backend/.venv`, and runs `flutter pub get`. The tests read the issue's URL from the worktree's `.env`; the `export TEST_DATABASE_URL=...` line it prints has the password masked, so never run that line, and unset an inherited `TEST_DATABASE_URL` if the script warns about one. Never run `docker compose` here; the main checkout's `db` container serves every worktree.
+1. **Set up the worktree.** First `git fetch origin` and `git switch -c <type>/<issue>-<short-name> origin/develop` (`<type>` is the title's type: `feat`, `fix`, `chore`, `docs`, `ci`, `test`), so the setup installs `develop`'s dependencies. Never `git switch develop`: it fails while `develop` is checked out in the main folder. Then `.claude/scripts/worktree-setup.sh <main checkout> <issue>`: it copies `.env` with the issue's own test database (`stridequest_i<issue>_test`), creates `backend/.venv`, and runs `flutter pub get`. The tests read the issue's URL from the worktree's `.env`; the `export TEST_DATABASE_URL=...` line it prints has the password masked, so never run that line. If the script warns about an exported `TEST_DATABASE_URL`, run every test command as `env -u TEST_DATABASE_URL ...` (for example `env -u TEST_DATABASE_URL .venv/bin/pytest tests/integration`): each Bash call starts a new shell, so an `unset` does not last. Never run `docker compose` here; the main checkout's `db` container serves every worktree.
 2. **Implement (Phase 3).** Read `.claude/workflow/implement.md`. Hand the work to a fresh subagent: `fastapi-backend` for `backend/`, `flutter-dev` for `mobile/`. Tell it to leave committing and pushing to you and to return a summary with the commands it ran and their results, not full logs. Do docs, CI and Claude-configuration issues (`area:infra`) yourself.
 3. **Verification gate (Phase 4).** Read `.claude/workflow/pr-review.md`. Check the five points yourself: each criterion met, the full suite passes (run the backend integration tests, which the `Stop` hook skips, with `backend/.venv`), security, `git diff origin/develop...HEAD` in scope, and the `## Evidence` section (`.claude/workflow/evidence.md`).
 4. **Progress line.** Append to `backend/PROGRESS.md` and/or `mobile/PROGRESS.md`, in the task's last commit: `- YYYY-MM-DD [area] #<issue> <title without the [area] prefix>. <one sentence>`. Use the issue number, not the PR number.
@@ -126,7 +126,7 @@ A stopped issue commits its unfinished work as `wip: <issue> stopped (<reason>)`
 
 ## Fallback
 
-- **No child sessions** (the CLI, or the desktop tools are missing): run each issue as a background `Agent` subagent with `isolation: "worktree"`, at most two at once, with the same session brief. A subagent cannot start subagents of its own, so it implements the issue itself, following `fastapi-backend` or `flutter-dev` for its side.
+- **No child sessions** (the CLI, or the desktop tools are missing): run each issue as a background `Agent` subagent with `isolation: "worktree"`, at most two at once, with the same session brief. A subagent cannot start subagents of its own, so it implements the issue itself, following `fastapi-backend` or `flutter-dev` for its side. A subagent's last message is its final output and nothing wakes it later, so tell it to wait in the foreground (`gh pr checks <n> --watch --required`, then poll the PR comments for the review) and never to return before its `RESULT:` line. A fallback subagent that returns without a `RESULT:` line has stopped, not paused: report it as stopped and free its slot.
 - **On GitHub** (`@claude`): one issue after another in the runner's checkout, without `worktree-setup.sh`.
 
 ## Slack
@@ -136,7 +136,7 @@ DM the user with the Slack connector: `slack_read_user_profile` without a user I
 - **Start:** the order, the pairs, the left-out issues.
 - **End:** the report link and a three-line summary (merged, stopped, what needs the user).
 
-If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to the two DMs: when the parent cannot continue (the app stopped calling it back), send `Run paused: reply "tiếp" in the session to continue` and stop; `/run-tasks` again with the open issues skips the merged ones.
+If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to the two DMs: when the parent cannot continue while issues are still ready (`start_session` or `list_sessions` fails), send `Run paused: reply "tiếp" in the session to continue` and stop; `/run-tasks` again with the open issues skips the merged ones.
 
 ## Report
 
