@@ -46,7 +46,7 @@ database_of() {
   printf '%s' "${value##*/}"
 }
 masked() {
-  sed -E 's#^(TEST_DATABASE_URL=[^/]*//[^:/@]*):[^@]*@#\1:****@#' <<<"$1"
+  sed -E 's#^(TEST_DATABASE_URL=[^/]*//[^:/@]*):[^/]*@#\1:****@#' <<<"$1"
 }
 
 if [ -e "$root/.env" ]; then
@@ -81,10 +81,13 @@ fi
 
 line=$(grep -E '^TEST_DATABASE_URL=' "$root/.env" | tail -n 1) || die "$root/.env has no TEST_DATABASE_URL"
 echo "export $(masked "$line")"
+echo "worktree-setup.sh: already written to $root/.env; do not run the line above, its password is masked." >&2
 if [ "$(database_of "$line")" != "$database" ]; then
   echo "worktree-setup.sh: TEST_DATABASE_URL in $root/.env does not name $database; another worktree may use the same database." >&2
 fi
-# An exported TEST_DATABASE_URL wins over .env in the backend settings.
-if [ -n "${TEST_DATABASE_URL+set}" ] && [ "$(database_of "$TEST_DATABASE_URL")" != "$database" ]; then
+# An exported TEST_DATABASE_URL wins over .env in the backend settings, so flag one that
+# names another database or holds the masked password from the line above.
+if [ -n "${TEST_DATABASE_URL+set}" ] && { [ "$(database_of "$TEST_DATABASE_URL")" != "$database" ] ||
+  [[ $TEST_DATABASE_URL == *':****@'* ]]; }; then
   echo "worktree-setup.sh: TEST_DATABASE_URL is exported in this shell and overrides $root/.env; unset it before running the tests here." >&2
 fi

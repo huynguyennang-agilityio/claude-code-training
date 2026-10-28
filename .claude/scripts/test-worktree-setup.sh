@@ -109,7 +109,23 @@ grep -q 'pw-env' <<<"$out" && bad "the exported password was printed: $out" || o
 RUN_ENV="TEST_DATABASE_URL=postgresql+asyncpg://u:pw-env@localhost:5432/stridequest_i164_test" run "$wt" "$main" 164
 grep -q 'exported in this shell' <<<"$out" && bad "a matching exported URL was flagged: $out" || ok
 
-# 9. It never runs docker compose.
+RUN_ENV="TEST_DATABASE_URL=postgresql+asyncpg://u:****@localhost:5432/stridequest_i164_test" run "$wt" "$main" 164
+grep -q 'exported in this shell and overrides' <<<"$out" && ok || bad "an exported masked URL was not flagged: $out"
+grep -q 'do not run the line above' <<<"$out" && ok || bad "no warning against running the export line: $out"
+
+# 9. A password with a raw @ is masked whole.
+at="$tmp/at"
+g init -q -b develop "$at"
+g -C "$at" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+printf 'TEST_DATABASE_URL=postgresql+asyncpg://u:ab@cd-secret@localhost:5432/stridequest_test\n' >"$at/.env"
+wt5="$tmp/wt-168"
+g -C "$at" worktree add -q -b feat/168-x "$wt5"
+run "$wt5" "$at" 168
+grep -qx 'export TEST_DATABASE_URL=postgresql+asyncpg://u:\*\*\*\*@localhost:5432/stridequest_i168_test' <<<"$out" &&
+  ok || bad "password with @ not masked whole: $out"
+grep -q 'cd-secret' <<<"$out" && bad "part of the password was printed: $out" || ok
+
+# 10. It never runs docker compose.
 grep -Eq '^[^#]*docker([[:space:]]|-)compose' "$script" && bad "the script runs docker compose" || ok
 
 echo "$pass passed, $fail failed"
