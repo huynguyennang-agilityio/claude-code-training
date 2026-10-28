@@ -1,0 +1,32 @@
+# Render Blueprint for the StrideQuest API. Plan: docs/plans/025-release-pipeline.md
+#
+# Only .github/workflows/release-api.yml deploys (autoDeploy: false), after the migrations
+# on Neon have finished. Secret values are never in this file: the variables with
+# `sync: false` are entered once on the Render dashboard. Setup: docs/deploy.md.
+services:
+  - type: web
+    name: stridequest-api
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    autoDeploy: false
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      # Only Render's proxy reaches the container, from a private address. Trusting the
+      # private ranges lets uvicorn take the rightmost public X-Forwarded-For entry, the one
+      # Render appends, which the client cannot forge. Never "*" (docs/deploy.md).
+      - key: FORWARDED_ALLOW_IPS
+        value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10"

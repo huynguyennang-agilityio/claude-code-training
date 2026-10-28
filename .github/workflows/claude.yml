@@ -1,0 +1,108 @@
+# Claude answers @claude mentions from collaborators in issues and PRs.
+# Plan: docs/plans/014-claude-github-actions.md (Approach 4)
+#
+# Two jobs:
+#   gate    decides who may start a run (the author field differs per event) and, on PR
+#           events, stops for PRs from forks before anything is checked out (fail closed)
+#   claude  the action in tag mode with the Claude GitHub App's token: it may comment, push
+#           to its own claude/... branch or the PR's branch, and open a PR into develop. The
+#           develop/main ruleset refuses any push aimed at those branches.
+#
+# "@claude review" comments belong to claude-review.yml and "@claude security" comments to
+# claude-security-scan.yml; both are ignored here.
+name: claude
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened]
+
+permissions: {}
+
+jobs:
+  gate:
+    # The text and the author come from a different field for each event. issues: assigned
+    # is left out on purpose: the assigner is a collaborator, but the issue text may not be.
+    if: >-
+      (github.event_name == 'issue_comment' &&
+       contains(github.event.comment.body, '@claude') &&
+       !startsWith(github.event.comment.body, '@claude review') &&
+       !startsWith(github.event.comment.body, '@claude security') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review_comment' &&
+       contains(github.event.comment.body, '@claude') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review' &&
+       contains(github.event.review.body, '@claude') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association)) ||
+      (github.event_name == 'issues' &&
+       (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      ok: ${{ steps.check.outputs.ok }}
+    steps:
+      # On a PR, ask GitHub where the PR comes from (an issue_comment payload does not say).
+      # Fork code must never run in a job that holds the Claude tokens.
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number || (github.event.issue.pull_request && github.event.issue.number) || '' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PR" ]; then
+            echo "ok=true" | tee -a "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json isCrossRepository \
+            --jq 'if .isCrossRepository then "ok=false" else "ok=true" end' \
+            | tee -a "$GITHUB_OUTPUT"
+
+  claude:
+    needs: gate
+    if: needs.gate.outputs.ok == 'true'
+    # One run at a time per issue or PR, never cancelled midway. GitHub keeps only the latest
+    # waiting run per group, so of several mentions made during a run only the last is answered.
+    concurrency:
+      group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # The job's own token stays read-only: comments, pushes and PRs use the Claude GitHub
+    # App's token, which the action gets in exchange for the OIDC token.
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      actions: read # lets Claude read CI results on PRs
+      id-token: write # the action trades it for the Claude GitHub App's token
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          # Do not leave the job token in .git/config.
+          persist-credentials: false
+
+      - uses: anthropics/claude-code-action@58985842b834ed26087302ba27d07bc24ca8697a # v1.0.244
+        env:
+          # The security-guidance plugin is for local sessions; on runners it would only add
+          # an SDK install and extra model calls (plan 017, assumption 5).
+          SECURITY_GUIDANCE_DISABLE: "1"
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # No github_token: the action uses the Claude GitHub App, so comments and commits
+          # come from claude[bot]. The App issues its token only when this file is identical
+          # to the one on develop, so a PR cannot change this workflow and still get it.
+          # CLAUDE.md (restored from develop) applies: no code without an approved plan, never
+          # push to develop or main.
+          claude_args: >-
+            --model sonnet
+            --max-turns 40

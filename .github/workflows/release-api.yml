@@ -1,0 +1,187 @@
+# API release: migrate the Neon database, then deploy the same commit on Render.
+# Plan: docs/plans/025-release-pipeline.md
+#
+# Runs on:
+#   push of a tag api-vX.Y.Z  a real release, from a commit on main, with the production environment
+#   workflow_call             from release.yml (tag vX.Y.Z), with its dry_run input
+#   workflow_dispatch         by hand; dry_run is on by default
+#   pull_request into develop always a dry run, when this workflow, render.yaml or the Dockerfile changes
+#
+# A dry run runs the checks, renders the migrations as SQL without a database and builds the
+# image; it migrates and deploys nothing, so it needs no secret. GitHub only dispatches a
+# workflow that is already on the default branch, so a PR checks this file through its
+# pull_request run. Setup and secret names: docs/deploy.md.
+name: release-api
+
+on:
+  push:
+    tags: ["api-v*"]
+  workflow_call:
+    inputs:
+      dry_run:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Checks and image build only; no migration, no deploy
+        type: boolean
+        default: true
+  pull_request:
+    branches: [develop]
+    paths:
+      - ".github/workflows/release-api.yml"
+      - "render.yaml"
+      - "backend/Dockerfile"
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: api
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # A tag push gets production; a PR or a dry run gets no environment, so the environment's
+    # "tags only" rule does not block it. Not `inputs.dry_run && '' || 'production'`: '' is
+    # falsy, so that form always gives 'production'.
+    environment: ${{ github.event_name != 'pull_request' && !inputs.dry_run && 'production' || '' }}
+    concurrency:
+      # One group per case:
+      # - a PR run cancels the older run of the same workflow on the same branch (in a called
+      #   workflow `github.workflow` is the caller's, so it does not cancel the caller's own);
+      # - each dispatched dry run gets its own group, so it can never cancel a release;
+      # - real releases share `release-api-release` without cancelling: one runs, and a newer
+      #   pending release replaces an older pending one.
+      group: release-api-${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow, github.ref) || inputs.dry_run && format('dry-{0}', github.run_id) || 'release' }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    env:
+      DRY_RUN: ${{ github.event_name == 'pull_request' || inputs.dry_run == true }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The full history and origin/main, for the merge-base check below.
+          fetch-depth: 0
+
+      - name: Check the tag is on main
+        if: env.DRY_RUN != 'true'
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$REF_NAME" =~ ^(api-)?v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::A release needs a tag vX.Y.Z or api-vX.Y.Z, not '$REF_NAME'."
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_SHA is not on main. Release only from a tag on main."
+            exit 1
+          fi
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      # The same checks as backend-ci.yml without the database: the release commit passed the
+      # integration tests on develop already.
+      - name: Checks
+        env:
+          # Throwaway values: Settings requires them, and the unit tests need no database.
+          DATABASE_URL: postgresql+asyncpg://unused:unused@localhost:5432/unused
+          JWT_SECRET: release-check-only-jwt-secret
+        run: |
+          ruff check .
+          ruff format --check .
+          mypy
+          pytest -q tests/unit
+
+      - name: Render the migrations as SQL
+        if: env.DRY_RUN == 'true'
+        env:
+          DATABASE_URL: postgresql+asyncpg://unused:unused@localhost:5432/unused
+        run: alembic upgrade head --sql > /dev/null
+
+      - name: Build the image
+        if: env.DRY_RUN == 'true'
+        run: docker build -t stridequest-api:release-check .
+
+      - name: Check the release secrets
+        if: env.DRY_RUN != 'true'
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          missing=0
+          for name in NEON_DATABASE_URL RENDER_API_KEY RENDER_SERVICE_ID API_BASE_URL; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::$name is not set (docs/deploy.md, API release)."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      # All migrations run in one transaction (alembic/env.py): when one fails none is applied,
+      # this step fails and the deploy below never starts, so the old code keeps running.
+      - name: Migrate the database
+        if: env.DRY_RUN != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: alembic upgrade head
+
+      # The Render API with commitId, not a deploy hook: a hook builds the branch's latest
+      # commit, which may not be the commit that was just migrated.
+      - name: Deploy on Render
+        if: env.DRY_RUN != 'true'
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          api="https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys"
+          deploy_id="$(curl -fsS -X POST "$api" \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"commitId\": \"$GITHUB_SHA\"}" | jq -r '.id')"
+          if [[ -z "$deploy_id" || "$deploy_id" == "null" ]]; then
+            echo "::error::Render did not return a deploy id."
+            exit 1
+          fi
+          echo "Deploy $deploy_id of $GITHUB_SHA"
+
+          deadline=$(( $(date +%s) + 600 ))
+          while true; do
+            status="$(curl -fsS "$api/$deploy_id" -H "Authorization: Bearer $RENDER_API_KEY" | jq -r '.status')"
+            echo "Status: $status"
+            case "$status" in
+              live) break ;;
+              build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
+                echo "::error::The Render deploy ended as $status."
+                exit 1 ;;
+            esac
+            if (( $(date +%s) >= deadline )); then
+              echo "::error::The Render deploy was not live after 10 minutes."
+              exit 1
+            fi
+            sleep 15
+          done
+
+          health="${API_BASE_URL%/}/health"
+          until [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$health")" == "200" ]]; do
+            if (( $(date +%s) >= deadline )); then
+              echo "::error::$health did not return 200 within 10 minutes."
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "$health returned 200."

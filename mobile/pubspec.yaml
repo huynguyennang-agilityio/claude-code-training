@@ -7,14 +7,67 @@ environment:
   sdk: ^3.8.1
 
 dependencies:
+  dio: ^5.11.1
+  equatable: ^2.0.7
   flutter:
     sdk: flutter
+  flutter_bloc: ^9.1.1
+  flutter_secure_storage: ^11.2.0
+  freezed_annotation: ^3.1.0
+  get_it: ^9.3.0
   go_router: ^17.0.0
+  health: ^13.3.1
+  injectable: ^2.7.1+4
+  json_annotation: ^4.9.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
   flutter_lints: ^5.0.0
+  mocktail: ^1.0.5
+  bloc_test: ^10.0.0
+  injectable_generator: ^2.9.1
+  build_runner: ^2.15.1
+  freezed: ^3.2.3
+  json_serializable: ^6.11.2
+  alchemist: ^0.14.1
+  patrol: ^4.10.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
+  fonts:
+    # Inter (SIL Open Font License 1.1), a variable font: the weight comes
+    # from its `wght` axis, set in `lib/core/theme/app_theme.dart`.
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-VariableFont.ttf
+
+dependency_overrides:
+  # `health` asks for device_info_plus 12, which needs win32 5, while
+  # flutter_secure_storage needs win32 6. device_info_plus 13 works with win32 6 and the
+  # two calls `health` makes (`androidInfo`, `iosInfo`) are unchanged.
+  device_info_plus: ^13.3.0
+
+patrol:
+  app_name: StrideQuest
+  ios:
+    bundle_id: huynang.stridequest
+
+# App icon, generated with `dart run flutter_launcher_icons` from the masters
+# in assets/icon/ (made by tool/app_icon/make_masters.py). The masters are not
+# listed under `flutter: assets`, so they are not bundled. See plan 008.
+flutter_launcher_icons:
+  image_path: assets/icon/app_icon.png
+  ios: true
+  remove_alpha_ios: true
+  android: true
+  # Only tunes the plugin's output (value from plan 008); the app's real
+  # minSdk is 26, set in android/app/build.gradle.kts.
+  min_sdk_android: 21
+  adaptive_icon_background: "#16260C"
+  adaptive_icon_foreground: assets/icon/app_icon_foreground.png
+  adaptive_icon_foreground_inset: 0
+  adaptive_icon_monochrome: assets/icon/app_icon_monochrome.png

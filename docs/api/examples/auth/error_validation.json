@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Request is invalid.",
+    "fields": [
+      {
+        "field": "password",
+        "message": "Password must contain at least one digit."
+      }
+    ]
+  }
+}

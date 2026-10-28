@@ -16,6 +16,28 @@ select = ["E", "F", "W", "I", "B", "UP", "ASYNC", "S", "SIM"]
 [tool.ruff.format]
 quote-style = "double"
 
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["app"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = ["fuzz: generates requests from the OpenAPI document (skip with -m \"not fuzz\")"]
+
+[tool.mutmut]
+# Mutation testing of the security rules: `mutmut run`, then `mutmut results`.
+# Slow and run by hand; see the fastapi-module skill.
+source_paths = ["app/"]
+only_mutate = ["app/core/security.py", "app/modules/auth/service.py"]
+pytest_add_cli_args_test_selection = [
+  "tests/unit/test_security.py",
+  "tests/unit/test_auth_service.py",
+]

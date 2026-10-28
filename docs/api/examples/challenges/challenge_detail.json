@@ -1,0 +1,36 @@
+{
+  "id": 7,
+  "quest_id": 1,
+  "title": "Hoan Kiem 50K Steps",
+  "type": "run",
+  "metric": "steps",
+  "target_value": 50000,
+  "mode": "solo",
+  "description_md": "Walk or run 50,000 steps around the lake.",
+  "terms_md": "Steps are counted from Apple Health or Health Connect.",
+  "cover_image_url": "https://res.cloudinary.com/demo/image/upload/stridequest/covers/hoan-kiem.jpg",
+  "city": "Hanoi",
+  "landmark": "Hoan Kiem Lake",
+  "status": "published",
+  "starts_at": "2026-11-01T00:00:00Z",
+  "ends_at": "2026-11-30T23:59:59Z",
+  "medals": [
+    {
+      "id": 12,
+      "tier": "bronze",
+      "name": "Lake Walker",
+      "threshold_value": 20000,
+      "image_url": "https://res.cloudinary.com/demo/image/upload/stridequest/medals/bronze.png"
+    },
+    {
+      "id": 13,
+      "tier": "gold",
+      "name": "Lake Master",
+      "threshold_value": 50000,
+      "image_url": "https://res.cloudinary.com/demo/image/upload/stridequest/medals/gold.png"
+    }
+  ],
+  "participant_count": 813,
+  "enrollment": null,
+  "blocked_by": null
+}

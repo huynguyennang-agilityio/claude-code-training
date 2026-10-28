@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan 003 design: Active tab</title>
+<style>
+  /* Tokens copied from mobile/lib/core/theme (app_theme.dart, app_tokens.dart). */
+  :root {
+    --darkest: #0f0f0f; --dark: #202020; --default: #303030; --light: #404040;
+    --lime: #d0ec60; --white: #fff; --secondary: #a1a1a2; --disabled: #5f5e60;
+    --error-container: #3b1c1d; --on-error-container: #ffb4b5;
+    --run-a: #4f6e1a; --run-b: #0f1a0a;
+    --xxs: 4px; --xs: 8px; --sm: 12px; --md: 16px; --lg: 24px; --xl: 32px;
+    --r-xs: 5px; --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-button: 10px; --r-full: 999px;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #1a1a1a; color: var(--white); font-family: Inter, -apple-system, "Segoe UI", sans-serif; padding: 32px; }
+  h1 { font-size: 24px; margin-bottom: 4px; }
+  .lede { color: var(--secondary); font-size: 14px; margin-bottom: 32px; max-width: 760px; line-height: 1.5; }
+  .grid { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; }
+  figure { width: 375px; }
+  figcaption { font-size: 13px; color: var(--secondary); margin-top: 12px; line-height: 1.5; }
+  figcaption b { color: var(--white); }
+
+  .phone { width: 375px; height: 812px; background: var(--darkest); border-radius: 28px; border: 1px solid var(--default);
+           display: flex; flex-direction: column; overflow: hidden; position: relative; }
+  .status { height: 44px; padding: 14px var(--lg) 0; font-size: 13px; font-weight: 600; flex: none; }
+  .appbar { text-align: center; font-size: 18px; font-weight: 600; padding: var(--xs) var(--md) var(--sm); flex: none; }
+  .body { flex: 1; overflow: hidden; padding: 0 var(--md); display: flex; flex-direction: column; }
+  .tabbar { height: 83px; padding: 8px 8px 34px; background: var(--dark); display: flex; flex: none; }
+  .tabbar div { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--secondary); }
+  .tabbar div.on { color: var(--lime); }
+
+  .seg { display: flex; border-bottom: 1px solid var(--default); margin: 0 calc(var(--md) * -1) var(--md); flex: none; }
+  .seg div { flex: 1; text-align: center; padding: var(--sm) 0; font-size: 14px; font-weight: 600; color: var(--secondary); }
+  .seg div.on { color: var(--lime); box-shadow: inset 0 -2px 0 var(--lime); }
+
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sm); }
+  .tile { background: var(--dark); border: 1px solid var(--default); border-radius: var(--r-lg); padding: var(--md); }
+  .tile .head { display: flex; align-items: center; gap: var(--xs); color: var(--lime); font-size: 14px; font-weight: 600; }
+  .tile .val { font-size: 32px; font-weight: 700; margin-top: var(--xs); line-height: 1.1; }
+  .tile .val small { font-size: 13px; font-weight: 400; color: var(--secondary); margin-left: var(--xxs); }
+  .tile .when { font-size: 13px; color: var(--secondary); margin-top: var(--xs); }
+  .tile.off .val { font-size: 18px; color: var(--secondary); font-weight: 600; margin-top: var(--md); }
+  .note { font-size: 13px; color: var(--secondary); margin-top: var(--md); line-height: 1.5; }
+  .spacer { flex: 1; }
+  .btn { height: 50px; border-radius: var(--r-button); display: flex; align-items: center; justify-content: center; gap: var(--xs);
+         font-weight: 600; font-size: 16px; }
+  .btn.fill { background: var(--lime); color: var(--darkest); }
+  .btn.line { border: 1px solid var(--lime); color: var(--lime); }
+  .btn.off { background: var(--default); color: var(--disabled); }
+  .bottom { padding: var(--md) 0; flex: none; }
+
+  .gate { align-items: center; text-align: center; justify-content: center; }
+  .gate .ico { width: 88px; height: 88px; border-radius: var(--r-full); background: var(--dark); border: 1px solid var(--default);
+               display: flex; align-items: center; justify-content: center; font-size: 40px; color: var(--lime); margin-bottom: var(--lg); }
+  .gate h2 { font-size: 24px; margin-bottom: var(--xs); }
+  .gate p { color: var(--secondary); font-size: 14px; line-height: 1.5; margin-bottom: var(--md); }
+  .gate ul { list-style: none; padding: 0; text-align: left; width: 100%; background: var(--dark); border: 1px solid var(--default);
+             border-radius: var(--r-lg); font-size: 14px; margin-bottom: var(--lg); }
+  .gate li { padding: var(--sm) var(--md); display: flex; justify-content: space-between; }
+  .gate li + li { border-top: 1px solid var(--default); }
+  .gate li span { color: var(--secondary); }
+  .gate .btn { width: 100%; }
+
+  .card { background: var(--dark); border: 1px solid var(--default); border-radius: var(--r-lg); overflow: hidden; margin-bottom: var(--sm); }
+  .cover { height: 96px; background: linear-gradient(135deg, var(--run-a), var(--run-b)); position: relative; }
+  .cover.swim { background: linear-gradient(135deg, #1e6e8c, #0a1822); }
+  .cover .tag { position: absolute; left: var(--sm); bottom: var(--sm); }
+  .tag { background: rgba(15,15,15,.7); border-radius: var(--r-sm); padding: var(--xxs) var(--xs); font-size: 13px; font-weight: 600; }
+  .tag.lime { color: var(--lime); }
+  .card .in { padding: var(--md); }
+  .card h3 { font-size: 16px; font-weight: 600; margin-bottom: var(--xxs); }
+  .meta { font-size: 13px; color: var(--secondary); display: flex; gap: var(--md); flex-wrap: wrap; }
+  .bar { height: 8px; border-radius: var(--r-full); background: var(--default); margin-top: var(--sm); overflow: hidden; }
+  .bar b { display: block; height: 100%; background: var(--lime); border-radius: var(--r-full); }
+  .prog { display: flex; justify-content: space-between; font-size: 13px; margin-top: var(--xs); }
+  .prog span:last-child { color: var(--secondary); }
+  .pill { display: inline-block; background: var(--default); border-radius: var(--r-full); padding: 2px var(--xs); font-size: 13px; font-weight: 600; color: var(--white); }
+  .empty { align-items: center; text-align: center; justify-content: center; color: var(--secondary); font-size: 14px; }
+  .empty h2 { color: var(--white); font-size: 18px; margin: var(--md) 0 var(--xs); }
+  .empty .btn { width: 100%; margin-top: var(--lg); }
+  .banner { background: var(--error-container); color: var(--on-error-container); border-radius: var(--r-md); padding: var(--sm) var(--md); font-size: 13px; margin-bottom: var(--sm); }
+  .reason { background: var(--dark); border-radius: var(--r-md); padding: var(--sm) var(--md); font-size: 13px; color: var(--secondary); margin-bottom: var(--sm); }
+</style>
+</head>
+<body>
+<h1>Plan 003: Active tab</h1>
+<p class="lede">Design for the Active page (health gate, Active tab, My Challenges tab) and the one change to the challenge detail (no Pause before the challenge starts). Colours, radii and spacing are the tokens of the app theme (dark theme, Lime). Layout is inspired by the reference screenshots; no artwork or copy from them is used. Frames are 375 wide; the app also supports 430 wide and text scale 2.0.</p>
+
+<div class="grid">
+
+<!-- 1. Gate: denied -->
+<figure>
+  <div class="phone">
+    <div class="status">22:00</div>
+    <div class="appbar">Active</div>
+    <div class="body gate">
+      <div class="ico">♥</div>
+      <h2>Allow health access</h2>
+      <p>Without health data StrideQuest cannot track your progress in challenges. Steps are required; the others are optional.</p>
+      <ul>
+        <li>Steps <span>Required</span></li>
+        <li>Calories <span>Optional</span></li>
+        <li>Distance <span>Optional</span></li>
+        <li>Sleep time <span>Optional</span></li>
+      </ul>
+      <div class="btn fill">Allow access</div>
+      <p class="note" style="margin-top:16px">Your steps, calories, distance and sleep time are sent to StrideQuest to track your challenges. You can change this in Settings at any time.</p>
+    </div>
+    <div class="tabbar"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z"/></svg>Challenges</div><div class="on"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14.5" cy="4.5" r="1.7"/><path d="M5 12l3-3 4 1 2 3 3 1M9 21l2.5-5L9 13M12.5 16l2 5"/></svg>Active</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v5M16 3v5M12 3v3"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.9-1.6.9.3-1.7-1.2-1.2 1.7-.2z"/></svg>Medals</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>Profile</div></div>
+  </div>
+  <figcaption><b>Gate, access not given.</b> Shown every time the tab opens until steps are allowed. The user can still use the other tabs. When refused for good, the button reads <b>Open settings</b>; when Health Connect is missing, the title is "Health Connect needed" and the button is <b>Install Health Connect</b>.</figcaption>
+</figure>
+
+<!-- 2. Active tab -->
+<figure>
+  <div class="phone">
+    <div class="status">22:00</div>
+    <div class="appbar">Active</div>
+    <div class="body">
+      <div class="seg"><div class="on">Active</div><div>My Challenges</div></div>
+      <div class="tiles">
+        <div class="tile"><div class="head">👣 Steps</div><div class="val">5,490<small>steps</small></div><div class="when">Today at 21:55</div></div>
+        <div class="tile"><div class="head">🔥 Calories</div><div class="val">312<small>kcal</small></div><div class="when">Today at 21:55</div></div>
+        <div class="tile"><div class="head">📍 Distance</div><div class="val">3.08<small>km</small></div><div class="when">Today at 21:55</div></div>
+        <div class="tile"><div class="head">☾ Sleep time</div><div class="val">6.5<small>hrs</small></div><div class="when">Today at 21:55</div></div>
+      </div>
+      <p class="note">Synced to StrideQuest at 21:55. Tap Refresh data to read your health data again.</p>
+      <div class="spacer"></div>
+      <div class="bottom"><div class="btn fill">⟳ Refresh data</div></div>
+    </div>
+    <div class="tabbar"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z"/></svg>Challenges</div><div class="on"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14.5" cy="4.5" r="1.7"/><path d="M5 12l3-3 4 1 2 3 3 1M9 21l2.5-5L9 13M12.5 16l2 5"/></svg>Active</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v5M16 3v5M12 3v3"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.9-1.6.9.3-1.7-1.2-1.2 1.7-.2z"/></svg>Medals</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>Profile</div></div>
+  </div>
+  <figcaption><b>Active tab, success.</b> Four tiles with icon, value, unit and the time of the last read. <b>Refresh data</b> is fixed at the bottom; while it works the label becomes "Syncing…" and the button takes the grey disabled style.</figcaption>
+</figure>
+
+<!-- 3. Active tab: partial + error -->
+<figure>
+  <div class="phone">
+    <div class="status">22:00</div>
+    <div class="appbar">Active</div>
+    <div class="body">
+      <div class="seg"><div class="on">Active</div><div>My Challenges</div></div>
+      <div class="banner">Could not sync. Check your connection and try again.</div>
+      <div class="tiles">
+        <div class="tile"><div class="head">👣 Steps</div><div class="val">5,490<small>steps</small></div><div class="when">Today at 21:55</div></div>
+        <div class="tile off"><div class="head">🔥 Calories</div><div class="val">Not allowed</div></div>
+        <div class="tile"><div class="head">📍 Distance</div><div class="val">3.08<small>km</small></div><div class="when">Today at 21:55</div></div>
+        <div class="tile off"><div class="head">☾ Sleep time</div><div class="val">Not allowed</div></div>
+      </div>
+      <p class="note">Calories and sleep time are not allowed. Turn them on in Settings to see them here.</p>
+      <div class="spacer"></div>
+      <div class="bottom"><div class="btn fill">⟳ Refresh data</div></div>
+    </div>
+    <div class="tabbar"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z"/></svg>Challenges</div><div class="on"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14.5" cy="4.5" r="1.7"/><path d="M5 12l3-3 4 1 2 3 3 1M9 21l2.5-5L9 13M12.5 16l2 5"/></svg>Active</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v5M16 3v5M12 3v3"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.9-1.6.9.3-1.7-1.2-1.2 1.7-.2z"/></svg>Medals</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>Profile</div></div>
+  </div>
+  <figcaption><b>Active tab, optional metrics refused, sync failed.</b> A refused metric shows "Not allowed" and is not sent. A failed sync keeps the old values and shows the banner above the tiles.</figcaption>
+</figure>
+
+<!-- 4. My Challenges -->
+<figure>
+  <div class="phone">
+    <div class="status">22:01</div>
+    <div class="appbar">Active</div>
+    <div class="body">
+      <div class="seg"><div>Active</div><div class="on">My Challenges</div></div>
+      <div class="card">
+        <div class="cover"><span class="tag">🏃 Run</span></div>
+        <div class="in">
+          <h3>Old Quarter 50K Steps</h3>
+          <div class="meta"><span>📅 Oct 1 – Oct 31</span><span>👤 Solo</span></div>
+          <div class="bar"><b style="width:18%"></b></div>
+          <div class="prog"><span>Goal 18%</span><span>9,000 / 50,000 steps</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="cover swim"><span class="tag">🏊 Swim</span></div>
+        <div class="in">
+          <h3>Mỹ Khê Bay 20 km</h3>
+          <div class="meta"><span>📅 Nov 1 – Nov 30</span><span>👤 Solo</span></div>
+          <div class="prog" style="margin-top:12px"><span class="pill">Starts Nov 1</span><span>Progress for swim comes soon</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z"/></svg>Challenges</div><div class="on"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14.5" cy="4.5" r="1.7"/><path d="M5 12l3-3 4 1 2 3 3 1M9 21l2.5-5L9 13M12.5 16l2 5"/></svg>Active</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v5M16 3v5M12 3v3"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.9-1.6.9.3-1.7-1.2-1.2 1.7-.2z"/></svg>Medals</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>Profile</div></div>
+  </div>
+  <figcaption><b>My Challenges.</b> The challenges the user joined, in progress. Run challenges show a bar, "Goal n%" and the amount. A challenge that has not started shows "Starts &lt;date&gt;" and no progress. A swim or cycle challenge shows the note instead of a percentage. A paused one shows a <b>Paused</b> pill. Tapping a card opens the challenge detail.</figcaption>
+</figure>
+
+<!-- 5. My Challenges: empty -->
+<figure>
+  <div class="phone">
+    <div class="status">22:01</div>
+    <div class="appbar">Active</div>
+    <div class="body">
+      <div class="seg"><div>Active</div><div class="on">My Challenges</div></div>
+      <div class="body empty" style="padding:0">
+        <div style="font-size:48px">🏁</div>
+        <h2>No challenge in progress</h2>
+        <p>Join a challenge and your progress will show up here.</p>
+        <div class="btn fill">Browse challenges</div>
+      </div>
+    </div>
+    <div class="tabbar"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z"/></svg>Challenges</div><div class="on"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14.5" cy="4.5" r="1.7"/><path d="M5 12l3-3 4 1 2 3 3 1M9 21l2.5-5L9 13M12.5 16l2 5"/></svg>Active</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v5M16 3v5M12 3v3"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.9-1.6.9.3-1.7-1.2-1.2 1.7-.2z"/></svg>Medals</div><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>Profile</div></div>
+  </div>
+  <figcaption><b>My Challenges, empty.</b> The button goes to the Challenges tab. Loading shows a spinner; an error shows the message with <b>Try again</b>, as on the Challenges tab.</figcaption>
+</figure>
+
+<!-- 6. Detail before start -->
+<figure>
+  <div class="phone">
+    <div class="status">22:01</div>
+    <div class="body" style="padding-top:0">
+      <div class="cover" style="margin:0 calc(var(--md) * -1);height:180px"></div>
+      <div style="padding-top:16px">
+        <div class="meta" style="margin-bottom:8px"><span>🏃 Run</span><span>👤 Solo</span><span>📍 Hà Nội</span></div>
+        <div style="font-size:32px;font-weight:700;line-height:1.15">Old Quarter 50K Steps</div>
+        <div class="note" style="margin-top:8px">Nov 1 – Nov 30</div>
+        <div class="tile" style="margin-top:16px"><div class="head" style="color:var(--white)">Challenge starts in</div><div class="val">12 d 03 h</div></div>
+      </div>
+      <div class="spacer"></div>
+      <div class="reason">You joined. Steps count from Nov 1.</div>
+      <div class="bottom" style="display:flex;gap:12px"><div class="btn line" style="flex:1">Leave</div></div>
+    </div>
+    <div class="tabbar" style="visibility:hidden"></div>
+  </div>
+  <figcaption><b>Challenge detail, joined but not started.</b> No <b>Pause</b>: there is nothing to pause yet, so the bar shows <b>Leave</b> only. Once the challenge has started the bar is <b>Pause</b> and <b>Leave</b> as built in plan 001.</figcaption>
+</figure>
+
+</div>
+</body>
+</html>

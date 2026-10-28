@@ -1,0 +1,11 @@
+{
+  "first_name": "Max",
+  "last_name": "Darsonval",
+  "birthday": "1991-06-24",
+  "country": "US",
+  "state": "California",
+  "gender": "male",
+  "unit_system": "imperial",
+  "height_cm": 180.3,
+  "weight_kg": 84.4
+}

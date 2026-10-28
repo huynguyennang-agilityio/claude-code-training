@@ -1,0 +1,192 @@
+# Android release: build the APK and send it to Firebase App Distribution.
+# Plan: docs/plans/025-release-pipeline.md
+#
+# Runs on:
+#   push of a tag android-vX.Y.Z  a real release, from a commit on main, with the production environment
+#   workflow_call                 from release.yml (tag vX.Y.Z), with its dry_run input
+#   workflow_dispatch             by hand; dry_run is on by default
+#   pull_request into develop     always a dry run, when this workflow or mobile/android/ changes
+#
+# A dry run builds a release APK signed with the debug key and uploads nothing, so it needs no
+# secret. GitHub only dispatches a workflow that is already on the default branch, so a PR
+# checks this file through its pull_request run. Setup and secret names: docs/deploy.md.
+name: release-android
+
+on:
+  push:
+    tags: ["android-v*"]
+  workflow_call:
+    inputs:
+      dry_run:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build only, signed with the debug key; no upload
+        type: boolean
+        default: true
+  pull_request:
+    branches: [develop]
+    paths:
+      - ".github/workflows/release-android.yml"
+      - "mobile/android/**"
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # A tag push gets production; a PR or a dry run gets no environment, so the environment's
+    # "tags only" rule does not block it. Not `inputs.dry_run && '' || 'production'`: '' is
+    # falsy, so that form always gives 'production'.
+    environment: ${{ github.event_name != 'pull_request' && !inputs.dry_run && 'production' || '' }}
+    concurrency:
+      # One group per case:
+      # - a PR run cancels the older run of the same workflow on the same branch (in a called
+      #   workflow `github.workflow` is the caller's, so it does not cancel the caller's own);
+      # - each dispatched dry run gets its own group, so it can never cancel a release;
+      # - real releases share `release-android-release` without cancelling: one runs, and a newer
+      #   pending release replaces an older pending one.
+      group: release-android-${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow, github.ref) || inputs.dry_run && format('dry-{0}', github.run_id) || 'release' }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    env:
+      DRY_RUN: ${{ github.event_name == 'pull_request' || inputs.dry_run == true }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The full history and origin/main, for the merge-base check below.
+          fetch-depth: 0
+
+      - name: Check the tag is on main
+        if: env.DRY_RUN != 'true'
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_SHA is not on main. Release only from a tag on main."
+            exit 1
+          fi
+
+      - name: Version and build number
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$REF_NAME" =~ ^(android-)?v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            version="${BASH_REMATCH[2]}"
+          elif [[ "$DRY_RUN" == "true" ]]; then
+            # A PR or a dispatch from a branch: the version in pubspec.yaml.
+            version="$(sed -n 's/^version: *\([0-9.]*\).*/\1/p' pubspec.yaml)"
+          else
+            echo "::error::A release needs a tag vX.Y.Z or android-vX.Y.Z, not '$REF_NAME'."
+            exit 1
+          fi
+          # Unix minutes: always increasing, and below the versionCode limit of 2,100,000,000.
+          build_number=$(( $(date +%s) / 60 ))
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
+          echo "Version $version, build $build_number"
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          # The same version as mobile-ci.yml.
+          flutter-version: 3.38.5
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Decode the release keystore
+        if: env.DRY_RUN != 'true'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
+        run: |
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS \
+                      ANDROID_KEY_PASSWORD FIREBASE_SERVICE_ACCOUNT_JSON FIREBASE_ANDROID_APP_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Secret $name is missing in the production environment (docs/deploy.md)."
+              exit 1
+            fi
+          done
+          keystore="$RUNNER_TEMP/release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          echo "ANDROID_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
+
+      - name: Build the APK
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          # Read by android/app/build.gradle.kts with ANDROID_KEYSTORE_PATH from the step above.
+          # In a dry run they are empty and the build keeps the debug key.
+          ANDROID_KEYSTORE_PASSWORD: ${{ env.DRY_RUN != 'true' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ env.DRY_RUN != 'true' && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ env.DRY_RUN != 'true' && secrets.ANDROID_KEY_PASSWORD || '' }}
+        run: |
+          defines=()
+          if [[ -n "$API_BASE_URL" ]]; then
+            defines+=("--dart-define=API_BASE_URL=$API_BASE_URL")
+          elif [[ "$DRY_RUN" != "true" ]]; then
+            echo "::error::Repository variable API_BASE_URL is missing (docs/deploy.md)."
+            exit 1
+          fi
+          flutter build apk --release \
+            --build-name="$VERSION" --build-number="$BUILD_NUMBER" "${defines[@]}"
+
+      # The keystore is no longer needed: delete it before any third-party code (the Firebase
+      # CLI) runs. `always()` runs this even when the build failed; the last step removes the
+      # Firebase service-account file.
+      - name: Delete the release keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Check the APK signature
+        run: |
+          apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          echo "Using $apksigner ($("$apksigner" --version))"
+          if ! certs="$("$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk 2>&1)"; then
+            echo "$certs"
+            echo "::error::apksigner could not verify the APK."
+            exit 1
+          fi
+          # Print the signer; the whole output when its format is not the expected one.
+          echo "$certs" | grep -E 'certificate (DN|SHA-256)' || echo "$certs"
+          if [[ "$DRY_RUN" != "true" ]] && echo "$certs" | grep -q 'CN=Android Debug'; then
+            echo "::error::The release APK is signed with the debug key."
+            exit 1
+          fi
+
+      - name: Upload to Firebase App Distribution
+        if: env.DRY_RUN != 'true'
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          credentials="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$credentials"
+          GOOGLE_APPLICATION_CREDENTIALS="$credentials" npx --yes firebase-tools@15.34.1 \
+            appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+            --app "$FIREBASE_ANDROID_APP_ID" \
+            --groups testers \
+            --release-notes "StrideQuest $REF_NAME"
+
+      - name: Clean up the keystore and credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks" "$RUNNER_TEMP/firebase-service-account.json"

@@ -1,6 +1,13 @@
 # Environment
 .env
 
+# Release signing keys, anywhere in the repo (plan 025; mobile/android/.gitignore has them too)
+*.jks
+*.keystore
+*.p12
+*.p8
+*.mobileprovision
+
 # Python
 __pycache__/
 *.py[cod]
@@ -19,6 +26,10 @@ build/
 .vscode/
 *.iml
 .DS_Store
+mutants/
 
-# CI caches
-.cache/
+# Understand-Anything knowledge graphs
+.ua/
+
+# Local overrides of the security-guidance plugin's rules (plan 017)
+.claude/claude-security-guidance.local.md
