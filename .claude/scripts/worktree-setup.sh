@@ -31,22 +31,59 @@ root=$(git rev-parse --show-toplevel 2>/dev/null) || die "run it inside the work
 
 database="stridequest_i${issue}_test"
 
-# The URL with its database replaced, and the same URL with the password masked.
-# Shape: <scheme>://<user>[:<password>]@<host>[:<port>]/<database>[?<query>], maybe quoted.
-# Only the database name is replaced, so a closing quote or a query string stays.
-issue_url() {
-  sed -E "s#^(TEST_DATABASE_URL=[^/]*//[^/]*/)[A-Za-z0-9_]*#\1${database}#" <<<"$1"
+# A URL is read in plain bash, not sed, so a password may hold any character:
+#   TEST_DATABASE_URL=[quote]<scheme>://[<user>[:<password>]@]<host>[:<port>]/<database>[?<query>][quote]
+# The user part ends at the last "@", so "/" and "@" in a password are kept whole.
+# split_url sets url_quote, url_scheme, url_user, url_password, url_has_password, url_host,
+# url_database and url_query, and fails without printing the URL.
+split_url() {
+  local value=${1#TEST_DATABASE_URL=} rest after
+  url_quote=""
+  case "$value" in
+    \"*\" | \'*\') url_quote=${value:0:1} value=${value:1:${#value}-2} ;;
+  esac
+  [[ $value == *://* ]] || return 1
+  url_scheme=${value%%://*}
+  rest=${value#*://}
+  url_user="" url_password="" url_has_password=0
+  if [[ $rest == *@* ]]; then
+    url_user=${rest%@*}
+    rest=${rest##*@}
+    if [[ $url_user == *:* ]]; then
+      url_password=${url_user#*:}
+      url_user=${url_user%%:*}
+      url_has_password=1
+    fi
+  fi
+  url_host=${rest%%/*}
+  after=${rest#"$url_host"}
+  after=${after#/}
+  url_database=${after%%\?*}
+  url_query=${after#"$url_database"}
 }
-# The database a URL names, without quotes or a query string.
-database_of() {
-  local value=${1#TEST_DATABASE_URL=}
-  value=${value%\"}
-  value=${value%\'}
-  value=${value%%\?*}
-  printf '%s' "${value##*/}"
+# join_url <password>: the TEST_DATABASE_URL line from the split parts.
+join_url() {
+  local userinfo=""
+  if [ -n "$url_user" ] || [ "$url_has_password" = 1 ]; then
+    userinfo=$url_user
+    [ "$url_has_password" = 0 ] || userinfo+=":$1"
+    userinfo+="@"
+  fi
+  printf 'TEST_DATABASE_URL=%s%s://%s%s/%s%s%s' "$url_quote" "$url_scheme" "$userinfo" "$url_host" \
+    "$url_database" "$url_query" "$url_quote"
+}
+issue_url() {
+  split_url "$1" || die "TEST_DATABASE_URL is not a <scheme>://... URL"
+  url_database=$database
+  join_url "$url_password"
 }
 masked() {
-  sed -E 's#^(TEST_DATABASE_URL=[^/]*//[^:/@]*):[^/]*@#\1:****@#' <<<"$1"
+  split_url "$1" || die "TEST_DATABASE_URL is not a <scheme>://... URL"
+  join_url "****"
+}
+database_of() {
+  split_url "TEST_DATABASE_URL=$1" || return 0
+  printf '%s' "$url_database"
 }
 
 if [ -e "$root/.env" ]; then
@@ -55,16 +92,18 @@ else
   [ -f "$main/.env" ] || die "$main/.env is missing; copy .env.example to it first"
   line=$(grep -E '^TEST_DATABASE_URL=' "$main/.env" | tail -n 1) ||
     die "$main/.env has no TEST_DATABASE_URL"
-  new=$(issue_url "$line")
-  # Copy, then swap only the TEST_DATABASE_URL lines, so no other value changes.
-  (umask 077 && cp "$main/.env" "$root/.env")
-  tmp=$(mktemp "$root/.env.XXXXXX")
+  new=$(issue_url "$line") || exit 1
+  # Write the copy, with only the TEST_DATABASE_URL lines swapped, to a private temp file
+  # and move it into place in one step, so a stopped run leaves no .env on the shared
+  # database and no stray copy of the password.
+  tmp=$(umask 077 && mktemp "$root/.env.XXXXXX")
+  trap 'rm -f "$tmp"' EXIT
   while IFS= read -r l || [ -n "$l" ]; do
     case "$l" in
       TEST_DATABASE_URL=*) printf '%s\n' "$new" ;;
       *) printf '%s\n' "$l" ;;
     esac
-  done <"$root/.env" >"$tmp"
+  done <"$main/.env" >"$tmp"
   mv "$tmp" "$root/.env"
   echo "Copied $main/.env to $root/.env with the issue's test database."
 fi
@@ -80,9 +119,10 @@ if [ "${WORKTREE_SETUP_SKIP_INSTALL:-0}" != 1 ]; then
 fi
 
 line=$(grep -E '^TEST_DATABASE_URL=' "$root/.env" | tail -n 1) || die "$root/.env has no TEST_DATABASE_URL"
-echo "export $(masked "$line")"
+shown=$(masked "$line") || exit 1
+echo "export $shown"
 echo "worktree-setup.sh: already written to $root/.env; do not run the line above, its password is masked." >&2
-if [ "$(database_of "$line")" != "$database" ]; then
+if [ "$(database_of "${line#TEST_DATABASE_URL=}")" != "$database" ]; then
   echo "worktree-setup.sh: TEST_DATABASE_URL in $root/.env does not name $database; another worktree may use the same database." >&2
 fi
 # An exported TEST_DATABASE_URL wins over .env in the backend settings, so flag one that

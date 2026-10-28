@@ -73,8 +73,9 @@ grep -q 'another worktree may use the same database' <<<"$out" && ok || bad "sha
 grep -q 'pw-local' <<<"$out" && bad "the password was printed: $out" || ok
 
 # 5. A second run keeps the .env from the first.
+echo 'MARKER=kept' >>"$wt/.env"
 run "$wt" "$main" 164
-[ $code -eq 0 ] && grep -q 'stridequest_i164_test' "$wt/.env" && ok || bad "second run: exit $code: $out"
+[ $code -eq 0 ] && grep -qx 'MARKER=kept' "$wt/.env" && ok || bad "second run: exit $code: $out"
 
 # 6. Bad input fails without writing anything.
 wt3="$tmp/wt-166"
@@ -125,7 +126,34 @@ grep -qx 'export TEST_DATABASE_URL=postgresql+asyncpg://u:\*\*\*\*@localhost:543
   ok || bad "password with @ not masked whole: $out"
 grep -q 'cd-secret' <<<"$out" && bad "part of the password was printed: $out" || ok
 
-# 10. It never runs docker compose.
+# 10. A password with a raw / is kept whole, masked whole, and the database is swapped.
+slash="$tmp/slash"
+g init -q -b develop "$slash"
+g -C "$slash" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+printf 'TEST_DATABASE_URL=postgresql+asyncpg://u:ab/cd-secret@localhost:5432/stridequest_test\n' >"$slash/.env"
+wt6="$tmp/wt-169"
+g -C "$slash" worktree add -q -b feat/169-x "$wt6"
+run "$wt6" "$slash" 169
+grep -qx 'TEST_DATABASE_URL=postgresql+asyncpg://u:ab/cd-secret@localhost:5432/stridequest_i169_test' "$wt6/.env" &&
+  ok || bad "password with /: wrong .env line"
+grep -q 'cd-secret' <<<"$out" && bad "password with /: part of the password was printed" || ok
+grep -qx 'export TEST_DATABASE_URL=postgresql+asyncpg://u:\*\*\*\*@localhost:5432/stridequest_i169_test' <<<"$out" &&
+  ok || bad "password with /: export line wrong"
+grep -q 'another worktree may use the same database' <<<"$out" && bad "password with /: flagged as shared" || ok
+
+# 11. A URL it cannot read fails without printing it or writing .env.
+bad_url="$tmp/bad-url"
+g init -q -b develop "$bad_url"
+g -C "$bad_url" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+printf 'TEST_DATABASE_URL=not-a-url-pw-hidden\n' >"$bad_url/.env"
+wt7="$tmp/wt-170"
+g -C "$bad_url" worktree add -q -b feat/170-x "$wt7"
+run "$wt7" "$bad_url" 170
+[ $code -ne 0 ] && [ ! -e "$wt7/.env" ] && ok || bad "an unreadable URL was accepted"
+grep -q 'pw-hidden' <<<"$out" && bad "an unreadable URL was printed" || ok
+ls "$wt7"/.env.* >/dev/null 2>&1 && bad "a temp .env file was left behind" || ok
+
+# 12. It never runs docker compose.
 grep -Eq '^[^#]*docker([[:space:]]|-)compose' "$script" && bad "the script runs docker compose" || ok
 
 echo "$pass passed, $fail failed"
