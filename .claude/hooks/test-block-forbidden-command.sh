@@ -185,6 +185,8 @@ allowed on-feature 'gh label delete stale --yes'
 allowed on-feature 'gh repo edit --delete-branch-on-merge=false'
 allowed on-feature 'gh repo view'
 allowed on-feature 'gh pr checks 5 --watch --required'
+allowed on-feature 'gh pr create --body "never gh pr merge -d or --delete-branch"'
+allowed on-feature $'gh pr create --body "$(cat <<\'EOF\'\nNever run gh pr merge 5 --delete-branch\nEOF\n)"'
 allowed on-feature 'gh api repos/o/r/pulls/5/files --paginate'
 
 # --- nested quotes and parentheses inside quotes (review of #109) ---
