@@ -157,7 +157,6 @@ blocked on-feature 'gh pr merge 5 -t "x y" -d'
 blocked on-feature 'gh repo edit --delete-branch-on-merge'
 blocked on-feature 'gh repo edit o/r --delete-branch-on-merge=true'
 
-
 # --- gh: hidden behind other syntax ---
 blocked on-feature 'bash -c "gh pr merge 5 --merge -d"'
 blocked on-feature "sh -c 'gh pr merge 5 --merge -d'"

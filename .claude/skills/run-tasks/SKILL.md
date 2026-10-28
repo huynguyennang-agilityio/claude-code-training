@@ -90,4 +90,4 @@ DM the user with the Slack connector: `slack_read_user_profile` without a user I
 
 ## Report
 
-End with the merged PRs and issues, the stopped and left-out issues with reasons, the CI result on `develop`, the proposed decisions, and what is left for the user (PRs above 400 lines to look at, decisions to pick, the GitLab mirror).
+End with the merged PRs and issues, the stopped and left-out issues with reasons, the CI result on `develop`, the proposed decisions, and what is left for the user (PRs above 400 lines and merged PRs that touch auth, `backend/alembic/` or another Phase 2 risk category to look at, decisions to pick, the GitLab mirror).
