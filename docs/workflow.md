@@ -116,7 +116,7 @@ flowchart LR
 
 ## 5. Two confirmations: `/approve-plan` and `/run-tasks`
 
-The user confirms two things and Claude does the rest ([plan 019](plans/019-area-autopilot.md)). `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR. `/run-tasks <issues>` takes the named issues to merge, one after another, and DMs the user on Slack after each merge. A PR whose issue or PR has the `human-merge` label always waits for the user. The steps are in [`.claude/skills/approve-plan/`](../.claude/skills/approve-plan/SKILL.md) and [`.claude/skills/run-tasks/`](../.claude/skills/run-tasks/SKILL.md).
+The user confirms two things and Claude does the rest ([plan 019](plans/019-area-autopilot.md)). `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR. `/run-tasks <issues>` takes the named issues to merge, one after another, and DMs the user on Slack after each merge. A PR above 400 changed lines is listed in the final DM, not held back ([plan 028](plans/028-parallel-run-tasks.md)). The steps are in [`.claude/skills/approve-plan/`](../.claude/skills/approve-plan/SKILL.md) and [`.claude/skills/run-tasks/`](../.claude/skills/run-tasks/SKILL.md).
 
 ```mermaid
 flowchart TD
@@ -124,9 +124,9 @@ flowchart TD
     O --> C["Clean state: branch from origin/develop"]
     C --> I["Subagent implements (Phase 3);<br/>Claude checks Phase 4, adds the PROGRESS line"]
     I --> P["PR, size check, CI, claude-review"]
-    P --> F{"Merge conditions hold?<br/>(checks green, review approves,<br/>evidence, no human-merge)"}
+    P --> F{"Merge conditions hold?<br/>(checks green, review approves,<br/>evidence)"}
     F -- "findings (2 rounds at most)" --> P
-    F -- "human-merge, or still failing" --> S["Stop this issue, DM the user"]
+    F -- "still failing" --> S["Stop this issue, DM the user"]
     F -- yes --> M["Merge, verify develop, DM"]
     M --> N{"More issues?"}
     S --> N

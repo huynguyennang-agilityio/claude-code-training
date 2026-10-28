@@ -11,17 +11,11 @@
 #   git branch -d / -D / --delete
 #   git push to the gitlab remote (the user mirrors GitLab by hand)
 #   gh pr merge / gh pr close with --delete-branch / -d (also in a cluster such as -sd)
-#   gh pr edit / gh issue edit --remove-label naming human-merge (any case, in a list too)
-#   gh label delete human-merge, gh label edit human-merge --name
 #   gh repo edit --delete-branch-on-merge
 #   gh release delete --cleanup-tag (deletes the tag with the release)
 #   gh api: DELETE on git/refs/heads/<branch>; any write to git/refs/heads/develop or main;
 #     DELETE or PATCH on git/refs/tags/<tag> (deleting or moving a tag);
-#     DELETE on issues/<n>/labels/human-merge; DELETE or PUT on issues/<n>/labels; PATCH on
-#     issues/<n> or pulls/<n> with a labels field; DELETE or PATCH on labels/human-merge;
-#     PATCH on the repository with delete_branch_on_merge; GraphQL deleteRef, updateRef(s),
-#     removeLabelsFromLabelable, clearLabelsFromLabelable, deleteLabel, updateLabel
-# human-merge is the label that makes /run-tasks stop for the user (plan 021).
+#     PATCH on the repository with delete_branch_on_merge; GraphQL deleteRef, updateRef(s)
 #
 # Best effort, not a security boundary: the command text is split on ; & | ( ) ` and
 # newlines (not inside quotes). Then each $(...) and `...` inside double quotes, and, when
@@ -30,8 +24,8 @@
 # Known gaps: a command built through a variable or a script file; a bare `git push` after
 # a `checkout`, `switch` or `cd` in the same command (the branch is read before they run);
 # exotic refs such as `develop^{}`; `git update-ref -d`; a gh alias or extension;
-# `gh api --input <file>` and `@file` fields (the body is in a file); GraphQL that removes
-# a label by ID through another mutation; `curl` calls to the GitHub API. Known nuisance:
+# `gh api --input <file>` and `@file` fields (the body is in a file); `curl` calls to the
+# GitHub API. Known nuisance:
 # when the command contains `bash -c` or `eval`, any quoted string that reads as a blocked
 # command is blocked too.
 # Needs jq and perl; without them the hook warns and allows the command.
@@ -127,18 +121,6 @@ is_false() {
   return 1
 }
 
-# names_human_merge <label list>: a comma list, with \x01 for the spaces inside quotes.
-names_human_merge() {
-  local list=${1//$'\x01'/ } label labels
-  IFS=, read -r -a labels <<<"$list"
-  for label in "${labels[@]}"; do
-    label=${label#"${label%%[! ]*}"}
-    label=${label%"${label##*[! ]}"}
-    [ "$(lower "$label")" = human-merge ] && return 0
-  done
-  return 1
-}
-
 # gh pr merge / gh pr close: --delete-branch, -d, -d inside a short-flag cluster.
 check_gh_delete_branch() {
   local arg pending=false flags=true chars c j
@@ -172,53 +154,6 @@ check_gh_delete_branch() {
   done
 }
 
-# gh pr edit / gh issue edit: --remove-label naming human-merge.
-check_gh_remove_label() {
-  local arg pending="" flags=true
-  for arg in "$@"; do
-    if [ -n "$pending" ]; then
-      [ "$pending" = label ] && names_human_merge "$arg" && block "removing the human-merge label"
-      pending=""
-      continue
-    fi
-    $flags || continue
-    case "$arg" in
-      --) flags=false ;;
-      --remove-label) pending=label ;;
-      --remove-label=*) names_human_merge "${arg#*=}" && block "removing the human-merge label" ;;
-      --*=*) ;;
-      --title | --body | --body-file | --base | --add-label | --add-assignee | --remove-assignee | \
-        --add-reviewer | --remove-reviewer | --add-project | --remove-project | --milestone | --repo)
-        pending=skip
-        ;;
-      --*) ;;
-      -t | -b | -F | -B | -m | -R) pending=skip ;;
-    esac
-  done
-}
-
-# gh label delete human-merge; gh label edit human-merge --name (a rename).
-check_gh_label() {
-  local action=$1 arg pending=false name="" rename=false
-  shift
-  for arg in "$@"; do
-    if $pending; then
-      pending=false
-      continue
-    fi
-    case "$arg" in
-      --name | -n) rename=true pending=true ;;
-      --name=* | -n?*) rename=true ;;
-      --color | --description | --repo | -c | -d | -R) pending=true ;;
-      -*) ;;
-      *) [ -z "$name" ] && name=$arg ;;
-    esac
-  done
-  names_human_merge "$name" || return
-  [ "$action" = delete ] && block "deleting the human-merge label"
-  $rename && block "renaming the human-merge label"
-}
-
 # gh repo edit --delete-branch-on-merge: GitHub would delete the head branch of every merged PR.
 check_gh_repo_edit() {
   local arg
@@ -230,10 +165,8 @@ check_gh_repo_edit() {
   done
 }
 
-# gh api: the REST and GraphQL calls that delete a branch, move develop or main, turn on
-# branch deletion at merge, or remove, replace, rename or delete the human-merge label.
-# A call that replaces every label is blocked even when it keeps human-merge: the hook
-# cannot see the issue's labels, and `gh pr edit --add-label` does the same safely.
+# gh api: the REST and GraphQL calls that delete a branch, move develop or main, delete or
+# move a tag, or turn on branch deletion at merge.
 check_gh_api() {
   local arg pending="" method="" endpoint="" body=false fields=() field key repo='repos/[^/]+/[^/]+'
   for arg in "$@"; do
@@ -272,30 +205,22 @@ check_gh_api() {
 
   if [ "$endpoint" = graphql ]; then
     case "$*" in
-      *deleteRef* | *updateRef* | *removeLabelsFromLabelable* | *clearLabelsFromLabelable* | *deleteLabel* | *updateLabel*)
-        block "deleting or moving a ref, or removing a label, through gh api graphql"
+      *deleteRef* | *updateRef*)
+        block "deleting or moving a ref through gh api graphql"
         ;;
     esac
     return
   fi
 
   local tag_ref="^$repo/git/refs/tags/" branch_ref="^$repo/git/refs/heads/" protected="^$repo/git/refs/heads/(develop|main)\$"
-  local issue_labels="^$repo/issues/[0-9]+/labels\$" one_label="^$repo/issues/[0-9]+/labels/human-merge\$"
-  local issue="^$repo/(issues|pulls)/[0-9]+\$" label="^$repo/labels/human-merge\$" repo_only="^$repo\$"
+  local repo_only="^$repo\$"
 
   [[ $method = DELETE && $endpoint =~ $branch_ref ]] && block "deleting a branch (gh api)"
   [[ $method = DELETE && $endpoint =~ $tag_ref ]] && block "deleting a tag (gh api)"
   [[ $method = PATCH && $endpoint =~ $tag_ref ]] && block "moving a tag (gh api)"
   [[ $method != GET && $endpoint =~ $protected ]] && block "moving develop or main (gh api)"
-  [[ $method = DELETE && $endpoint =~ $one_label ]] && block "removing the human-merge label (gh api)"
-  [[ ($method = DELETE || $method = PUT) && $endpoint =~ $issue_labels ]] &&
-    block "removing or replacing every label of an issue (gh api)"
-  [[ ($method = DELETE || $method = PATCH) && $endpoint =~ $label ]] &&
-    block "deleting or renaming the human-merge label (gh api)"
   for field in "${fields[@]}"; do
     key=$(lower "${field%%=*}")
-    [[ $method = PATCH && $endpoint =~ $issue && ($key = labels || $key = 'labels[]') ]] &&
-      block "replacing every label of an issue (gh api)"
     [[ $method = PATCH && $endpoint =~ $repo_only && $key = delete_branch_on_merge ]] &&
       ! is_false "${field#*=}" && block "turning on branch deletion at merge (gh api)"
   done
@@ -343,8 +268,6 @@ check_gh() {
 
   case "$cmd" in
     "pr merge" | "pr close") check_gh_delete_branch "${rest[@]}" ;;
-    "pr edit" | "issue edit") check_gh_remove_label "${rest[@]}" ;;
-    "label delete" | "label edit") check_gh_label "${words[1]}" "${rest[@]}" ;;
     "repo edit") check_gh_repo_edit "${rest[@]}" ;;
     "release delete") check_gh_release_delete "${rest[@]}" ;;
   esac
