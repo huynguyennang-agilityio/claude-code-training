@@ -6,17 +6,20 @@
 # Blocked:
 #   git push to develop or main (also a bare `git push` while one of them is checked out)
 #   git push --force / -f / --force-with-lease / --force-if-includes / +refspec
-#   git push --delete / -d / :refspec / --mirror / --all / --prune
+#   git push --delete / -d / :refspec / --mirror / --all / --prune (branches and tags alike:
+#     a release tag is never deleted, moved or force-pushed; pushing a new one is allowed)
 #   git branch -d / -D / --delete
 #   git push to the gitlab remote (the user mirrors GitLab by hand)
 #   gh pr merge / gh pr close with --delete-branch / -d (also in a cluster such as -sd)
 #   gh pr edit / gh issue edit --remove-label naming human-merge (any case, in a list too)
 #   gh label delete human-merge, gh label edit human-merge --name
 #   gh repo edit --delete-branch-on-merge
+#   gh release delete --cleanup-tag (deletes the tag with the release)
 #   gh api: DELETE on git/refs/heads/<branch>; any write to git/refs/heads/develop or main;
+#     DELETE or PATCH on git/refs/tags/<tag> (deleting or moving a tag);
 #     DELETE on issues/<n>/labels/human-merge; DELETE or PUT on issues/<n>/labels; PATCH on
 #     issues/<n> or pulls/<n> with a labels field; DELETE or PATCH on labels/human-merge;
-#     PATCH on the repository with delete_branch_on_merge; GraphQL deleteRef, updateRefs,
+#     PATCH on the repository with delete_branch_on_merge; GraphQL deleteRef, updateRef(s),
 #     removeLabelsFromLabelable, clearLabelsFromLabelable, deleteLabel, updateLabel
 # human-merge is the label that makes /run-tasks stop for the user (plan 021).
 #
@@ -59,13 +62,13 @@ check_push() {
       --repo) pending=repo ;;
       --repo=*) remote=${arg#--repo=} ;;
       --force | --force-with-lease | --force-with-lease=* | --force-if-includes)
-        block "force-push" ;;
-      --delete) block "deleting a remote branch" ;;
+        block "force-push (of a branch or a tag)" ;;
+      --delete) block "deleting a remote branch or tag" ;;
       --mirror | --all | --prune) block "git push $arg can overwrite or delete remote branches" ;;
       --*) ;;
       -*)
-        case "$arg" in *f*) block "force-push" ;; esac
-        case "$arg" in *d*) block "deleting a remote branch" ;; esac
+        case "$arg" in *f*) block "force-push (of a branch or a tag)" ;; esac
+        case "$arg" in *d*) block "deleting a remote branch or tag" ;; esac
         ;;
       *)
         if [ -z "$remote" ]; then remote=$arg; else refs+=("$arg"); fi
@@ -84,8 +87,10 @@ check_push() {
   fi
   for spec in "${refs[@]}"; do
     case "$spec" in
+      +refs/tags/*) block "force-pushing a tag" ;;
+      :refs/tags/*) block "deleting a remote tag" ;;
       +*) block "force-push" ;;
-      :*) block "deleting a remote branch" ;;
+      :*) block "deleting a remote branch or tag" ;;
     esac
     dest=${spec##*:}
     dest=${dest#refs/heads/}
@@ -267,18 +272,20 @@ check_gh_api() {
 
   if [ "$endpoint" = graphql ]; then
     case "$*" in
-      *deleteRef* | *updateRefs* | *removeLabelsFromLabelable* | *clearLabelsFromLabelable* | *deleteLabel* | *updateLabel*)
-        block "deleting a branch or removing a label through gh api graphql"
+      *deleteRef* | *updateRef* | *removeLabelsFromLabelable* | *clearLabelsFromLabelable* | *deleteLabel* | *updateLabel*)
+        block "deleting or moving a ref, or removing a label, through gh api graphql"
         ;;
     esac
     return
   fi
 
-  local branch_ref="^$repo/git/refs/heads/" protected="^$repo/git/refs/heads/(develop|main)\$"
+  local tag_ref="^$repo/git/refs/tags/" branch_ref="^$repo/git/refs/heads/" protected="^$repo/git/refs/heads/(develop|main)\$"
   local issue_labels="^$repo/issues/[0-9]+/labels\$" one_label="^$repo/issues/[0-9]+/labels/human-merge\$"
   local issue="^$repo/(issues|pulls)/[0-9]+\$" label="^$repo/labels/human-merge\$" repo_only="^$repo\$"
 
   [[ $method = DELETE && $endpoint =~ $branch_ref ]] && block "deleting a branch (gh api)"
+  [[ $method = DELETE && $endpoint =~ $tag_ref ]] && block "deleting a tag (gh api)"
+  [[ $method = PATCH && $endpoint =~ $tag_ref ]] && block "moving a tag (gh api)"
   [[ $method != GET && $endpoint =~ $protected ]] && block "moving develop or main (gh api)"
   [[ $method = DELETE && $endpoint =~ $one_label ]] && block "removing the human-merge label (gh api)"
   [[ ($method = DELETE || $method = PUT) && $endpoint =~ $issue_labels ]] &&
@@ -293,6 +300,18 @@ check_gh_api() {
       ! is_false "${field#*=}" && block "turning on branch deletion at merge (gh api)"
   done
   return 0
+}
+
+# gh release delete --cleanup-tag (or =true): deletes the tag too. Without it the tag stays.
+check_gh_release_delete() {
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --) return ;;
+      --cleanup-tag) block "deleting a tag (gh release delete --cleanup-tag)" ;;
+      --cleanup-tag=*) is_false "${arg#*=}" || block "deleting a tag (gh release delete --cleanup-tag)" ;;
+    esac
+  done
 }
 
 # check_gh <args after gh>: the first two words that are not flags (or a -R value) name the
@@ -327,6 +346,7 @@ check_gh() {
     "pr edit" | "issue edit") check_gh_remove_label "${rest[@]}" ;;
     "label delete" | "label edit") check_gh_label "${words[1]}" "${rest[@]}" ;;
     "repo edit") check_gh_repo_edit "${rest[@]}" ;;
+    "release delete") check_gh_release_delete "${rest[@]}" ;;
   esac
 }
 

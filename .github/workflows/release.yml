@@ -1,0 +1,52 @@
+# Full release: the API first, then iOS and Android in parallel.
+# Plan: docs/plans/025-release-pipeline.md
+#
+# Runs on:
+#   push of a tag vX.Y.Z      a real release of all three, from a commit on main
+#   workflow_dispatch         by hand; dry_run is on by default
+#   pull_request into develop always a dry run, when this workflow changes
+#
+# Each job calls a child workflow, which checks the tag is on main, picks its environment and
+# decides what a dry run skips. In a called workflow `github.event_name` is this workflow's,
+# so a pull_request run is a dry run in all three children; a dispatch passes its dry_run
+# input down. The apps wait for the API (`needs: api`): they talk to the API version being
+# released, so it must be live first. Setup and secret names: docs/deploy.md.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Checks and builds only; no migration, deploy or upload
+        type: boolean
+        default: true
+  pull_request:
+    branches: [develop]
+    paths:
+      - ".github/workflows/release.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    uses: ./.github/workflows/release-api.yml
+    with:
+      dry_run: ${{ github.event_name == 'pull_request' || inputs.dry_run == true }}
+    secrets: inherit
+
+  ios:
+    needs: api
+    uses: ./.github/workflows/release-ios.yml
+    with:
+      dry_run: ${{ github.event_name == 'pull_request' || inputs.dry_run == true }}
+    secrets: inherit
+
+  android:
+    needs: api
+    uses: ./.github/workflows/release-android.yml
+    with:
+      dry_run: ${{ github.event_name == 'pull_request' || inputs.dry_run == true }}
+    secrets: inherit

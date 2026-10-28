@@ -45,10 +45,13 @@ jobs:
     # falsy, so that form always gives 'production'.
     environment: ${{ github.event_name != 'pull_request' && !inputs.dry_run && 'production' || '' }}
     concurrency:
-      # A PR's runs cancel the older run on the same branch, and each dispatched dry run has
-      # its own group. Real releases share one group: one runs, and a newer pending release
-      # replaces an older pending one, so a dry run can never cancel a release.
-      group: release-ios-${{ github.event_name == 'pull_request' && github.ref || inputs.dry_run && format('dry-{0}', github.run_id) || 'release' }}
+      # One group per case:
+      # - a PR run cancels the older run of the same workflow on the same branch (in a called
+      #   workflow `github.workflow` is the caller's, so it does not cancel the caller's own);
+      # - each dispatched dry run gets its own group, so it can never cancel a release;
+      # - real releases share `release-ios-release` without cancelling: one runs, and a newer
+      #   pending release replaces an older pending one.
+      group: release-ios-${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow, github.ref) || inputs.dry_run && format('dry-{0}', github.run_id) || 'release' }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     env:
       DRY_RUN: ${{ github.event_name == 'pull_request' || inputs.dry_run == true }}

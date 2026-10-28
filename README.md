@@ -389,6 +389,21 @@ The user does these once, in the repository settings:
 3. **Ruleset "Protect develop and main":** `develop` and `main` require a pull request, block force pushes and deletion, and have no bypass actors. Approvals required: 0.
 4. **Ruleset "Require CI on develop":** targets `develop` only and requires the status checks `backend`, `mobile` and `goldens` (source GitHub Actions), with no bypass actors. It is separate from the ruleset above because CI does not run on PRs into `main`, so a required check there would never report.
 
+## Release
+
+The API runs on Render with a Neon database, the iOS app goes to TestFlight and the Android app to Firebase App Distribution, all from GitHub Actions on a tag on `main` ([plan 025](docs/plans/025-release-pipeline.md)). The setup, secret names, rollback and the free-tier limits are in [`docs/deploy.md`](docs/deploy.md).
+
+To release, type one of these commands in Claude Code. Each checks the secrets and CI, shows the commits since the last tag, asks you to confirm the tag, pushes only that tag and reports the run:
+
+| Command | Tag | Releases |
+| --- | --- | --- |
+| `/release [patch\|minor\|major]` | `vX.Y.Z` | the API, then iOS and Android |
+| `/release-api [patch\|minor\|major]` | `api-vX.Y.Z` | the API (Neon migrations, then Render) |
+| `/release-ios [patch\|minor\|major]` | `ios-vX.Y.Z` | iOS to TestFlight |
+| `/release-android [patch\|minor\|major]` | `android-vX.Y.Z` | Android to Firebase App Distribution |
+
+Release only from `main`: merge `develop` into `main` through a pull request first. A tag is never deleted or moved; a failed release is fixed by the next version.
+
 ## GitLab mirror
 
 GitHub ([huynguyennang-agilityio/claude-code-training](https://github.com/huynguyennang-agilityio/claude-code-training)) is the primary repository. [GitLab](https://gitlab.asoft-python.com/huy.nguyennang/claude-code-training) is a read-only copy: don't push to it, and don't open issues or merge requests there (both are turned off).
