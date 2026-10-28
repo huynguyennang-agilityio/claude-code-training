@@ -52,7 +52,7 @@ Every change goes through the phases below in order. Don't skip a gate. When a g
 General rules:
 
 - Every non-trivial change starts from an approved plan file (Phase 1). No plan, no issue and no code.
-- Work on one GitHub issue at a time.
+- Work on one GitHub issue at a time in a session. `/run-tasks` runs at most two issue sessions at once, each in its own worktree; never run `docker compose` from a worktree ([details](.claude/workflow/implement.md#working-in-a-worktree)).
 - `develop` is the default branch. `main` holds released code and only receives merges from `develop`.
 - Never push directly to `develop` or `main`.
 - GitHub is the primary repository. GitLab is a read-only mirror that the user updates by hand from a machine on the VPN (see [GitLab mirror](README.md#gitlab-mirror)). Claude never pushes to the `gitlab` remote.
@@ -70,9 +70,9 @@ Being able to run a command is not permission to run it.
 | Set `Status: approved` on a plan | Only through `/approve-plan <NNN>`, which only the user can run: typing the command is the approval, and the skill quotes it. Otherwise the user does it |
 | Create an issue | Only from an approved plan, exactly as the plan lists it: through `/approve-plan` (from the approved artifact, or on the plan PR), or from a plan the user approved on `develop` |
 | Create a branch and edit files for an issue from an approved plan | Yes |
-| Commit | Yes, for a finished task whose lint, type checks and tests pass, on a branch other than `develop`/`main`. `/approve-plan` commits the plan PR, and `/run-tasks` the issues it names |
-| Push, open a PR | Only when the user asks or the task explicitly includes it. Running `/approve-plan` counts for the plan PR, and running `/run-tasks` counts for the issues it names |
-| Merge a PR, close an issue | Only when the user explicitly authorizes that PR or issue. `/approve-plan` merges the plan PR it approves. `/run-tasks` merges the PRs of the issues the user named in that run when every merge condition holds |
+| Commit | Yes, for a finished task whose lint, type checks and tests pass, on a branch other than `develop`/`main`. `/approve-plan` commits the plan PR, and `/run-tasks` the issues it names. A child session that `/run-tasks` starts has the same permission as the run, for its own issue only |
+| Push, open a PR | Only when the user asks or the task explicitly includes it. Running `/approve-plan` counts for the plan PR, and running `/run-tasks` counts for the issues it names. A child session that `/run-tasks` starts has the same permission as the run, for its own issue only |
+| Merge a PR, close an issue | Only when the user explicitly authorizes that PR or issue. `/approve-plan` merges the plan PR it approves. `/run-tasks` merges the PRs of the issues the user named in that run when every merge condition holds. A child session that `/run-tasks` starts has the same permission as the run, for its own issue only |
 | Edit `backend/DECISIONS.md` or `mobile/DECISIONS.md` | Only through a "decisions from run" PR with the entries the user picked in their own chat message; that message authorizes opening and merging that one PR. Never during `/run-tasks` itself |
 | Push a release tag | Only through `/release`, `/release-api`, `/release-ios` or `/release-android`, which only the user can run, and only after the user confirms that exact tag in chat: one new tag on `origin/main`, pushed as `refs/tags/<tag>` ([plan 025](docs/plans/025-release-pipeline.md)) |
 | Push to `develop`/`main`, force-push, delete branches, delete or move a tag | Never |

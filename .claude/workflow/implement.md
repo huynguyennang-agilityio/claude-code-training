@@ -11,6 +11,15 @@ Build in small steps. For each step:
 3. Run lint: `flutter analyze` in `mobile/`; `ruff check .` and `ruff format --check .` in `backend/`.
 4. Run type checks: `flutter analyze` covers Dart; `mypy` in `backend/` (strict, configured in `pyproject.toml`).
 
+## Working in a worktree
+
+`/run-tasks` runs **at most two issue sessions at once**, each in its own git worktree ([plan 028](../../docs/plans/028-parallel-run-tasks.md)). In a worktree:
+
+- Branch from `origin/develop` first (`git switch -c <type>/<issue>-<name> origin/develop`), never `git switch develop`, which fails while `develop` is checked out in the main folder.
+- Then run `.claude/scripts/worktree-setup.sh <main checkout> <issue>`. It copies `.env` with the issue's own test database (`stridequest_i<issue>_test`, created by the integration conftest), creates `backend/.venv` and runs `flutter pub get`. The `export` line it prints has the password masked: never run it; the real URL is in the worktree's `.env`. If the script warns about an exported `TEST_DATABASE_URL`, prefix each test command with `env -u TEST_DATABASE_URL`, since each Bash call starts a new shell.
+- **Never run `docker compose` from a worktree.** A compose project started there takes the same port as the main checkout's; the main checkout's `db` container serves every worktree.
+- The knowledge graph (`backend/.ua/`, `mobile/.ua/`) is local to the main checkout; read it there.
+
 ## Local hooks
 
 A `PostToolUse` hook (`.claude/hooks/format-on-edit.sh`, set up in `.claude/settings.json`) formats each Python file under `backend/` (`ruff format`) and each Dart file under `mobile/lib/` or `mobile/test/` (`dart format`) right after you write it with `Edit` or `Write`. Generated Dart files are skipped, and files changed through Bash are not formatted. The `Stop` hook below still checks them. Its tests are in `.claude/hooks/test-format-on-edit.sh`.
