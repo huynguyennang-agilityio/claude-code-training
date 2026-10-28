@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
 	<string>StrideQuest reads your steps, calories, distance and sleep from Apple Health to track your progress in challenges.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>StrideQuest does not write to Apple Health. The Health library it uses can write data, so iOS requires this description.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
