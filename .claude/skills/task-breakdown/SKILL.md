@@ -51,7 +51,7 @@ One task is one issue. Each backend endpoint is its own task.
 - **Description** says only what the contract, `CLAUDE.md` and the plan's Approach do not already say for this task. The order of work goes here (the old Steps part is gone). A high-risk task says so.
 - **Acceptance criteria** are behaviour only: what a user, a client or another module can observe. **Aim for at most 3 items.** 4 or 5 are allowed only when the task cannot be split further (one endpoint, one screen); more than 5 means split the task. No "works well", no "clean code".
 - **Verification** holds the commands, the repo's required checks for the task type (below) and the manual check. A reviewer ticks it from the test output and the evidence.
-- **Dependencies** are task numbers, as in the table's "Depends on" (`1, 3`), or `None`.
+- **Dependencies** are lower task numbers, as in the table's "Depends on" (`1, 3`), or `None`. `/approve-plan` creates the issues in order, so a task never depends on a later one.
 - **Files likely touched** lists paths, code first, then tests. A fresh subagent starts from this list.
 - **Estimated scope** is the size from "Sizing", the number of code files and the estimated changed lines.
 - The `#### Task N` title is the issue title, and `N` is the row number in "Issues to create". Tasks are numbered 1, 2, ... across the phases.
@@ -88,7 +88,7 @@ Count code files: not tests, fixtures, examples or generated files. A Dart libra
 
 ### Phases and checkpoints
 
-- Tasks sit under `### Phase N: <name>`, in the order the dependencies allow. A task's dependencies are in the same or an earlier phase.
+- Tasks sit under `### Phase N: <name>`, in the order the dependencies allow. Each dependency is a lower-numbered task, in the same or an earlier phase. Tasks of one phase that depend on each other run one after the other in its batch.
 - Put a high-risk task in the earliest phase its dependencies allow (fail fast), and say so in its Description.
 - After each phase comes `#### Checkpoint: <name>` with a checklist: the tests pass, the build or lint is clean, the main flow of the phase works, and the user reviews before the next phase. A checkpoint is not a task and gets no issue.
 - **A checkpoint is a suggested `/run-tasks` batch:** run the tasks of one phase together, then stop for the user's review. `/run-tasks` itself does not change.
@@ -118,7 +118,7 @@ Every task's Verification lists what applies of these, so the Acceptance criteri
 Run this review before you publish a draft or return one, and again after every change to the task breakdown. It is the "Verification" list of `agent-skills:planning-and-task-breakdown` plus the repo's rules. Fix every item that fails before publishing.
 
 - [ ] Every task has Acceptance criteria (behaviour, 3 items as the target, at most 5) and Verification
-- [ ] Dependencies are in the right order: each points to a task in the same or an earlier phase, and no task depends on a task it does not need (shared groundwork is split out)
+- [ ] Dependencies are in the right order: each is a lower-numbered task, in the same or an earlier phase, and no task depends on a task it does not need (shared groundwork is split out)
 - [ ] No task is L or larger, except the first task of a new backend module, which says why
 - [ ] No task title has "and"
 - [ ] There is a checkpoint after every phase
