@@ -342,7 +342,7 @@ The plugin is turned off in the Claude GitHub workflows (`SECURITY_GUIDANCE_DISA
 
 `develop` is the default branch and collects finished work. `main` holds released code and is updated only by merging `develop` into it. Both branches are protected, so changes land only through pull requests.
 
-With Claude Code, two commands cover most of this: `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR; `/run-tasks <issues>` takes the named issues through implementation, PR, review fixes and merge, with a Slack DM per merge. See [`docs/workflow.md`](docs/workflow.md#5-two-confirmations-approve-plan-and-run-tasks).
+With Claude Code, two commands cover most of this: `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR; `/run-tasks <issues>` takes the named issues through implementation, PR, review fixes and merge, up to two at once, each in its own session and worktree, and ends with a report artifact sent over Slack. See [`docs/workflow.md`](docs/workflow.md#5-two-confirmations-approve-plan-and-run-tasks).
 
 The full workflow, with its gates, is in [`CLAUDE.md`](CLAUDE.md#workflow), the rules of each phase in [`.claude/workflow/`](.claude/workflow/), and the flow is drawn in [`docs/workflow.md`](docs/workflow.md).
 

@@ -116,22 +116,27 @@ flowchart LR
 
 ## 5. Two confirmations: `/approve-plan` and `/run-tasks`
 
-The user confirms two things and Claude does the rest ([plan 019](plans/019-area-autopilot.md)). `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR. `/run-tasks <issues>` takes the named issues to merge, one after another, and DMs the user on Slack after each merge. A PR above 400 changed lines is listed in the final DM, not held back ([plan 028](plans/028-parallel-run-tasks.md)). The steps are in [`.claude/skills/approve-plan/`](../.claude/skills/approve-plan/SKILL.md) and [`.claude/skills/run-tasks/`](../.claude/skills/run-tasks/SKILL.md).
+The user confirms two things and Claude does the rest ([plan 019](plans/019-area-autopilot.md)). `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR. `/run-tasks <issues>` (`/run-tasks 1,2,3,4` or `/run-tasks #1 #2`) takes the named issues to merge, up to two at once, each in its own child session and worktree ([plan 028](plans/028-parallel-run-tasks.md)). It asks at most once, in a preflight before the first issue; after that a small problem is fixed in place and a big one stops only its issue. The run ends with a Vietnamese report artifact (each issue's status, the big problems with a proposed fix, `Not verified` lines, PRs above 400 changed lines, proposed decisions) and a Slack DM with its link; the only other DM is the one at the start. A PR above 400 changed lines is listed in the report, not held back. The steps are in [`.claude/skills/approve-plan/`](../.claude/skills/approve-plan/SKILL.md) and [`.claude/skills/run-tasks/`](../.claude/skills/run-tasks/SKILL.md).
 
 ```mermaid
 flowchart TD
-    A["User: /run-tasks #a #b"] --> O["Order by Depends on, then area;<br/>DM the order"]
-    O --> C["Clean state: branch from origin/develop"]
-    C --> I["Subagent implements (Phase 3);<br/>Claude checks Phase 4, adds the PROGRESS line"]
-    I --> P["PR, size check, CI, claude-review"]
-    P --> F{"Merge conditions hold?<br/>(checks green, review approves,<br/>evidence)"}
-    F -- "findings (2 rounds at most)" --> P
-    F -- "still failing" --> S["Stop this issue, DM the user"]
-    F -- yes --> M["Merge, verify develop, DM"]
-    M --> N{"More issues?"}
+    A["User: /run-tasks 1,2,3,4"] --> PF["Preflight: check tools, keys and settings;<br/>ask once if something is missing"]
+    PF --> O["Order by Depends on, then area; pair issues<br/>with no dependency and no shared files; DM the start"]
+    O --> C["Start up to two child sessions,<br/>each in its own worktree"]
+    subgraph child ["Each child session"]
+      W["worktree-setup.sh, branch from origin/develop"] --> I["Implement (Phase 3), check Phase 4,<br/>PROGRESS line"]
+      I --> P["PR, size check, CI, claude-review"]
+      P --> F{"Merge conditions hold?<br/>(checks green, review approves,<br/>evidence)"}
+      F -- "findings (2 rounds at most)" --> P
+      F -- yes --> D["Merge origin/develop in, re-run checks"]
+      D --> M["Merge, verify develop, RESULT: merged"]
+      F -- "big problem" --> S["wip commit, RESULT: stopped"]
+    end
+    C --> W
+    M --> N{"More ready issues?"}
     S --> N
     N -- yes --> C
-    N -- no --> E["Refresh the knowledge graph,<br/>final DM with proposed decisions"]
+    N -- no --> E["Refresh the knowledge graph, report artifact,<br/>Slack DM with its link"]
 ```
 
 ## 6. Permissions
