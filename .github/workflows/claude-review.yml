@@ -3,7 +3,8 @@
 # Three jobs:
 #   gate    no checkout, no secret: stops for closed PRs, forks, drafts and other base branches
 #           (fail closed)
-#   review  Claude with read-only permissions; returns the review as structured output
+#   review  Claude with read-only permissions; returns the review as structured output, which
+#           a fixed secret check passes before it is uploaded as an artifact
 #   post    a fixed script, no AI: edits the one comment marked <!-- claude-review --> or creates it
 #
 # Runs when a PR opens, is marked ready for review or is reopened, and when a collaborator
@@ -62,8 +63,6 @@ jobs:
       pull-requests: read
       issues: read
       checks: read
-    outputs:
-      result: ${{ steps.claude.outputs.structured_output }}
     env:
       PR: ${{ github.event.pull_request.number || github.event.issue.number }}
     steps:
@@ -138,6 +137,44 @@ jobs:
             `## Claude review · <short head commit SHA>`. Do not post it anywhere: you have no
             command that comments, and a separate job posts it.
 
+      # The check script from the commit this workflow runs from (the merge commit for a
+      # pull_request event, develop for "@claude review"), never from the PR head.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: trusted
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      # GitHub drops a job output that holds a masked value without saying which, so the
+      # review reaches the post job as an artifact instead (plan 029). This check stands in
+      # for that filter: on a match it names the rule, never the value, and nothing is
+      # uploaded. The review arrives through an environment variable and is never
+      # interpolated into the script; the decoded strings are checked as well as the JSON.
+      - name: Check the review for secrets
+        env:
+          RESULT: ${{ steps.claude.outputs.structured_output }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_JOB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RESULT" ]; then
+            echo "Claude returned no review." >&2
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/claude-review"
+          printf '%s' "$RESULT" >"$RUNNER_TEMP/claude-review/result.json"
+          jq -r '.. | strings' "$RUNNER_TEMP/claude-review/result.json" >"$RUNNER_TEMP/review-strings.txt"
+          for f in "$RUNNER_TEMP/claude-review/result.json" "$RUNNER_TEMP/review-strings.txt"; do
+            bash trusted/.github/scripts/check-no-secrets.sh "$f" CLAUDE_CODE_OAUTH_TOKEN GH_JOB_TOKEN
+          done
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: claude-review-result
+          path: ${{ runner.temp }}/claude-review/result.json
+          retention-days: 1
+          if-no-files-found: error
+
       # Audit trail without publishing the transcript (this repo is public): which tools
       # Claude used, the Bash commands it ran, and whether the project's Stop hook ran.
       - name: Summarise the run
@@ -169,19 +206,22 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      # The review arrives through an environment variable and is never interpolated into
-      # the script. GitHub drops a job output that contains a masked secret, so such a review
-      # arrives empty and this job fails instead of posting it.
+      # The review job uploads its result only when the secret check passed; without the
+      # artifact this job does not run, or fails here, and posts nothing.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: claude-review-result
+          path: ${{ runner.temp }}/claude-review
+
       # This workflow and claude-security-scan.yml post as the same user, so only a comment
       # that ends with this workflow's marker is its own. Every "<!--" in the review becomes
       # "< !--", so the review can neither carry a marker nor hide text (plan 018).
       - env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number || github.event.issue.number }}
-          RESULT: ${{ needs.review.outputs.result }}
         run: |
           set -euo pipefail
-          REVIEW=$(printf '%s' "$RESULT" | jq -r '.review // empty | gsub("<!--"; "< !--")' 2>/dev/null || true)
+          REVIEW=$(jq -r '.review // empty | gsub("<!--"; "< !--")' "$RUNNER_TEMP/claude-review/result.json" 2>/dev/null || true)
           if [ -z "$REVIEW" ]; then
             echo "The review is empty; nothing posted." >&2
             exit 1
