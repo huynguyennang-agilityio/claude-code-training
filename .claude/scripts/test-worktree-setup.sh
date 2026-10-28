@@ -31,11 +31,12 @@ TEST_DATABASE_URL=postgresql+asyncpg://stridequest:s3cret-pass@localhost:5432/st
 OTHER=keep me
 EOF
 
-# run <worktree> <args...>: stdout and stderr together in $out, exit code in $code.
+# run <worktree> <args...>: stdout and stderr together in $out, exit code in $code. A
+# TEST_DATABASE_URL exported by the caller's shell is left out, except where a case sets it.
 run() {
   local dir=$1
   shift
-  out=$(cd "$dir" && WORKTREE_SETUP_SKIP_INSTALL=1 "$script" "$@" 2>&1)
+  out=$(cd "$dir" && env -u TEST_DATABASE_URL ${RUN_ENV:+"$RUN_ENV"} WORKTREE_SETUP_SKIP_INSTALL=1 "$script" "$@" 2>&1)
   code=$?
 }
 
@@ -76,12 +77,12 @@ run "$wt" "$main" 164
 [ $code -eq 0 ] && grep -q 'stridequest_i164_test' "$wt/.env" && ok || bad "second run: exit $code: $out"
 
 # 6. Bad input fails without writing anything.
-run "$wt" "$main" abc
-[ $code -ne 0 ] && ok || bad "a non-numeric issue was accepted"
-run "$main" "$main" 7
-[ $code -ne 0 ] && ok || bad "running in the main checkout was accepted"
 wt3="$tmp/wt-166"
 g -C "$main" worktree add -q -b feat/166-x "$wt3"
+run "$wt3" "$main" abc
+[ $code -ne 0 ] && [ ! -e "$wt3/.env" ] && ok || bad "a non-numeric issue was accepted"
+run "$main" "$main" 7
+[ $code -ne 0 ] && ok || bad "running in the main checkout was accepted"
 run "$wt3" "$tmp/nowhere" 166
 [ $code -ne 0 ] && [ ! -e "$wt3/.env" ] && ok || bad "a missing main checkout was accepted"
 mv "$main/.env" "$main/.env.off"
@@ -89,7 +90,26 @@ run "$wt3" "$main" 166
 [ $code -ne 0 ] && [ ! -e "$wt3/.env" ] && ok || bad "a main checkout without .env was accepted"
 mv "$main/.env.off" "$main/.env"
 
-# 7. It never runs docker compose.
+# 7. A quoted URL keeps its quotes and is not flagged.
+quoted="$tmp/quoted"
+g init -q -b develop "$quoted"
+g -C "$quoted" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+printf 'TEST_DATABASE_URL="postgresql+asyncpg://u:pw-q@localhost:5432/stridequest_test?ssl=disable"\n' >"$quoted/.env"
+wt4="$tmp/wt-167"
+g -C "$quoted" worktree add -q -b feat/167-x "$wt4"
+run "$wt4" "$quoted" 167
+grep -qx 'TEST_DATABASE_URL="postgresql+asyncpg://u:pw-q@localhost:5432/stridequest_i167_test?ssl=disable"' "$wt4/.env" &&
+  ok || bad "quoted URL: $(cat "$wt4/.env")"
+grep -q 'another worktree may use the same database' <<<"$out" && bad "quoted URL flagged: $out" || ok
+
+# 8. An exported TEST_DATABASE_URL naming another database is flagged, without the URL.
+RUN_ENV="TEST_DATABASE_URL=postgresql+asyncpg://u:pw-env@localhost:5432/stridequest_test" run "$wt" "$main" 164
+grep -q 'exported in this shell and overrides' <<<"$out" && ok || bad "exported URL not flagged: $out"
+grep -q 'pw-env' <<<"$out" && bad "the exported password was printed: $out" || ok
+RUN_ENV="TEST_DATABASE_URL=postgresql+asyncpg://u:pw-env@localhost:5432/stridequest_i164_test" run "$wt" "$main" 164
+grep -q 'exported in this shell' <<<"$out" && bad "a matching exported URL was flagged: $out" || ok
+
+# 9. It never runs docker compose.
 grep -Eq '^[^#]*docker([[:space:]]|-)compose' "$script" && bad "the script runs docker compose" || ok
 
 echo "$pass passed, $fail failed"

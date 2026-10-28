@@ -32,9 +32,18 @@ root=$(git rev-parse --show-toplevel 2>/dev/null) || die "run it inside the work
 database="stridequest_i${issue}_test"
 
 # The URL with its database replaced, and the same URL with the password masked.
-# Shape: <scheme>://<user>[:<password>]@<host>[:<port>]/<database>
+# Shape: <scheme>://<user>[:<password>]@<host>[:<port>]/<database>[?<query>], maybe quoted.
+# Only the database name is replaced, so a closing quote or a query string stays.
 issue_url() {
-  sed -E "s#^(TEST_DATABASE_URL=[^/]*//[^/]*/)[^?]*#\1${database}#" <<<"$1"
+  sed -E "s#^(TEST_DATABASE_URL=[^/]*//[^/]*/)[A-Za-z0-9_]*#\1${database}#" <<<"$1"
+}
+# The database a URL names, without quotes or a query string.
+database_of() {
+  local value=${1#TEST_DATABASE_URL=}
+  value=${value%\"}
+  value=${value%\'}
+  value=${value%%\?*}
+  printf '%s' "${value##*/}"
 }
 masked() {
   sed -E 's#^(TEST_DATABASE_URL=[^/]*//[^:/@]*):[^@]*@#\1:****@#' <<<"$1"
@@ -72,7 +81,10 @@ fi
 
 line=$(grep -E '^TEST_DATABASE_URL=' "$root/.env" | tail -n 1) || die "$root/.env has no TEST_DATABASE_URL"
 echo "export $(masked "$line")"
-case "$line" in
-  */"$database") ;;
-  *) echo "worktree-setup.sh: TEST_DATABASE_URL in $root/.env does not name $database; another worktree may use the same database." >&2 ;;
-esac
+if [ "$(database_of "$line")" != "$database" ]; then
+  echo "worktree-setup.sh: TEST_DATABASE_URL in $root/.env does not name $database; another worktree may use the same database." >&2
+fi
+# An exported TEST_DATABASE_URL wins over .env in the backend settings.
+if [ -n "${TEST_DATABASE_URL+set}" ] && [ "$(database_of "$TEST_DATABASE_URL")" != "$database" ]; then
+  echo "worktree-setup.sh: TEST_DATABASE_URL is exported in this shell and overrides $root/.env; unset it before running the tests here." >&2
+fi
