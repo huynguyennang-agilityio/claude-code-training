@@ -9,7 +9,7 @@ Every non-trivial change starts with a plan, before any issue, branch or code. T
 - **Issues:** Claude creates issues only from an approved plan, exactly as the plan lists them, and writes the numbers into the `Issues:` line and the "Depends on" column. Through `/approve-plan` this happens in the plan PR itself, so one PR covers the plan, its approval and its issue numbers. A plan approved on GitHub gets its issues once it is on `develop`, with a separate docs PR for the numbers.
 - **Issue titles and areas:** every issue title starts with its area, `[area] type: summary` (for example `[auth] feat: sign in (mobile, mock)`), and the issue carries the matching `area:<area>` label next to its other labels. Tools filter by the label (`gh issue list --label area:auth`), not by the title. The areas are below; a new one is added here through a plan ([plan 019](019-area-autopilot.md)).
 - **Trivial changes** (a typo, a one-line fix) need no plan.
-- **Task breakdown:** every plan breaks its work into tasks, one issue each, with **Requirements**, **Steps** and a **Checklist**, and **one backend endpoint per task**. The rules are in the [`task-breakdown`](../../.claude/skills/task-breakdown/SKILL.md) skill ([plan 023](023-task-breakdown-skill.md)); the table's acceptance criteria are each task's checklist, word for word.
+- **Task breakdown:** every plan breaks its work into tasks, one issue each, in the format of `agent-skills:planning-and-task-breakdown`: **Description**, **Acceptance criteria**, **Verification**, **Dependencies**, **Files likely touched** and **Estimated scope**, grouped in `### Phase N` sections that each end with a `#### Checkpoint`, no task of size L or larger, and **one backend endpoint per task**. The rules and the review to run before publishing are in the [`task-breakdown`](../../.claude/skills/task-breakdown/SKILL.md) skill ([plan 023](023-task-breakdown-skill.md), [plan 032](032-task-breakdown-format.md)); the table's acceptance criteria are each task's Acceptance criteria, word for word.
 - **Mobile features that call an endpoint** are listed as two issues, `(mobile, mock)` and `(mobile, integration)`, as in the template below. The scope, evidence and the integration gate are in [`.claude/workflow/plan.md`](../../.claude/workflow/plan.md#mobile-tasks-mock-and-integration).
 
 ## Areas
@@ -71,34 +71,44 @@ What the ticket evidence gate in `.claude/workflow/plan.md` requires for each is
 
 One task is one issue. Each backend endpoint is its own task.
 
-Order: <which tasks can start at once, which wait, which run in parallel>.
+### Phase 1: <name>
 
-### Task 1: `[area] type: short title`
+#### Task 1: `[area] type: short title`
 
-**Requirements**
+**Description:** What the task does, in the order of work, and the rules a reviewer checks it against.
 
-- What must be true when it is done, and the rules it follows.
+**Acceptance criteria:**
+- [ ] A specific, testable behaviour (3 items as the target, at most 5)
 
-**Steps**
+**Verification:**
+- [ ] Tests pass: <commands>
+- [ ] Lint and type checks: <commands>
+- [ ] Manual check: <what to look at>
+- [ ] Evidence section filled in
 
-1. What to do, in order, naming the files it touches.
-2. The tests to add.
+**Dependencies:** None
 
-**Checklist**
+**Files likely touched:**
+- `path/to/file`
 
-- [ ] A concrete, checkable item.
+**Estimated scope:** S: 2 files, about 80 lines
 
-<one `### Task N` per row below, made with the `task-breakdown` skill>
+#### Checkpoint: <name>
+- [ ] Tests pass, lint and type checks clean
+- [ ] The main flow of this phase works
+- [ ] The user reviews before the next phase starts
+
+<one `### Phase N` per phase and one `#### Task N` per row below, made and reviewed with the `task-breakdown` skill>
 
 ## Issues to create
 
-The acceptance criteria are each task's checklist above, word for word.
+The acceptance criteria are each task's Acceptance criteria above, word for word.
 
 | # | Title | Labels | Acceptance criteria | Depends on |
 | --- | --- | --- | --- | --- |
 | 1 | `[area] type: short title` | frontend, area:<area> | - [ ] ... | none |
 | 2 | `[area] docs: <module> contract` | docs, area:<area> | - [ ] `docs/api/<module>.md` and `docs/api/examples/<module>/` | none |
-| 3 | `[area] feat: <METHOD> <path> (backend)` | backend, area:<area> | - [ ] ... `docs/api/openapi.json` updated | 2 |
-| 4 | `[area] feat: <feature> (mobile, mock)` | frontend, mock, area:<area> | - [ ] `Fake<Feature>RemoteDataSource` with fixtures equal to the examples, checked in `test/contract`<br>- [ ] Screenshot with `API_MODE=mock`; Integration row `Not verified: backend not merged` | 2 |
-| 5 | `[area] feat: <feature> (mobile, integration)` | frontend, integration, area:<area> | - [ ] The app against the local backend: one success case and each documented error. Integration gate: 3 is closed and its endpoint is in `openapi.json` on `develop` | 3, 4 |
+| 3 | `[area] feat: <METHOD> <path> (backend)` | backend, area:<area> | - [ ] The route answers as in `docs/api/<module>.md`: <the observable behaviour> | 2 |
+| 4 | `[area] feat: <feature> (mobile, mock)` | frontend, mock, area:<area> | - [ ] <what the user sees and can do on the screen, with the fake> | 2 |
+| 5 | `[area] feat: <feature> (mobile, integration)` | frontend, integration, area:<area> | - [ ] Against the local backend, <the main flow> works and each documented error shows its message | 3, 4 |
 ````
