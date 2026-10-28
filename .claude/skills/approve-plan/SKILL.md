@@ -74,7 +74,7 @@ A plan comes in one of two forms ([plan 023](../../../docs/plans/023-task-breakd
    - issues already made from this plan match their rows in the table. List them with `gh issue list --state all --limit 300 --json number,title,labels,body,state` and keep those whose body has the line `Plan: docs/plans/<file>` (not `--search`: GitHub's search index can lag behind issues created a moment ago). Note the open ones for reuse; stop if one differs from the table, and stop and name it if one is **closed** (a closed issue is never reused);
    - when the plan has a `## Task breakdown`, each `### Task N` has the title of row `N`, and its **Checklist** items equal row `N`'s acceptance criteria (same text, same order). If one differs, stop and name the task.
 5. **Create the issues** exactly as the plan's "Issues to create" table lists them, in table order, reusing the matching ones found in step 4 instead of creating them again:
-   - Title and labels as the table gives them (with `[area]` and `area:<area>`, and `human-merge` where listed).
+   - Title and labels as the table gives them (with `[area]` and `area:<area>`).
    - Body, in the shape of earlier plan issues. The two middle sections are copied from `### Task N` when the plan has a task breakdown, and left out when it has none:
      ```text
      Plan: docs/plans/<file>

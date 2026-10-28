@@ -53,7 +53,7 @@ Order: <which tasks can start at once, which wait, which run in parallel>.
 - **Mobile.** A flow that calls an endpoint is a `(mobile, mock)` task and a `(mobile, integration)` task ([`.claude/workflow/plan.md`](../../workflow/plan.md#mobile-tasks-mock-and-integration)). The integration task depends on its mock task and only on the backend tasks of the endpoints that flow calls, so one late endpoint does not hold back every screen. A screen with no backend call is one task.
 - **Shared groundwork** used by several mobile tasks (a layout, routes, a shared widget) is its own task, so the tasks that use it can run in parallel instead of waiting for each other.
 - **Docs-only and tooling plans** use the same three parts per task, without the endpoint rule.
-- **Size.** Split a task that would pass about 400 changed lines, not counting generated files, tests and fixtures. `/run-tasks` adds `human-merge` above that.
+- **Size.** Split a task that would pass about 400 changed lines, not counting generated files, tests and fixtures. `/run-tasks` lists a larger PR in its report.
 
 ### Checklists
 
@@ -69,7 +69,7 @@ Every task's checklist covers what applies of these:
 
 - "Issues to create" keeps one row per task, in the same order and with the same numbers.
 - **Its "Acceptance criteria" column is the task's checklist, word for word**, items joined with `<br>`. `/approve-plan` copies the issue from the table, so the two must not drift. Write the checklist first, then copy it.
-- Labels: the type label (`backend`, `frontend`, `docs`, `chore`), `mock` or `integration` for mobile pairs, `area:<area>`, and `human-merge` for the Phase 2 risk categories ([`docs/plans/README.md`](../../../docs/plans/README.md)).
+- Labels: the type label (`backend`, `frontend`, `docs`, `chore`), `mock` or `integration` for mobile pairs, and `area:<area>`.
 - "Depends on" uses the task numbers; `/approve-plan` replaces them with issue numbers.
 
 ### The order line
