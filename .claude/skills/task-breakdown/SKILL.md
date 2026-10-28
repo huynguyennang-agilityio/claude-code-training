@@ -72,7 +72,7 @@ One task is one issue. Each backend endpoint is its own task.
 
 ### Sizing
 
-Count code files: not tests, fixtures, examples or generated files. A Dart library and its `part` files (a bloc with its event and state) count as one file.
+Count code files: not tests, fixtures, examples or generated files. A Dart library and its `part` files (a bloc with its event and state) count as one file. A count on the boundary of two sizes takes the smaller one (2 files is S, 5 files is M).
 
 | Size | Code files | Example |
 | --- | --- | --- |
