@@ -15,9 +15,9 @@ Build in small steps. For each step:
 
 `/run-tasks` runs **at most two issue sessions at once**, each in its own git worktree ([plan 028](../../docs/plans/028-parallel-run-tasks.md)). In a worktree:
 
-- Run `.claude/scripts/worktree-setup.sh <main checkout> <issue>` first. It copies `.env` with the issue's own test database (`stridequest_i<issue>_test`, created by the integration conftest), creates `backend/.venv` and runs `flutter pub get`. The `export` line it prints has the password masked: never run it; the real URL is in the worktree's `.env`.
+- Branch from `origin/develop` first (`git switch -c <type>/<issue>-<name> origin/develop`), never `git switch develop`, which fails while `develop` is checked out in the main folder.
+- Then run `.claude/scripts/worktree-setup.sh <main checkout> <issue>`. It copies `.env` with the issue's own test database (`stridequest_i<issue>_test`, created by the integration conftest), creates `backend/.venv` and runs `flutter pub get`. The `export` line it prints has the password masked: never run it; the real URL is in the worktree's `.env`.
 - **Never run `docker compose` from a worktree.** A compose project started there takes the same port as the main checkout's; the main checkout's `db` container serves every worktree.
-- Branch from `origin/develop` (`git switch -c <type>/<issue>-<name> origin/develop`), never `git switch develop`, which fails while `develop` is checked out in the main folder.
 - The knowledge graph (`backend/.ua/`, `mobile/.ua/`) is local to the main checkout; read it there.
 
 ## Local hooks

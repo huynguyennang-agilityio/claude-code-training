@@ -60,13 +60,15 @@ For each ready issue, start one child session with the desktop app's `start_sess
 - `background`: the run, the plan, and that the parent collects results and writes the report;
 - `prompt`: the session brief below, with the issue brief from step 2.
 
-Keep **at most two** child sessions working. The app continues the parent once no child session is working; then read each child's last message (its `RESULT:` line, see below; `list_sessions` with `linked: true` shows their state), note the result, and start the next ready issues, at most two again. A child that ended a turn without a `RESULT:` line is still working (waiting for CI or the review): leave it. An issue whose dependency stopped is skipped. When none is left, go to step 5.
+**At most two issues run at once.** An issue runs from its `start_session` until its child's `RESULT:` line arrives, including while the child waits for CI or the review between turns. Start an issue only when fewer than two are running and it pairs (step 2) with the one still running.
+
+The app continues the parent whenever no child session is working at that moment. Each time, read each running child's last message (`list_sessions` with `linked: true` shows their state): a `RESULT:` line ends that issue, so note the result; no `RESULT:` line means the child is waiting (its background CI or review watch wakes it again), so leave it running and don't start another issue in its place. Then start the next ready issues the rule above allows, or, if none can start, end the turn and wait. An issue whose dependency stopped is skipped. When no issue is running or ready, go to step 5.
 
 #### Session brief
 
 The brief a child session gets, filled in for its issue. It starts with the user's command, word for word, and the line "This session is authorized for issue #<issue> only."
 
-1. **Set up the worktree.** `.claude/scripts/worktree-setup.sh <main checkout> <issue>`: it copies `.env` with the issue's own test database (`stridequest_i<issue>_test`), creates `backend/.venv`, and runs `flutter pub get`. The tests read the issue's URL from the worktree's `.env`; the `export TEST_DATABASE_URL=...` line it prints has the password masked, so never run that line, and unset an inherited `TEST_DATABASE_URL` if the script warns about one. Never run `docker compose` here; the main checkout's `db` container serves every worktree. Then `git fetch origin` and `git switch -c <type>/<issue>-<short-name> origin/develop` (`<type>` is the title's type: `feat`, `fix`, `chore`, `docs`, `ci`, `test`). Never `git switch develop`: it fails while `develop` is checked out in the main folder.
+1. **Set up the worktree.** First `git fetch origin` and `git switch -c <type>/<issue>-<short-name> origin/develop` (`<type>` is the title's type: `feat`, `fix`, `chore`, `docs`, `ci`, `test`), so the setup installs `develop`'s dependencies. Never `git switch develop`: it fails while `develop` is checked out in the main folder. Then `.claude/scripts/worktree-setup.sh <main checkout> <issue>`: it copies `.env` with the issue's own test database (`stridequest_i<issue>_test`), creates `backend/.venv`, and runs `flutter pub get`. The tests read the issue's URL from the worktree's `.env`; the `export TEST_DATABASE_URL=...` line it prints has the password masked, so never run that line, and unset an inherited `TEST_DATABASE_URL` if the script warns about one. Never run `docker compose` here; the main checkout's `db` container serves every worktree.
 2. **Implement (Phase 3).** Read `.claude/workflow/implement.md`. Hand the work to a fresh subagent: `fastapi-backend` for `backend/`, `flutter-dev` for `mobile/`. Tell it to leave committing and pushing to you and to return a summary with the commands it ran and their results, not full logs. Do docs, CI and Claude-configuration issues (`area:infra`) yourself.
 3. **Verification gate (Phase 4).** Read `.claude/workflow/pr-review.md`. Check the five points yourself: each criterion met, the full suite passes (run the backend integration tests, which the `Stop` hook skips, with `backend/.venv`), security, `git diff origin/develop...HEAD` in scope, and the `## Evidence` section (`.claude/workflow/evidence.md`).
 4. **Progress line.** Append to `backend/PROGRESS.md` and/or `mobile/PROGRESS.md`, in the task's last commit: `- YYYY-MM-DD [area] #<issue> <title without the [area] prefix>. <one sentence>`. Use the issue number, not the PR number.
@@ -119,7 +121,7 @@ A stopped issue commits its unfinished work as `wip: <issue> stopped (<reason>)`
   4. the proposed decisions, numbered across the run with their PR links;
   5. a reminder to mirror `develop` to GitLab.
 - **Final DM** with the report link and a three-line summary (see "Slack").
-- **Sessions.** Merged child sessions are archived by the app when `auto_archive_on_pr_close` is on. Child sessions of stopped issues are kept for the user to look at. Never archive a session yourself unless the user says so for that session.
+- **Sessions.** Merged child sessions are archived by the app when `auto_archive_on_pr_close` is on. When it stays off, the report lists the merged sessions under "archive by hand". Child sessions of stopped issues are kept for the user to look at. Never archive a session yourself unless the user says so for that session.
 - **Decisions.** When the user later picks entries in chat ("keep 1 and 3"), that message authorizes one PR: open `[infra] docs: decisions from run <date>` with only those entries in `backend/DECISIONS.md` or `mobile/DECISIONS.md`, and merge it when its checks are green (the permission table in `CLAUDE.md` allows this). It has no issue: its description names `Plan: docs/plans/019-area-autopilot.md`, has no `Closes` line, and quotes the user's message.
 
 ## Fallback
@@ -129,12 +131,12 @@ A stopped issue commits its unfinished work as `wip: <issue> stopped (<reason>)`
 
 ## Slack
 
-DM the user with the Slack connector: `slack_read_user_profile` without a user ID gives their user ID; `slack_send_message` with that ID as `channel_id` sends the DM. Two DMs per run, in English, a few lines each:
+DM the user with the Slack connector: `slack_read_user_profile` without a user ID gives their user ID; `slack_send_message` with that ID as `channel_id` sends the DM. Two DMs per run, in English, a few lines each, with one exception below:
 
 - **Start:** the order, the pairs, the left-out issues.
 - **End:** the report link and a three-line summary (merged, stopped, what needs the user).
 
-If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. When the parent cannot continue (the app stopped calling it back), send `Run paused: reply "tiếp" in the session to continue` and stop; `/run-tasks` again with the open issues skips the merged ones.
+If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to the two DMs: when the parent cannot continue (the app stopped calling it back), send `Run paused: reply "tiếp" in the session to continue` and stop; `/run-tasks` again with the open issues skips the merged ones.
 
 ## Report
 
