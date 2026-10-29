@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "last_admin",
+    "message": "You're the only admin. Make another account an admin before deleting yours.",
+    "fields": []
+  }
+}
