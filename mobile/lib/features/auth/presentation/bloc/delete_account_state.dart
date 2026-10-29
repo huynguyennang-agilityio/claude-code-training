@@ -10,15 +10,26 @@ final class DeleteAccountState extends Equatable {
     this.failure,
   });
 
+  /// The longest password the API accepts (`docs/api/auth.md`).
+  static const maxLength = 128;
+
   final String password;
   final DeleteAccountStatus status;
   final AuthFailure? failure;
 
   bool get isSubmitting => status == DeleteAccountStatus.submitting;
 
-  /// The button is on when a password is typed and nothing is running or done.
+  /// Shown under the field when the password is over [maxLength]; it is never
+  /// cut or sent.
+  String? get lengthError => password.length > maxLength
+      ? 'Passwords are up to $maxLength characters.'
+      : null;
+
+  /// The button is on when a password of at most [maxLength] characters is
+  /// typed and nothing is running or done.
   bool get canSubmit =>
       password.isNotEmpty &&
+      password.length <= maxLength &&
       (status == DeleteAccountStatus.idle ||
           status == DeleteAccountStatus.failure);
 

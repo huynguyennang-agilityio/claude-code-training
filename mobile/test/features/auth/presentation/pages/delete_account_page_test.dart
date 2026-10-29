@@ -92,6 +92,33 @@ void main() {
       expect(isDeleteEnabled(tester), isFalse);
     });
 
+    testWidgets('over 128 characters shows an error and blocks the button', (
+      tester,
+    ) async {
+      await pumpDeleteAccount(tester, repository);
+      await type(tester, 'a' * 129);
+
+      expect(find.text('Passwords are up to 128 characters.'), findsOneWidget);
+      expect(isDeleteEnabled(tester), isFalse);
+      expect(
+        tester.widget<TextField>(deletePasswordField).controller!.text.length,
+        129,
+      );
+
+      await tester.ensureVisible(deleteButton);
+      await tester.tap(deleteButton, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      verifyNever(
+        () => repository.deleteAccount(
+          currentPassword: any(named: 'currentPassword'),
+        ),
+      );
+
+      await type(tester, 'a' * 128);
+      expect(find.text('Passwords are up to 128 characters.'), findsNothing);
+      expect(isDeleteEnabled(tester), isTrue);
+    });
+
     testWidgets('the button sends the password as typed', (tester) async {
       await pumpDeleteAccount(tester, repository);
       await type(tester, ' run4medals ');

@@ -188,4 +188,29 @@ void main() {
       ),
     ],
   );
+
+  group('password length', () {
+    const message = 'Passwords are up to 128 characters.';
+    final atLimit = DeleteAccountState(password: 'a' * 128);
+    final overLimit = DeleteAccountState(password: 'a' * 129);
+
+    test('128 characters can be submitted', () {
+      expect(atLimit.canSubmit, isTrue);
+      expect(atLimit.lengthError, isNull);
+    });
+
+    test('129 characters show an error and cannot be submitted', () {
+      expect(overLimit.canSubmit, isFalse);
+      expect(overLimit.lengthError, message);
+    });
+
+    blocTest<DeleteAccountBloc, DeleteAccountState>(
+      'submitting 129 characters calls nothing',
+      build: () => DeleteAccountBloc(repository),
+      seed: () => overLimit,
+      act: (bloc) => bloc.add(const DeleteAccountSubmitted()),
+      expect: () => <DeleteAccountState>[],
+      verify: (_) => verifyZeroInteractions(repository),
+    );
+  });
 }
