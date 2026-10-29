@@ -40,6 +40,15 @@ abstract interface class AuthRepository {
     required String newPassword,
   });
 
+  /// Deletes the account for good (`POST /users/me/delete`). Only after the
+  /// backend confirmed does it clear the local session, then announce it on
+  /// [accountDeleted]; on any failure nothing local changes.
+  ///
+  /// Extra failures: [AuthFailureCode.incorrectPassword] (403),
+  /// [AuthFailureCode.lastAdmin] (409), [AuthFailureCode.validation] (422)
+  /// and [AuthFailureCode.rateLimited] (429, with `retryAfter`).
+  Future<void> deleteAccount({required String currentPassword});
+
   /// Clears the local session and revokes the refresh token on the backend.
   Future<void> signOut();
 
@@ -55,4 +64,8 @@ abstract interface class AuthRepository {
   /// Emits when the session ends without the user signing out, for example
   /// when a token refresh fails.
   Stream<void> get sessionExpired;
+
+  /// Emits after [deleteAccount] succeeded and the local session is cleared,
+  /// so the `AuthBloc` can send the user to sign in with a "deleted" notice.
+  Stream<void> get accountDeleted;
 }

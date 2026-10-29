@@ -34,6 +34,7 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   final _sessionStarted = StreamController<AuthUser>.broadcast();
   final _sessionExpired = StreamController<void>.broadcast();
   final _userUpdated = StreamController<AuthUser>.broadcast();
+  final _accountDeleted = StreamController<void>.broadcast();
   Future<void> _lastChange = Future.value();
 
   @override
@@ -44,6 +45,9 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
 
   @override
   Stream<void> get sessionExpired => _sessionExpired.stream;
+
+  @override
+  Stream<void> get accountDeleted => _accountDeleted.stream;
 
   @override
   Future<AuthUser?> restoreSession() async {
@@ -140,6 +144,23 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   }
 
   @override
+  Future<void> deleteAccount({required String currentPassword}) async {
+    // Outside `_serialized`, for the same reason as `changeEmail`.
+    await _remote.deleteAccount(currentPassword: currentPassword);
+    // The account is gone and its tokens are dead, so the local session goes
+    // now, and only now: a failed request leaves everything as it was.
+    return _serialized(() async {
+      try {
+        await _local.clear();
+      } on Object {
+        // The account is deleted either way; the stale tokens are unusable
+        // and the next request ends the session.
+      }
+      _accountDeleted.add(null);
+    });
+  }
+
+  @override
   Future<void> signOut() {
     return _serialized(() async {
       final session = await _local.readSession();
@@ -205,5 +226,6 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
     await _sessionStarted.close();
     await _sessionExpired.close();
     await _userUpdated.close();
+    await _accountDeleted.close();
   }
 }

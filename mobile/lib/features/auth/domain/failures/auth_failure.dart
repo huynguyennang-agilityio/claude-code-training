@@ -15,6 +15,11 @@ enum AuthFailureCode {
     'Your session has expired. Sign in again.',
   ),
   incorrectPassword('incorrect_password', 'The current password is incorrect.'),
+  lastAdmin(
+    'last_admin',
+    "You're the only admin. Make another account an admin before deleting "
+        'yours.',
+  ),
   // Not a backend code: the app raises it when the password changed but the
   // new tokens could not be stored.
   passwordChangedSignInAgain(

@@ -9,15 +9,14 @@ import 'package:stridequest/features/auth/presentation/pages/sign_in_page.dart';
 import '../../../../helpers/golden_screen.dart';
 import '../../../../helpers/mock_auth_bloc.dart';
 
-Widget _page(SignInState state) {
+Widget _page(
+  SignInState state, {
+  AuthState session = const AuthUnauthenticated(),
+}) {
   final bloc = MockSignInBloc();
   whenListen(bloc, const Stream<SignInState>.empty(), initialState: state);
   final authBloc = MockAuthBloc();
-  whenListen(
-    authBloc,
-    const Stream<AuthState>.empty(),
-    initialState: const AuthUnauthenticated(),
-  );
+  whenListen(authBloc, const Stream<AuthState>.empty(), initialState: session);
   return MultiBlocProvider(
     providers: [
       BlocProvider<AuthBloc>.value(value: authBloc),
@@ -56,6 +55,14 @@ void main() {
           retryAfter: const Duration(minutes: 15),
         ),
       ),
+    ),
+  );
+  goldenScreen(
+    'SignInPage, account deleted',
+    'sign_in_page_account_deleted',
+    _page(
+      const SignInInitial(),
+      session: const AuthUnauthenticated(accountDeleted: true),
     ),
   );
   goldenScreen(

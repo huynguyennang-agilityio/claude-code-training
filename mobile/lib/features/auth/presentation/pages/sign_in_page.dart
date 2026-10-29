@@ -70,6 +70,12 @@ class _SignInPageState extends State<SignInPage> {
         _ => false,
       },
     );
+    final accountDeleted = context.select<AuthBloc, bool>(
+      (bloc) => switch (bloc.state) {
+        AuthUnauthenticated(:final accountDeleted) => accountDeleted,
+        _ => false,
+      },
+    );
     return BlocBuilder<SignInBloc, SignInState>(
       builder: (context, state) {
         final busy = state is SignInInProgress;
@@ -104,6 +110,11 @@ class _SignInPageState extends State<SignInPage> {
             children: [
               if (failure != null)
                 AuthBanner(message: failure.messageWithWait, isError: true)
+              else if (accountDeleted)
+                const AuthBanner(
+                  message: 'Your account has been deleted.',
+                  isError: false,
+                )
               else if (sessionExpired)
                 const AuthBanner(
                   message: 'Your session has expired. Sign in again.',

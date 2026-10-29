@@ -40,3 +40,8 @@ final class _AuthUserUpdated extends AuthEvent {
 final class _AuthSessionExpired extends AuthEvent {
   const _AuthSessionExpired();
 }
+
+/// The repository deleted the account and cleared the local session.
+final class _AuthAccountDeleted extends AuthEvent {
+  const _AuthAccountDeleted();
+}

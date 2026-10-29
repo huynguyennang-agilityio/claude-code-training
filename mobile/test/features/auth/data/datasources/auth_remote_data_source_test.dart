@@ -608,6 +608,84 @@ void main() {
     });
   });
 
+  group('deleteAccount', () {
+    test('posts the password and accepts 204 with no body', () async {
+      late RequestOptions sent;
+      final repository = _repository((request) async {
+        sent = request;
+        return textBody('', 204);
+      });
+
+      await repository.deleteAccount(currentPassword: 'run4medals');
+
+      expect(sent.method, 'POST');
+      expect(sent.uri.path, '/users/me/delete');
+      expect(sentJson(sent), {'current_password': 'run4medals'});
+    });
+
+    for (final (status, code, expected) in [
+      (401, 'not_authenticated', AuthFailureCode.notAuthenticated),
+      (403, 'incorrect_password', AuthFailureCode.incorrectPassword),
+      (409, 'last_admin', AuthFailureCode.lastAdmin),
+      (422, 'validation_error', AuthFailureCode.validation),
+      (429, 'rate_limited', AuthFailureCode.rateLimited),
+    ]) {
+      test('maps $status $code', () async {
+        final failure = await _failureOf(
+          _repository(
+            (_) async => _error(code, status, headers: {'retry-after': '90'}),
+          ).deleteAccount(currentPassword: 'p'),
+        );
+
+        expect(failure.code, expected);
+      });
+    }
+
+    test('keeps Retry-After and the field messages', () async {
+      final limited = await _failureOf(
+        _repository(
+          (_) async =>
+              _error('rate_limited', 429, headers: {'retry-after': '90'}),
+        ).deleteAccount(currentPassword: 'p'),
+      );
+      final invalid = await _failureOf(
+        _repository(
+          (_) async => _error(
+            'validation_error',
+            422,
+            fields: [
+              {'field': 'current_password', 'message': 'Enter your password.'},
+            ],
+          ),
+        ).deleteAccount(currentPassword: ''),
+      );
+
+      expect(limited.retryAfter, const Duration(seconds: 90));
+      expect(invalid.fieldErrors, {'current_password': 'Enter your password.'});
+    });
+
+    test('a refused connection is network', () async {
+      final failure = await _failureOf(
+        _repository(
+          (_) async => throw const SocketException('refused'),
+        ).deleteAccount(currentPassword: 'p'),
+      );
+
+      expect(failure.code, AuthFailureCode.network);
+    });
+
+    test('a timeout is network', () async {
+      final failure = await _failureOf(
+        _repository(
+          (_) => Completer<ResponseBody>().future,
+          timeout: const Duration(milliseconds: 10),
+        ).deleteAccount(currentPassword: 'p'),
+      );
+
+      expect(failure.code, AuthFailureCode.network);
+    });
+  });
+
   group('changeEmail behind the auth interceptor', () {
     late _MockTokens tokens;
     late FakeHttpAdapter adapter;
@@ -710,6 +788,55 @@ void main() {
       expect(adapter.requests.last.headers['Authorization'], 'Bearer access-2');
       verify(() => tokens.refreshTokens()).called(1);
       verifyNever(() => tokens.expireSession());
+    });
+
+    test('deleteAccount: sends the bearer token', () async {
+      final source = build((_) async => textBody('', 204));
+
+      await source.deleteAccount(currentPassword: 'p');
+
+      expect(
+        adapter.requests.single.headers['Authorization'],
+        'Bearer access-1',
+      );
+    });
+
+    test(
+      'deleteAccount: a token_expired 401 refreshes once and retries',
+      () async {
+        when(() => tokens.refreshTokens()).thenAnswer((_) async {
+          accessToken = 'access-2';
+          return TokenRefreshResult.refreshed;
+        });
+        final source = build(
+          (request) async =>
+              request.headers['Authorization'] == 'Bearer access-1'
+              ? _error('token_expired', 401)
+              : textBody('', 204),
+        );
+
+        await source.deleteAccount(currentPassword: 'p');
+
+        expect(adapter.requests, hasLength(2));
+        expect(
+          adapter.requests.last.headers['Authorization'],
+          'Bearer access-2',
+        );
+        verify(() => tokens.refreshTokens()).called(1);
+        verifyNever(() => tokens.expireSession());
+      },
+    );
+
+    test('deleteAccount: a 403 is not refreshed or retried', () async {
+      final source = build((_) async => _error('incorrect_password', 403));
+
+      final failure = await _failureOf(
+        source.deleteAccount(currentPassword: 'p'),
+      );
+
+      expect(failure.code, AuthFailureCode.incorrectPassword);
+      expect(adapter.requests, hasLength(1));
+      verifyNever(() => tokens.refreshTokens());
     });
 
     test('changePassword: a 403 is not refreshed or retried', () async {

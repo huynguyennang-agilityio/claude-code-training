@@ -44,6 +44,10 @@ abstract interface class AuthRemoteDataSource {
     required String currentPassword,
     required String newPassword,
   });
+
+  /// `POST /users/me/delete`: needs the access token. Answers `204` with no
+  /// body.
+  Future<void> deleteAccount({required String currentPassword});
 }
 
 /// [AuthRemoteDataSource] backed by the StrideQuest REST API.
@@ -128,21 +132,42 @@ class DioAuthRemoteDataSource implements AuthRemoteDataSource {
     return _parse(json, TokenPairModel.fromJson);
   }
 
+  @override
+  Future<void> deleteAccount({required String currentPassword}) async {
+    // A POST, not a DELETE with a body (see `docs/api/auth.md`).
+    final response = await _authenticatedSend('POST', 'users/me/delete', {
+      'current_password': currentPassword,
+    });
+    // Anything but 204 is not the contract: do not clear the session for it.
+    if (response.statusCode != 204) throw AuthFailure(AuthFailureCode.unknown);
+  }
+
   /// Puts [body] as JSON through the authenticated [Dio] and returns the
   /// decoded response.
   Future<Map<String, dynamic>?> _authenticatedPut(
     String path,
     Map<String, Object> body,
   ) async {
-    final Response<String> response;
+    final response = await _authenticatedSend('PUT', path, body);
+    return _decode(response.data ?? '');
+  }
+
+  /// Sends [body] as JSON with [method] through the authenticated [Dio].
+  /// Throws [AuthFailure] for a failed request.
+  Future<Response<String>> _authenticatedSend(
+    String method,
+    String path,
+    Map<String, Object> body,
+  ) async {
     try {
-      response = await _authenticatedDio()
-          .put<String>(
+      return await _authenticatedDio()
+          .request<String>(
             path,
             data: jsonEncode(body),
             // The default `validateStatus` is kept so a 401 reaches the auth
             // interceptor, which refreshes the token or ends the session.
             options: Options(
+              method: method,
               responseType: ResponseType.plain,
               contentType: Headers.jsonContentType,
             ),
@@ -159,7 +184,6 @@ class DioAuthRemoteDataSource implements AuthRemoteDataSource {
     } on TimeoutException {
       throw AuthFailure(AuthFailureCode.network);
     }
-    return _decode(response.data ?? '');
   }
 
   /// Posts [body] as JSON and returns the decoded response, or null when the

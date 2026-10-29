@@ -16,7 +16,9 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
   FakeAuthRemoteDataSource({
     this.latency = Duration.zero,
     DateTime Function()? now,
-  }) : _now = now ?? DateTime.now;
+    Set<String> lastAdminEmails = const {},
+  }) : _now = now ?? DateTime.now,
+       _lastAdminEmails = {...lastAdminEmails};
 
   static const maxFailedSignIns = 5;
   static const signInFailureWindow = Duration(minutes: 15);
@@ -31,6 +33,10 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
   final Duration latency;
 
   final DateTime Function() _now;
+
+  /// Emails the fake treats as the only remaining admin: deleting them fails
+  /// with `last_admin`.
+  final Set<String> _lastAdminEmails;
   final _users = <String, ({AuthUserModel user, String password})>{};
   final _failedSignIns = <String, List<DateTime>>{};
   final _refreshTokens = <String, AuthUserModel>{};
@@ -207,6 +213,48 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
     _users[current.email] = (user: account.user, password: newPassword);
     _refreshTokens.removeWhere((_, user) => user.id == current.id);
     return _issueTokens(current);
+  }
+
+  /// Checks like the backend, in the order of `docs/api/auth.md`: the field
+  /// rule (422), the rate
+  /// limit (429), the current password (403), the last admin (409). On success
+  /// the user and their refresh tokens are gone.
+  @override
+  Future<void> deleteAccount({required String currentPassword}) async {
+    await Future<void>.delayed(latency);
+    final current = _currentUser;
+    if (current == null) throw AuthFailure(AuthFailureCode.notAuthenticated);
+    if (currentPassword.isEmpty || currentPassword.length > 128) {
+      throw AuthFailure(
+        AuthFailureCode.validation,
+        fieldErrors: const {
+          'current_password':
+              'Enter your current password (up to 128 '
+              'characters).',
+        },
+      );
+    }
+
+    final failures = _recentFailures(current.email);
+    if (failures.length >= maxFailedSignIns) {
+      throw AuthFailure(
+        AuthFailureCode.rateLimited,
+        retryAfter: failures.first.add(signInFailureWindow).difference(_now()),
+      );
+    }
+    final account = _users[current.email];
+    if (account == null || account.password != currentPassword) {
+      failures.add(_now());
+      throw AuthFailure(AuthFailureCode.incorrectPassword);
+    }
+    _failedSignIns.remove(current.email);
+
+    if (_lastAdminEmails.contains(current.email)) {
+      throw AuthFailure(AuthFailureCode.lastAdmin);
+    }
+    _users.remove(current.email);
+    _refreshTokens.removeWhere((_, user) => user.id == current.id);
+    _currentUser = null;
   }
 
   @override
