@@ -116,7 +116,7 @@ flowchart LR
 
 ## 5. Two confirmations: `/approve-plan` and `/run-tasks`
 
-The user confirms two things and Claude does the rest ([plan 019](plans/019-area-autopilot.md)). `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR. `/run-tasks <issues>` (`/run-tasks 1,2,3,4` or `/run-tasks #1 #2`) takes the named issues to merge, up to two at once, each in its own child session and worktree ([plan 028](plans/028-parallel-run-tasks.md)). It asks at most once, in a preflight before the first issue; after that a small problem is fixed in place and a big one stops only its issue. The run ends with a Vietnamese report artifact (each issue's status, the big problems with a proposed fix, `Not verified` lines, PRs above 400 changed lines, proposed decisions) and a Slack DM with its link; the only other DM is the one at the start, except a "Run paused" DM when the parent cannot start or read child sessions while issues are still ready. A PR above 400 changed lines is listed in the report, not held back. The steps are in [`.claude/skills/approve-plan/`](../.claude/skills/approve-plan/SKILL.md) and [`.claude/skills/run-tasks/`](../.claude/skills/run-tasks/SKILL.md).
+The user confirms two things and Claude does the rest ([plan 019](plans/019-area-autopilot.md)). `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR. `/run-tasks <issues>` (`/run-tasks 1,2,3,4` or `/run-tasks #1 #2`) takes the named issues to merge, up to two at once, each in its own child session and worktree ([plan 028](plans/028-parallel-run-tasks.md)). It asks at most once, in a preflight before the first issue; after that a small problem is fixed in place and a big one stops only its issue. Each child waits for CI and the review inside its turn and ends by writing its `RESULT:` line to a result file in the main checkout's `.git` (`run-tasks/<run-id>/<issue>.result`); the parent keeps a background command waiting for each running issue's file, so a new file wakes it without the app's notifications, and an issue with no file after 3 hours counts as stopped. The run ends with a Vietnamese report artifact (each issue's status, the big problems with a proposed fix, `Not verified` lines, PRs above 400 changed lines, proposed decisions) and a Slack DM with its link; the only other DM is the one at the start, except a "Run paused" DM when the parent cannot start or read child sessions while issues are still ready. A PR above 400 changed lines is listed in the report, not held back. The steps are in [`.claude/skills/approve-plan/`](../.claude/skills/approve-plan/SKILL.md) and [`.claude/skills/run-tasks/`](../.claude/skills/run-tasks/SKILL.md).
 
 ```mermaid
 flowchart TD
@@ -131,10 +131,13 @@ flowchart TD
       F -- yes --> D["Merge origin/develop in, re-run checks"]
       D --> M["Merge, verify develop, RESULT: merged"]
       F -- "big problem" --> S["wip commit, RESULT: stopped"]
+      M --> RF["Write the RESULT line<br/>to the result file"]
+      S --> RF
     end
     C --> W
-    M --> N{"More ready issues?"}
-    S --> N
+    C --> RW["Background result wait<br/>per issue (3 hours at most)"]
+    RF -. "file appears" .-> RW
+    RW -- "file, or 3 hours:<br/>stopped" --> N{"More ready issues?"}
     N -- yes --> C
     N -- no --> E["Refresh the knowledge graph, report artifact,<br/>Slack DM with its link"]
 ```
