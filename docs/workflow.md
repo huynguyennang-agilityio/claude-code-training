@@ -33,9 +33,9 @@ flowchart TD
     P3["Phase 3: Small steps<br/>code → tests → lint → type check<br/>+ verify by ticket type<br/>Stop hook reruns the checks"] --> G4
     G4{"Phase 4 gate:<br/>criteria met, full suite passes,<br/>security ok, diff in scope,<br/>evidence drafted<br/>(contract, a11y, auth rows)?"}
     G4 -- no --> P3
-    G4 -- "yes, first push" --> LR["Phase 4 point 6, local review<br/>on origin/develop...HEAD,<br/>code-reviewer + /code-review high in parallel, report-only;<br/>fix or answer every finding in one pass,<br/>rerun the Phase 4 checks, Local review line in Evidence"]
+    G4 -- "yes, first push,<br/>local review not yet run" --> LR["Phase 4 point 6, local review<br/>on origin/develop...HEAD,<br/>code-reviewer + /code-review high in parallel, report-only;<br/>fix or answer every finding in one pass,<br/>rerun the Phase 4 checks, Local review line in Evidence"]
     LR --> P5["Phase 5, when the user asks:<br/>first time: push, open PR into develop,<br/>Closes #id, Plan: link, deviations<br/>after review: push fixes to the same PR"]
-    G4 -- "yes, review fix push" --> P5
+    G4 -- "yes, review fix push<br/>or local review done" --> P5
     LR -- "recheck fails:<br/>fix, no second review" --> P3
     P5 --> REV["On GitHub: CI (backend, mobile) on every push;<br/>claude-review when the PR opens<br/>and again on @claude review"]
     REV --> UREV{"User review:<br/>changes needed?"}
