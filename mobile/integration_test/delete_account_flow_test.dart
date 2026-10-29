@@ -13,8 +13,10 @@ import 'package:stridequest/features/auth/presentation/widgets/auth_text_field.d
 
 /// The Delete Account screen in the real app against the real backend: each
 /// documented refusal (`incorrect_password`, `rate_limited`, `last_admin`)
-/// shown in the banner, the disabled button that keeps a `422` from being
-/// sent, the delete itself (this device and a second one on the API), and a
+/// shown in the banner, the disabled button that blocks both `422` triggers
+/// (an empty password and one over 128 characters) so a `422` cannot be sent
+/// from the UI (its mapping is checked by the remote data source unit test),
+/// the delete itself (this device and a second one on the API), and a
 /// second device in the app that finds out at its next request.
 ///
 /// Needs the API running at `API_BASE_URL` (see `sign_in_flow_test.dart`), a
@@ -179,10 +181,17 @@ void main() {
     await _signInToTabs(tester, email);
     await _openDeleteAccount(tester);
 
-    // 1. `422` cannot be sent: the button waits for a password.
+    // 1. `422` cannot be sent: the button waits for a password of 1 to 128
+    // characters (an empty one and a longer one are the two triggers).
     expect(_deleteEnabled(tester), isFalse);
     await typeInto(tester, find.byType(TextField).first, 'x');
     expect(_deleteEnabled(tester), isTrue);
+    await typeInto(tester, find.byType(TextField).first, 'x' * 129);
+    expect(_deleteEnabled(tester), isFalse);
+    expect(find.text('Passwords are up to 128 characters.'), findsOneWidget);
+    await typeInto(tester, find.byType(TextField).first, 'x' * 128);
+    expect(_deleteEnabled(tester), isTrue);
+    expect(find.text('Passwords are up to 128 characters.'), findsNothing);
     await typeInto(tester, find.byType(TextField).first, '');
     expect(_deleteEnabled(tester), isFalse);
 
