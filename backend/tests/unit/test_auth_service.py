@@ -857,13 +857,20 @@ async def test_delete_account_deletes_the_user_and_clears_the_failures(
     order = AsyncMock()
     order.attach_mock(runs.lock_user_enrollments, "enrollments")
     order.attach_mock(repository.lock_user_refresh_tokens, "refresh_tokens")
+    order.attach_mock(repository.stored_password_hash, "stored_hash")
     order.attach_mock(repository.delete_user, "delete")
     order.attach_mock(session.commit, "commit")
 
     await service.delete_account(user, delete_request(), IP)
 
     # The enrollment lock comes before the refresh token lock, as in join and resume.
-    assert [c[0] for c in order.mock_calls] == ["enrollments", "refresh_tokens", "delete", "commit"]
+    assert [c[0] for c in order.mock_calls] == [
+        "enrollments",
+        "refresh_tokens",
+        "stored_hash",
+        "delete",
+        "commit",
+    ]
     runs.lock_user_enrollments.assert_awaited_once_with(user.id)
     repository.lock_user_refresh_tokens.assert_awaited_once_with(user.id)
     repository.lock_admins_and_count.assert_not_awaited()
@@ -884,6 +891,22 @@ async def test_delete_account_with_a_wrong_password_records_the_failure(
     repository.add_login_attempt.assert_awaited_once_with("runner@example.com", IP, START)
     runs.lock_user_enrollments.assert_not_awaited()
     repository.delete_user.assert_not_awaited()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_delete_account_refuses_a_password_that_changed_while_it_waited(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    repository.stored_password_hash.return_value = hash_password("newrun5medals")
+
+    with pytest.raises(IncorrectPasswordError) as error:
+        await service.delete_account(make_user(), delete_request(), IP)
+
+    assert error.value.status_code == 403
+    repository.add_login_attempt.assert_awaited_once_with("runner@example.com", IP, START)
+    repository.delete_user.assert_not_awaited()
+    repository.clear_login_attempts.assert_not_awaited()
     session.commit.assert_awaited_once()
 
 

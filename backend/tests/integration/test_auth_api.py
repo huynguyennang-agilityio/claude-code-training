@@ -22,7 +22,7 @@ from app.core.config import get_settings
 from app.core.errors import ErrorResponse
 from app.core.security import create_access_token, hash_password
 from app.modules.auth.deps import get_auth_settings
-from app.modules.auth.models import RefreshToken, User
+from app.modules.auth.models import LoginAttempt, RefreshToken, User
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import DeleteAccountRequest
 from app.modules.auth.service import (
@@ -30,6 +30,8 @@ from app.modules.auth.service import (
     MAX_FAILED_SIGN_INS_PER_EMAIL,
     MAX_FAILED_SIGN_INS_PER_IP,
     AuthService,
+    IncorrectPasswordError,
+    LastAdminError,
 )
 from app.modules.challenges.models import Challenge, Quest
 from app.modules.challenges.repository import ChallengeRepository
@@ -42,6 +44,9 @@ from app.modules.runs.repository import RunRepository
 from app.modules.runs.service import RunService
 from tests.api_docs import API_DOCS_DIR, AUTH_MODULE_ERROR_CODES, error_codes, load_example
 from tests.integration.enrollment_helpers import make_run
+from tests.integration.test_refresh_token_lock import (
+    _wait_until_a_session_waits_for_an_advisory_lock,
+)
 
 SECRET = "an-integration-test-secret-that-is-long-enough"
 PASSWORD = "run4medals"
@@ -1013,6 +1018,21 @@ async def test_with_two_admins_one_can_delete_the_account(
 # delete account at the same time as a join
 
 
+async def _seed_user(engine: AsyncEngine, role: str = "user") -> uuid.UUID:
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        user = User(
+            id=uuid.uuid4(),
+            email=f"seed-{uuid.uuid4().hex[:8]}@example.com",
+            password_hash=hash_password(PASSWORD),
+            display_name="Seed",
+            role=role,
+            created_at=datetime.now(UTC),
+        )
+        session.add(user)
+        await session.commit()
+        return user.id
+
+
 async def _seed_account_and_challenge(engine: AsyncEngine) -> tuple[uuid.UUID, int, int]:
     """Commit a user who knows their password and a published challenge; return their ids."""
     now = datetime.now(UTC)
@@ -1047,7 +1067,12 @@ async def _delete_in_own_session(engine: AsyncEngine, user_id: uuid.UUID) -> str
         service = AuthService(session, AuthRepository(session), get_auth_settings(), runs)
         user = await session.get(User, user_id)
         assert user is not None
-        await service.delete_account(user, DeleteAccountRequest(current_password=PASSWORD), "ip")
+        try:
+            await service.delete_account(
+                user, DeleteAccountRequest(current_password=PASSWORD), "203.0.113.99"
+            )
+        except (LastAdminError, IncorrectPasswordError) as error:
+            return error.code
         return "deleted"
 
 
@@ -1121,6 +1146,65 @@ async def test_a_delete_waits_while_another_request_of_the_user_holds_the_enroll
         assert await asyncio.wait_for(delete_task, timeout=5) == "deleted"
     finally:
         await _clean_up_race(engine, user_id, quest_id)
+
+
+@pytest.mark.anyio
+async def test_a_delete_with_the_old_password_is_refused_after_a_password_change(
+    engine: AsyncEngine,
+) -> None:
+    """The delete checked the password, then waits for the refresh token lock while a change
+    commits: the password it sent is wrong by then, so nothing is deleted."""
+    user_id, _, quest_id = await _seed_account_and_challenge(engine)
+    try:
+        async with AsyncSession(engine, expire_on_commit=False) as holder:
+            repository = AuthRepository(holder)
+            stored = await holder.get(User, user_id)
+            assert stored is not None
+            await repository.lock_user_refresh_tokens(user_id)
+            task = asyncio.ensure_future(_delete_in_own_session(engine, user_id))
+            await _wait_until_a_session_waits_for_an_advisory_lock(engine, task)
+
+            await repository.update_password_hash(stored, hash_password("newrun5medals"))
+            await holder.commit()
+
+        assert await asyncio.wait_for(task, timeout=10) == "incorrect_password"
+        async with AsyncSession(engine) as session:
+            assert await session.get(User, user_id) is not None
+    finally:
+        await _clean_up_race(engine, user_id, quest_id)
+        async with AsyncSession(engine) as session:
+            await session.execute(delete(LoginAttempt).where(LoginAttempt.ip == "203.0.113.99"))
+            await session.commit()
+
+
+@pytest.mark.anyio
+async def test_the_last_two_admins_deleting_at_once_leave_one(engine: AsyncEngine) -> None:
+    first = await _seed_user(engine, "admin")
+    second = await _seed_user(engine, "admin")
+    try:
+        async with AsyncSession(engine) as holder:
+            # Both deletes queue on the admin rows, so they really run one after the other.
+            await AuthRepository(holder).lock_admins_and_count()
+            tasks = asyncio.gather(
+                _delete_in_own_session(engine, first),
+                _delete_in_own_session(engine, second),
+                return_exceptions=True,
+            )
+            await asyncio.sleep(1)
+            await holder.rollback()
+        results = await asyncio.wait_for(tasks, timeout=15)
+
+        assert sorted(str(result) for result in results) == ["deleted", "last_admin"], results
+        async with AsyncSession(engine) as session:
+            admins = await session.scalar(
+                text("SELECT count(*) FROM users WHERE id IN (:a, :b)"), {"a": first, "b": second}
+            )
+        assert admins == 1
+    finally:
+        async with AsyncSession(engine) as session:
+            await session.execute(delete(User).where(User.id.in_([first, second])))
+            await session.execute(delete(LoginAttempt).where(LoginAttempt.ip == "203.0.113.99"))
+            await session.commit()
 
 
 # the contract

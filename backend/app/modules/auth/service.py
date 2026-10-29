@@ -248,9 +248,14 @@ class AuthService:
         The locks are taken in the order `join` and `resume` use (enrollments, then refresh
         tokens, then rows), so a delete running with them waits instead of deadlocking.
         """
-        await self._verify_current_password(user, data.current_password, ip, self._now())
+        now = self._now()
+        await self._verify_current_password(user, data.current_password, ip, now)
         await self._runs.lock_user_enrollments(user.id)
-        await self._repository.lock_user_refresh_tokens(user.id)
+        if not await self._password_unchanged_after_lock(user):
+            # A password change committed after the check: the password sent is wrong now.
+            await self._repository.add_login_attempt(user.email, ip, now)
+            await self._session.commit()
+            raise IncorrectPasswordError("The current password is incorrect.")
         if (
             user.role == UserRole.ADMIN.value
             and await self._repository.lock_admins_and_count() <= 1
