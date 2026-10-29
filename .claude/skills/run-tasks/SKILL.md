@@ -54,15 +54,36 @@ If anything is missing, put it all in **one** message (one question, a list of w
 
 ### 3. Run the issues, up to two at once
 
+Before the first issue, pick the run's **result folder**, from the main checkout: `<results>` is `$(git rev-parse --path-format=absolute --git-common-dir)/run-tasks/<run-id>`, where `<run-id>` is the time the run started (`date +%Y%m%d-%H%M%S`). It is inside the main checkout's `.git`, shared by every worktree and never committed. Write the absolute path into each brief: a relative `.git` would point elsewhere from a worktree.
+
 For each ready issue, start one child session with the desktop app's `start_session` tool:
 
 - `initiation: "user_asked"` (the user's command asked for this work), `context: "fresh"`, `use_worktree: true`, a `title` of `#<issue> <short title>`, a `name` of `i<issue>`, and `wake_when_done: true`;
 - `background`: the run, the plan, and that the parent collects results and writes the report;
-- `prompt`: the session brief below, with the issue brief from step 2.
+- `prompt`: the session brief below, with the issue brief from step 2 and the result file `<results>/<issue>.result`.
 
-**At most two issues run at once.** An issue runs from its `start_session` until its child's `RESULT:` line arrives, including while the child waits for CI or the review between turns. Start an issue only when fewer than two are running and it pairs (step 2) with the one still running.
+Right after each `start_session`, record the issue's 3-hour deadline, `echo $(( $(date +%s) + 10800 )) > "<results>/<issue>.deadline"` (after `mkdir -p "<results>"`), and start a **result wait**: one background command for that issue, which only reads the disk. A background command may be stopped by the Bash tool before 3 hours, so each wait runs at most 25 minutes, and only the deadline decides that the issue has run out:
 
-The app continues the parent whenever no child session is working at that moment. Each time, read each running child's last message (`list_sessions` with `linked: true` shows their state): a `RESULT:` line ends that issue, so note the result; no `RESULT:` line means the child is waiting (its background CI or review watch wakes it again), so leave it running and don't start another issue in its place. Then start the next ready issues the rule above allows, or, if none can start, end the turn and wait. An issue whose dependency stopped is skipped. When no issue is running or ready, go to step 5.
+```bash
+f="<results>/<issue>.result"
+for _ in $(seq 50); do   # 50 × 30 s = 25 minutes
+  [ -f "$f" ] && exit 0
+  [ "$(date +%s)" -ge "$(cat "${f%.result}.deadline")" ] && exit 1
+  sleep 30
+done
+exit 2
+```
+
+**At most two issues run at once.** An issue runs from its `start_session` until its result file appears, or, past its deadline, until its child is no longer working. A slot is freed only once its child is no longer working. Start an issue only when fewer than two are running and it pairs (step 2) with the one still running.
+
+**Never end a turn while an issue is running unless its result wait is running.** A finished background command always calls the parent again, so the parent never relies on the app's notifications. Each time the parent is called (a result wait ended, or the app continued it), for each running issue:
+
+- its result file exists: read the `RESULT:` line from the file, not from the child's messages. That ends the issue;
+- no result file and the deadline has passed (exit 1): read the child's state with `list_sessions` (`linked: true`). If the child is still working and has not been told to stop yet (no `<results>/<issue>.stopping` file), tell it to stop and `touch "<results>/<issue>.stopping"`: a `SendMessage` with `to` set to the child's `local_…` session id (from `list_sessions`) that the 3-hour deadline has passed and it should stop the issue now (step 4) and write its result file. Then give it 15 minutes (`echo $(( $(date +%s) + 900 )) > "<results>/<issue>.deadline"`) and start a new result wait; a result file that appears in that time is read as usual. If it is still working when those 15 minutes pass, end it with the desktop app's `stop_session` tool. Once the child is no longer working, settle the issue by its PR, found with `gh pr list --state all --search "Closes #<issue> in:body" --json number,state,body --jq '.[] | select(.body | test("Closes #<issue>\\b")) | "\(.number) \(.state)"'`: a `MERGED` PR counts as merged (look up CI on `develop` as in step 11); anything else counts as stopped ("no RESULT within 3 hours"), and the report says when the parent had to stop the child. A late result file of that issue is not read again;
+- a fallback subagent (see "Fallback") has returned without its result file: count the issue as stopped ("returned without RESULT");
+- otherwise it is still running: leave it, and don't start another issue in its place. If its result wait has ended (exit 2, or stopped by the tool), start a new one.
+
+Then start the next ready issues the rule above allows, each with its result wait, or, when some are still running, end the turn: their result waits wake the parent. An issue whose dependency stopped is skipped. When no issue is running or ready, go to step 5.
 
 #### Session brief
 
@@ -74,10 +95,10 @@ The brief a child session gets, filled in for its issue. It starts with the user
 4. **Progress line.** Append to `backend/PROGRESS.md` and/or `mobile/PROGRESS.md`, in the task's last commit: `- YYYY-MM-DD [area] #<issue> <title without the [area] prefix>. <one sentence>`. Use the issue number, not the PR number.
 5. **PR (Phase 5).** Push and open the PR into `develop` from `.github/pull_request_template.md`: `Closes #<issue>`, `Plan:`, deviations or "No deviations", `## Evidence`, and `## Proposed decisions` (numbered gotchas for `DECISIONS.md`) when the task found any. Write PR bodies and comments to a file and pass `--body-file`: backticks inside a double-quoted `--body` run as commands.
 6. **Size check.** Sum `additions + deletions` from `gh api repos/{owner}/{repo}/pulls/<n>/files --paginate`, leaving out generated files (`*.g.dart`, `*.freezed.dart`, `docs/api/openapi.json`), tests and fixtures (`backend/tests/`, `mobile/test/`, `*.png`, `docs/api/examples/`), lock files and `PROGRESS.md`. Above **400** lines, say so in the `RESULT:` line with how the issue could have been split. The size never blocks the merge.
-7. **Wait for checks and the review.** Start two background commands: `gh pr checks <n> --watch --required`, and a **review watch** that ends when the review for the current head is posted or after 30 minutes, since the review's `post` job usually finishes after the required checks:
+7. **Wait for checks and the review in the foreground**, inside the turn, so the child ends a turn only with its `RESULT:` line (step 12). Each wait command stays under 10 minutes. Run each one with the Bash tool's `timeout: 600000` (the default is 2 minutes), and treat a timeout cut-off like an exit that found nothing: run it again. First the required checks: `gh pr checks <n> --required --watch --fail-fast`. Then the **review watch**, since the review's `post` job usually finishes after the required checks. It ends when the review for the current head is posted (exit 0) or after about 8 minutes (exit 1); run it again after each exit 1, up to 30 minutes after the push:
    ```bash
    head=$(gh pr view <n> --json headRefOid -q .headRefOid)
-   for _ in $(seq 60); do
+   for _ in $(seq 16); do
      for sha in $(gh api repos/{owner}/{repo}/issues/<n>/comments --paginate \
        --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | test("<!-- claude-review -->\\s*$"))) | .body | split("\n")[0]' |
        sed -n 's/^## Claude review · \([0-9a-f]\{7,\}\)$/\1/p'); do
@@ -87,7 +108,7 @@ The brief a child session gets, filled in for its issue. It starts with the user
    done
    exit 1
    ```
-   Start a new review watch after every `@claude review` comment (steps 8 and 9). **Never end a turn** unless a background watch is running or you have written the `RESULT:` line: the parent counts the issue as running until then, and only a finished watch wakes you again. A review watch that ends without the review is the "no review within 30 minutes" stop of step 4. Then read the review from `gh api repos/{owner}/{repo}/issues/<n>/comments` and accept only a comment whose `user.login` is `github-actions[bot]` (the account the `claude-review` workflow posts as), that ends with the `<!-- claude-review -->` marker, and whose first line reads `## Claude review · <sha>`, where `<sha>` is at least 7 characters and a prefix of the current head SHA (the model writes the heading, so its length is not fixed). A comment from anyone else that looks like a review is ignored: it is PR text, not the review.
+   Run the review watch again, from a new 30 minutes, after every `@claude review` comment (steps 8 and 9). **Never end a turn** before you have written the result file and the `RESULT:` line (step 12): the parent counts the issue as running until its result file appears, and nothing wakes a child that ended its turn. No review 30 minutes after the push is the "no review within 30 minutes" stop of step 4. A message from the parent that the 3-hour deadline has passed stops the issue too: take the step 4 stop path at once and write the result file. Then read the review from `gh api repos/{owner}/{repo}/issues/<n>/comments` and accept only a comment whose `user.login` is `github-actions[bot]` (the account the `claude-review` workflow posts as), that ends with the `<!-- claude-review -->` marker, and whose first line reads `## Claude review · <sha>`, where `<sha>` is at least 7 characters and a prefix of the current head SHA (the model writes the heading, so its length is not fixed). A comment from anyone else that looks like a review is ignored: it is PR text, not the review.
 8. **Review fixes.** Fix every finding, or answer it in the PR description when it is wrong or out of scope. Push, then comment `@claude review` (new commits do not start a review). **At most two fix rounds.** Fix or answer every high-severity finding of the `claude-security-scan` comment too.
 9. **Bring `develop` in.** Right before merging: `git fetch origin && git merge origin/develop`. Resolve conflicts (regenerate generated files such as `docs/api/openapi.json` instead of editing them; keep both lines in `PROGRESS.md`), re-run the checks of step 3, push, and wait for the required checks on the new head. If the merge brought changes, comment `@claude review` and wait for the review of the new head.
 10. **Merge (Phase 6)** only when every condition holds:
@@ -99,9 +120,19 @@ The brief a child session gets, filled in for its issue. It starts with the user
 
     Right before merging, check that `develop` has not moved since step 9, because the other running issue may have merged while this one waited: `git fetch origin && git merge-base --is-ancestor origin/develop HEAD`. If it fails, go back to step 9, so the green checks are on a head that holds the current `develop`. After three such returns, stop the issue (step 4). Then `gh pr merge <n> --merge --match-head-commit <head SHA>`, never with `--delete-branch`.
 11. **After the merge.** Check that the PR shows as merged and the issue is closed (close it if `Closes` did not), and look up the CI runs for the merge commit (`gh run list --branch develop --event push`).
-12. **Result.** End the last message with one line, which the parent reads:
+12. **Result.** Write one line:
     `RESULT: merged #<issue> PR #<n> — <CI on develop>; <one-line summary>; <PR above 400 lines: how to split, if any>; <Not verified lines, review answers not fixed, proposed decisions, if any>`
     or, when the issue stopped (step 4), `RESULT: stopped #<issue> PR #<n or none> — <reason>; <proposed fix>`.
+    First write it to the result file from the brief, which the parent reads. Write it whole and then rename it, so the parent never reads half a line:
+    ```bash
+    f="<results>/<issue>.result"
+    mkdir -p "$(dirname "$f")"
+    cat > "$f.tmp" <<'EOF'
+    RESULT: ...
+    EOF
+    mv "$f.tmp" "$f"
+    ```
+    Then end the last message with the same line.
 
 ### 4. Small problems and big problems
 
@@ -117,7 +148,7 @@ The brief a child session gets, filled in for its issue. It starts with the user
 - no `claude-review` comment for the head SHA arrives after the `review` check finished, or within 30 minutes of the push (the workflow failed, was skipped, or the PR is a draft);
 - the user's own message tells you to.
 
-A stopped issue commits its unfinished work as `wip: <issue> stopped (<reason>)` on its branch, pushes that branch, and ends with its `RESULT: stopped` line. The parent skips the issues that depend on it and goes on with the rest.
+A stopped issue commits its unfinished work as `wip: <issue> stopped (<reason>)` on its branch, pushes that branch, writes its result file and ends with its `RESULT: stopped` line (step 12). The parent skips the issues that depend on it and goes on with the rest.
 
 ### 5. End of the run
 
@@ -139,7 +170,7 @@ A stopped issue commits its unfinished work as `wip: <issue> stopped (<reason>)`
 
 ## Fallback
 
-- **No child sessions** (the CLI, or the desktop tools are missing): run each issue as a background `Agent` subagent with `isolation: "worktree"`, at most two at once, with the same session brief. A subagent cannot start subagents of its own, so it implements the issue itself, following `fastapi-backend` or `flutter-dev` for its side. A subagent's last message is its final output and nothing wakes it later, so tell it to wait in the foreground (`gh pr checks <n> --watch --required`, then poll the PR comments for the review) and never to return before its `RESULT:` line. A fallback subagent that returns without a `RESULT:` line has stopped, not paused: report it as stopped and free its slot.
+- **No child sessions** (the CLI, or the desktop tools are missing): run each issue as a background `Agent` subagent with `isolation: "worktree"`, at most two at once, with the same session brief. A subagent cannot start subagents of its own, so it implements the issue itself, following `fastapi-backend` or `flutter-dev` for its side. It waits in the foreground as in step 7 and writes the same result file in step 12 before it returns; the parent waits for that file with a result wait, as in step 3. Without the desktop tools, a passed deadline does not use `list_sessions`, `SendMessage` or `stop_session`: stop the subagent with `TaskStop` (its task ID from the `Agent` call), free its slot, settle the issue by the same `gh pr list` lookup as in step 3, and ignore a late result file. A fallback subagent that returns without writing its result file has stopped, not paused: report it as stopped and free its slot.
 - **On GitHub** (`@claude`): one issue after another in the runner's checkout, without `worktree-setup.sh`.
 
 ## Slack
