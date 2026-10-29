@@ -87,7 +87,7 @@ When an issue ends as stopped, for any reason (step 4), leave its issue and PR o
 
 Then start the next ready issues the rule above allows, each with its result wait, or, when some are still running, end the turn: their result waits wake the parent.
 
-**A refused start waits for a session's note** ([plan 037](../../../docs/plans/037-decisions-per-area.md), assumption 9). The app allows `start_session` only in a turn that begins with the user's words or with a session's note, so it refuses one in a turn that a result wait woke. When it is refused, the issue result read above stands, the issue stays ready, and no DM goes out. Start one **start wait** as a background command and end the turn:
+**A refused start waits for a session's note** ([plan 037](../../../docs/plans/037-decisions-per-area.md), assumption 9). The app allows `start_session` only in a turn that begins with the user's words or with a session's note, so it refuses one in a turn that a result wait woke. When it is refused, the issue result read above stands, the issue stays ready, and no "Run paused" DM goes out (the stop DMs above still do). Start one **start wait** as a background command and end the turn:
 
 ```bash
 m="<results>/start-wait-$(date +%s)"
@@ -97,7 +97,7 @@ sleep 900                                                     # 15 minutes
 exit 3
 ```
 
-A child sends the parent a note when it ends its turn. The turn that note begins starts the ready issues, each with its result wait, as above. A start wait that ends with exit 0 needs nothing: an issue has started since. Exit 3 means no issue has started in 15 minutes (the app held the note back): send `Run paused: run /run-tasks <open issues> to continue`, naming only the issues not yet merged or stopped (see "Slack"), and stop. A child still running finishes on its own; the new run skips the issues merged by then. The same holds when `list_sessions` fails: start a start wait, end the turn, and pause only on exit 3.
+A child sends the parent a note when it ends its turn. The turn that note begins starts the ready issues, each with its result wait, as above. A start wait that ends with exit 0 needs nothing: an issue has started since. Exit 3 means no issue has started in 15 minutes (the app held the note back). If an issue is still running, do nothing: its result wait, and later its note, give the start another chance. Otherwise send `Run paused: run /run-tasks <open issues> to continue`, naming only the issues not yet merged or stopped (see "Slack"), `touch "<results>/paused"`, and stop. On any later call, a parent that finds `<results>/paused` does nothing and sends no DM. The same holds when `list_sessions` fails: start a start wait, end the turn, and pause only on exit 3 with no issue running.
 
 When every issue the run did not leave out (step 2) is merged or stopped, go to step 5.
 
@@ -214,7 +214,7 @@ DM the user with the Slack connector: `slack_read_user_profile` without a user I
 - **Stop:** one per stopped issue, as soon as the parent knows it stopped (step 3): `#<issue> stopped: <reason>; run continues` (`run ends` when no issue is still running or ready). An issue stopped because it depends on another gets its own DM, with the reason `depends on #<issue>`.
 - **End:** the report link and a three-line summary (merged, stopped, what needs the user).
 
-If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to these DMs: when `start_session` is refused (or `list_sessions` fails) while issues are still ready, the parent first waits for a session's note, and only when the 15-minute start wait of step 3 ends with no issue started since does it send `Run paused: run /run-tasks <open issues> to continue`, naming only the issues not yet merged or stopped, and stop. A refused start alone sends no DM. The new run skips the merged issues.
+If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to these DMs: when `start_session` is refused (or `list_sessions` fails) while issues are still ready, the parent first waits for a session's note, and only when the 15-minute start wait of step 3 ends with no issue started since and none still running does it send `Run paused: run /run-tasks <open issues> to continue`, naming only the issues not yet merged or stopped, and stop. A refused start alone sends no DM. The new run skips the merged issues.
 
 ## Report
 
