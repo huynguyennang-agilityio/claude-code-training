@@ -2,7 +2,7 @@
 
 Status: approved
 Approved: 2026-10-29, by the user in chat: "/approve-plan 033,"
-Issues: <filled in after approval>
+Issues: #183, #184
 Draft: https://claude.ai/artifact/7q6oyHYKgcyLLoUGfHYkQ5, version 1793239470-8063
 
 ## Context
@@ -157,4 +157,4 @@ The acceptance criteria are each task's Acceptance criteria above, word for word
 | # | Title | Labels | Acceptance criteria | Depends on |
 | --- | --- | --- | --- | --- |
 | 1 | `[infra] chore: gate rules check the issue's Verification` | chore, area:infra | - [ ] Phase 4 in `.claude/workflow/pr-review.md` requires each acceptance criterion and each Verification item of the issue to be met, with evidence or a `Not verified: <reason>` line<br>- [ ] The PR review steps Correctness and Tests in `.claude/workflow/pr-review.md`, `.claude/workflow/evidence.md` and the Phase 4 row of `CLAUDE.md` name the issue's Verification next to its acceptance criteria<br>- [ ] An issue without `## Verification` is checked as before, and `.claude/workflow/plan.md` puts a UI task's states, screen sizes and text scales in its Verification (new format) or its acceptance criteria (old format) | none |
-| 2 | `[infra] chore: gate tools read the issue's Verification` | chore, area:infra | - [ ] The issue brief in `.claude/skills/run-tasks/SKILL.md` carries the issue's Verification, and its step 3 and merge condition require evidence for each acceptance criterion and each Verification item<br>- [ ] `.claude/agents/code-reviewer.md` compares the tests with the issue's Verification as well as its acceptance criteria<br>- [ ] The `## Evidence` comment in `.github/pull_request_template.md` asks for each acceptance criterion and each Verification item | 1 |
+| 2 | `[infra] chore: gate tools read the issue's Verification` | chore, area:infra | - [ ] The issue brief in `.claude/skills/run-tasks/SKILL.md` carries the issue's Verification, and its step 3 and merge condition require evidence for each acceptance criterion and each Verification item<br>- [ ] `.claude/agents/code-reviewer.md` compares the tests with the issue's Verification as well as its acceptance criteria<br>- [ ] The `## Evidence` comment in `.github/pull_request_template.md` asks for each acceptance criterion and each Verification item | #183 |
