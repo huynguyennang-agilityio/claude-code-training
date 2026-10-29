@@ -33,6 +33,8 @@ import 'package:stridequest/features/auth/presentation/bloc/change_email_bloc.da
     as _i231;
 import 'package:stridequest/features/auth/presentation/bloc/change_password_bloc.dart'
     as _i306;
+import 'package:stridequest/features/auth/presentation/bloc/delete_account_bloc.dart'
+    as _i843;
 import 'package:stridequest/features/auth/presentation/bloc/sign_in_bloc.dart'
     as _i696;
 import 'package:stridequest/features/auth/presentation/bloc/sign_up_bloc.dart'
@@ -152,6 +154,9 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.factory<_i306.ChangePasswordBloc>(
       () => _i306.ChangePasswordBloc(gh<_i231.AuthRepository>()),
+    );
+    gh.factory<_i843.DeleteAccountBloc>(
+      () => _i843.DeleteAccountBloc(gh<_i231.AuthRepository>()),
     );
     gh.factory<_i696.SignInBloc>(
       () => _i696.SignInBloc(gh<_i231.AuthRepository>()),

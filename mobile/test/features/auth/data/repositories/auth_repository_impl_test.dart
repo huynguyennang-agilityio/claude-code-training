@@ -402,6 +402,44 @@ void main() {
       expect(deleted, 1);
     });
 
+    test('a sign-out during the request leaves the session and announces '
+        'nothing', () async {
+      local.session = testSession();
+      when(
+        () => remote.deleteAccount(currentPassword: 'run4medals'),
+      ).thenAnswer((_) async => local.session = null);
+      final deleted = <Object?>[];
+      final subscription = repository.accountDeleted.listen(deleted.add);
+      addTearDown(subscription.cancel);
+
+      await delete();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(local.session, isNull);
+      expect(deleted, isEmpty);
+    });
+
+    test("another user's sign-in during the request is kept and announces "
+        'nothing', () async {
+      local.session = testSession();
+      final other = AuthSessionModel(
+        user: testUser.copyWith(id: 'user-2', email: 'other@example.com'),
+        tokens: testTokens(2),
+      );
+      when(
+        () => remote.deleteAccount(currentPassword: 'run4medals'),
+      ).thenAnswer((_) async => local.session = other);
+      final deleted = <Object?>[];
+      final subscription = repository.accountDeleted.listen(deleted.add);
+      addTearDown(subscription.cancel);
+
+      await delete();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(local.session, other);
+      expect(deleted, isEmpty);
+    });
+
     for (final code in [
       AuthFailureCode.incorrectPassword,
       AuthFailureCode.lastAdmin,

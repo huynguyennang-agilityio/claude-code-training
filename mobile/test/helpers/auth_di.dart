@@ -1,5 +1,6 @@
 import 'package:stridequest/core/di/injection.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
+import 'package:stridequest/features/auth/presentation/bloc/delete_account_bloc.dart';
 import 'package:stridequest/features/auth/presentation/bloc/sign_in_bloc.dart';
 import 'package:stridequest/features/auth/presentation/bloc/sign_up_bloc.dart';
 
@@ -16,7 +17,8 @@ import 'health_fixtures.dart';
 void registerAuthFormBlocs(AuthRepository repository) {
   getIt
     ..registerFactory<SignInBloc>(() => SignInBloc(repository))
-    ..registerFactory<SignUpBloc>(() => SignUpBloc(repository));
+    ..registerFactory<SignUpBloc>(() => SignUpBloc(repository))
+    ..registerFactory<DeleteAccountBloc>(() => DeleteAccountBloc(repository));
   // The app routes also open the Challenges tab once the user is signed in.
   registerChallengeBlocs();
   // And the Active tab.

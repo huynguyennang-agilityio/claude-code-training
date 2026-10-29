@@ -7,10 +7,11 @@ import '../../../auth/domain/entities/auth_user.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/pages/change_email_page.dart';
 import '../../../auth/presentation/pages/change_password_page.dart';
+import '../../../auth/presentation/pages/delete_account_page.dart';
 import 'profile_info_page.dart';
 
 /// The Profile tab: the user's initials in a round avatar, the list of account
-/// screens (Profile, Email, Password) and Sign out under it.
+/// screens (Profile, Email, Password), then Sign out and Delete account under it.
 ///
 /// Each row pushes its screen on the root navigator, above the tab bar.
 /// Signing out only sends the event: the router redirect handles the
@@ -67,6 +68,14 @@ class ProfilePage extends StatelessWidget {
                     const AuthSignOutRequested(),
                   ),
                   child: const Text('Sign out'),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                  ),
+                  onPressed: () => context.push(DeleteAccountPage.path),
+                  child: const Text('Delete account'),
                 ),
               ],
             ),
