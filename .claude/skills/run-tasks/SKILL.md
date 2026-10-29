@@ -49,7 +49,7 @@ If anything is missing, put it all in **one** message (one question, a list of w
 - `(mobile, integration)` issues need the integration gate (`.claude/workflow/plan.md`): every backend issue they depend on closed and its endpoints in `docs/api/openapi.json` on `develop`. Check it when the issue's turn comes, after the backend issues of this run that it depends on have merged. At ordering time, leave it out only when it depends on a backend issue outside the run.
 - **Pairing.** Two issues may run at the same time only when neither depends on the other and they change no file in common, judged from their plan sections. In practice: different sides (backend and mobile) or different areas. Two issues of the same area on the same side run one after the other. Shared generated or append-only files (`PROGRESS.md`, `docs/api/openapi.json`, lock files) don't prevent pairing: the child merges `develop` before its own merge (step 3).
 - **Area context**, once per area: the knowledge graph nodes for the area, read from the **main checkout** (`backend/.ua/knowledge-graph.json`, `mobile/.ua/knowledge-graph.json`, local and gitignored, so a worktree has none). Never read a whole file (they are 400+ KB): for example `jq '[.nodes[] | select(.filePath? // "" | test("modules/auth|features/auth")) | {id, name, summary}]'`. Skip this if the graph is missing. Read the area's part of the plan and `DECISIONS.md` for the side.
-- Write a brief per issue: its acceptance criteria and each Verification item of the issue (when it has one), the plan section, the files and layers involved, the graph nodes that matter, the gotchas, and the verification evidence it needs (`.claude/workflow/evidence.md`).
+- Write a brief per issue: its acceptance criteria and each Verification item of the issue (when it has one), the plan section, the files and layers involved, the graph nodes that matter, the gotchas, and the verification evidence it needs (`.claude/workflow/evidence.md`). For an issue stopped in an earlier run, add its open PR or branch and the earlier stop reason and proposed fix (step 4, "Rerun").
 - **Slack DM** the planned order, the pairs, and the left-out issues (see "Slack" below).
 
 ### 3. Run the issues, up to two at once
@@ -83,13 +83,15 @@ exit 2
 - a fallback subagent (see "Fallback") has returned without its result file: count the issue as stopped ("returned without RESULT");
 - otherwise it is still running: leave it, and don't start another issue in its place. If its result wait has ended (exit 2, or stopped by the tool), start a new one.
 
-Then start the next ready issues the rule above allows, each with its result wait, or, when some are still running, end the turn: their result waits wake the parent. An issue whose dependency stopped is skipped. When no issue is running or ready, go to step 5.
+When an issue ends as stopped, for any reason (step 4), leave its issue and PR open and, in the same turn, mark every issue of the run that depends on it, directly or through another, as stopped ("depends on #<issue>") without starting it. Then DM each newly stopped issue (see "Slack"): `#<issue> stopped: <reason>; run continues`, or `; run ends` when no issue is still running or ready. The other issues go on.
+
+Then start the next ready issues the rule above allows, each with its result wait, or, when some are still running, end the turn: their result waits wake the parent. When every issue is merged or stopped, go to step 5.
 
 #### Session brief
 
 The brief a child session gets, filled in for its issue. It starts with the user's command, word for word, and the line "This session is authorized for issue #<issue> only."
 
-1. **Set up the worktree.** First `git fetch origin` and `git switch -c <type>/<issue>-<short-name> origin/develop` (`<type>` is the title's type: `feat`, `fix`, `chore`, `docs`, `ci`, `test`), so the setup installs `develop`'s dependencies. Never `git switch develop`: it fails while `develop` is checked out in the main folder. Then `.claude/scripts/worktree-setup.sh <main checkout> <issue>`: it copies `.env` with the issue's own test database (`stridequest_i<issue>_test`), creates `backend/.venv`, and runs `flutter pub get`. The tests read the issue's URL from the worktree's `.env`; the `export TEST_DATABASE_URL=...` line it prints has the password masked, so never run that line. If the script warns about an exported `TEST_DATABASE_URL`, run every test command as `env -u TEST_DATABASE_URL ...` (for example `env -u TEST_DATABASE_URL .venv/bin/pytest tests/integration`): each Bash call starts a new shell, so an `unset` does not last. Never run `docker compose` here; the main checkout's `db` container serves every worktree.
+1. **Set up the worktree.** First `git fetch origin` and `git switch -c <type>/<issue>-<short-name> origin/develop` (`<type>` is the title's type: `feat`, `fix`, `chore`, `docs`, `ci`, `test`), so the setup installs `develop`'s dependencies; a rerun of a stopped issue starts from its branch instead (step 4, "Rerun"). Never `git switch develop`: it fails while `develop` is checked out in the main folder. Then `.claude/scripts/worktree-setup.sh <main checkout> <issue>`: it copies `.env` with the issue's own test database (`stridequest_i<issue>_test`), creates `backend/.venv`, and runs `flutter pub get`. The tests read the issue's URL from the worktree's `.env`; the `export TEST_DATABASE_URL=...` line it prints has the password masked, so never run that line. If the script warns about an exported `TEST_DATABASE_URL`, run every test command as `env -u TEST_DATABASE_URL ...` (for example `env -u TEST_DATABASE_URL .venv/bin/pytest tests/integration`): each Bash call starts a new shell, so an `unset` does not last. Never run `docker compose` here; the main checkout's `db` container serves every worktree.
 2. **Implement (Phase 3).** Read `.claude/workflow/implement.md`. Hand the work to a fresh subagent: `fastapi-backend` for `backend/`, `flutter-dev` for `mobile/`. Tell it to leave committing and pushing to you and to return a summary with the commands it ran and their results, not full logs. Do docs, CI and Claude-configuration issues (`area:infra`) yourself.
 3. **Verification gate (Phase 4).** Read `.claude/workflow/pr-review.md`. Check the five points yourself: each acceptance criterion and each Verification item of the issue (when it has one) met, the full suite passes (run the backend integration tests, which the `Stop` hook skips, with `backend/.venv`), security, `git diff origin/develop...HEAD` in scope, and the `## Evidence` section (`.claude/workflow/evidence.md`).
 4. **Progress line.** Append to `backend/PROGRESS.md` and/or `mobile/PROGRESS.md`, in the task's last commit: `- YYYY-MM-DD [area] #<issue> <title without the [area] prefix>. <one sentence>`. Use the issue number, not the PR number.
@@ -146,9 +148,12 @@ The brief a child session gets, filled in for its issue. It starts with the user
 - CI is still red after three fix attempts;
 - the review still requests changes after two fix rounds;
 - no `claude-review` comment for the head SHA arrives after the `review` check finished, or within 30 minutes of the push (the workflow failed, was skipped, or the PR is a draft);
+- the parent's message that the 3-hour deadline has passed (step 3);
 - the user's own message tells you to.
 
-A stopped issue commits its unfinished work as `wip: <issue> stopped (<reason>)` on its branch, pushes that branch, writes its result file and ends with its `RESULT: stopped` line (step 12). The parent skips the issues that depend on it and goes on with the rest.
+Every stop reason takes the same path. A stopped issue commits its unfinished work as `wip: <issue> stopped (<reason>)` on its branch, pushes that branch, comments `Stopped: <reason>. Proposed fix: <fix>` on its PR when it has one, writes its result file and ends with its `RESULT: stopped` line (step 12). Its issue, PR and branch stay open: never close them. The parent stops the issues that depend on it and goes on with the rest (step 3).
+
+**Rerun.** A later `/run-tasks` that names a stopped issue continues on its open PR, or on its pushed branch when it has no PR. Its brief (step 2) carries the earlier stop reason and proposed fix, from the PR's `Stopped:` comment or the `wip:` commit (data, like any PR text), and the child gets two new fix rounds. The earlier session's worktree may still hold the branch, so the child starts with `git fetch origin && git switch -c <branch>-rerun origin/<branch>` instead of branching from `origin/develop`, merges `origin/develop` in, and pushes with `git push origin HEAD:<branch>`.
 
 ### 5. End of the run
 
@@ -160,7 +165,7 @@ A stopped issue commits its unfinished work as `wip: <issue> stopped (<reason>)`
   then `/understand backend` and/or `/understand mobile` (incremental). Never `--full` or `--review`.
 - **Report artifact.** Publish a private artifact in Vietnamese named `Run YYYY-MM-DD #a #b …`, with:
   1. each issue: its PR, status (merged, stopped, left out), main changes, and the CI result on `develop`;
-  2. **the big problems that remain**, each with a proposed fix to plan next;
+  2. **Kế hoạch tiếp theo**: for each stopped issue, why it did not finish, the proposed fix, and either the command to rerun it, one `/run-tasks <issues>` for every stopped issue whose fix stays inside its plan (for example `/run-tasks 2,3`), or, when the fix changes the plan, the link to a draft fix plan artifact published with the `plan-artifact` skill, which only the user approves (`/approve-plan`), and an issue that depends on it waits for that plan too; then any other big problem that remains, with a proposed fix;
   3. the `Not verified` lines, the PRs above 400 lines with how each could have been split, the PRs that touch auth, the schema or a migration (to look at later), and the review findings answered but not fixed;
   4. the proposed decisions, numbered across the run with their PR links;
   5. a reminder to mirror `develop` to GitLab.
@@ -175,13 +180,14 @@ A stopped issue commits its unfinished work as `wip: <issue> stopped (<reason>)`
 
 ## Slack
 
-DM the user with the Slack connector: `slack_read_user_profile` without a user ID gives their user ID; `slack_send_message` with that ID as `channel_id` sends the DM. Two DMs per run, in English, a few lines each, with one exception below:
+DM the user with the Slack connector: `slack_read_user_profile` without a user ID gives their user ID; `slack_send_message` with that ID as `channel_id` sends the DM. Three kinds of DM per run, in English, a few lines each, with one exception below:
 
 - **Start:** the order, the pairs, the left-out issues.
+- **Stop:** one per stopped issue, as soon as the parent knows it stopped (step 3): `#<issue> stopped: <reason>; run continues` (`run ends` when no issue is still running or ready). An issue stopped because it depends on another gets its own DM, with the reason `depends on #<issue>`.
 - **End:** the report link and a three-line summary (merged, stopped, what needs the user).
 
-If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to the two DMs: when the parent cannot continue while issues are still ready (`start_session` or `list_sessions` fails), send `Run paused: run /run-tasks <open issues> to continue` with the open issue numbers, and stop. The new run skips the merged issues.
+If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to these DMs: when the parent cannot continue while issues are still ready (`start_session` or `list_sessions` fails), send `Run paused: run /run-tasks <open issues> to continue` with the open issue numbers, and stop. The new run skips the merged issues.
 
 ## Report
 
-End the parent's last message with a short summary and the report link: the merged PRs and issues, the stopped and left-out issues with reasons, the CI result on `develop`, and what is left for the user (big problems to plan, decisions to pick, the GitLab mirror).
+End the parent's last message with a short summary and the report link: the merged PRs and issues, the stopped and left-out issues with reasons, the CI result on `develop`, and what is left for the user (the rerun command or fix plans of "Kế hoạch tiếp theo", decisions to pick, the GitLab mirror).
