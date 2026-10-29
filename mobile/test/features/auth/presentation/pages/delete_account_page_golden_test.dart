@@ -48,6 +48,12 @@ void main() {
   );
 
   goldenScreen(
+    'DeleteAccountPage too long',
+    'delete_account_page_too_long',
+    _page(DeleteAccountState(password: 'a' * 129)),
+  );
+
+  goldenScreen(
     'DeleteAccountPage incorrect password',
     'delete_account_page_incorrect_password',
     _page(
