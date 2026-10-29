@@ -94,7 +94,7 @@ The brief a child session gets, filled in for its issue. It starts with the user
     - the required checks `backend`, `mobile` and `goldens` are green on the head commit;
     - the latest `claude-review` (posted by `github-actions[bot]` for the head SHA) says approve or approve with nits, and each nit is fixed or answered;
     - every high-severity security-scan finding is fixed or answered;
-    - the five Phase 4 points hold, and the evidence covers each acceptance criterion and each Verification item of the issue (when it has one), with evidence or a `Not verified: <reason>` line;
+    - the five Phase 4 points hold, and the `## Evidence` section covers each acceptance criterion and each Verification item of the issue (when it has one), with evidence or a `Not verified: <reason>` line;
     - no deviation needs a new plan approval (`.claude/workflow/plan.md`).
 
     Right before merging, check that `develop` has not moved since step 9, because the other running issue may have merged while this one waited: `git fetch origin && git merge-base --is-ancestor origin/develop HEAD`. If it fails, go back to step 9, so the green checks are on a head that holds the current `develop`. After three such returns, stop the issue (step 4). Then `gh pr merge <n> --merge --match-head-commit <head SHA>`, never with `--delete-branch`.
