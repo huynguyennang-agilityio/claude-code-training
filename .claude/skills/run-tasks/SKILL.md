@@ -79,7 +79,7 @@ exit 2
 **Never end a turn while an issue is running unless its result wait is running.** A finished background command always calls the parent again, so the parent never relies on the app's notifications. Each time the parent is called (a result wait ended, or the app continued it), for each running issue:
 
 - its result file exists: read the `RESULT:` line from the file, not from the child's messages. That ends the issue;
-- no result file and the deadline has passed (exit 1): read the child's state with `list_sessions` (`linked: true`) for the report, and count the issue as stopped ("no RESULT within 3 hours");
+- no result file and the deadline has passed (exit 1): read the child's state with `list_sessions` (`linked: true`). If the child is still working and the deadline was not extended yet, keep its slot, move the deadline 1 hour on (`echo $(( $(date +%s) + 3600 )) > "<results>/<issue>.deadline"`) and start a new result wait. Otherwise check its PR (`gh pr view <n> --json state`): a merged PR counts as merged (look up CI on `develop` as in step 11); anything else counts as stopped ("no RESULT within 3 hours"), and the report says when the child was still working. A late result file of that issue is not read again;
 - a fallback subagent (see "Fallback") has returned without its result file: count the issue as stopped ("returned without RESULT");
 - otherwise it is still running: leave it, and don't start another issue in its place. If its result wait has ended (exit 2, or stopped by the tool), start a new one.
 
