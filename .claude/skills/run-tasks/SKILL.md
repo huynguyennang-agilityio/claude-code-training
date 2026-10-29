@@ -93,11 +93,11 @@ Then start the next ready issues the rule above allows, each with its result wai
 m="<results>/start-wait-$(date +%s)"
 touch "$m"
 sleep 900                                                     # 15 minutes
-[ -n "$(find "<results>" -name '*.started' -newer "$m")" ] && exit 0
+[ -n "$(find "<results>" \( -name '*.started' -o -name 'start-wait-*' \) -newer "$m")" ] && exit 0
 exit 3
 ```
 
-A child sends the parent a note when it ends its turn. The turn that note begins starts the ready issues, each with its result wait, as above. A start wait that ends with exit 0 needs nothing: an issue has started since. Exit 3 means no issue has started in 15 minutes (the app held the note back). If an issue is still running, do nothing: its result wait, and later its note, give the start another chance. Otherwise send `Run paused: run /run-tasks <open issues> to continue`, naming only the issues not yet merged or stopped (see "Slack"), `touch "<results>/paused"`, and stop. On any later call, a parent that finds `<results>/paused` does nothing and sends no DM. The same holds when `list_sessions` fails: start a start wait, end the turn, and pause only on exit 3 with no issue running.
+A child sends the parent a note when it ends its turn. The turn that note begins starts the ready issues, each with its result wait, as above. A start wait that ends with exit 0 needs nothing: an issue has started since, or a newer start wait decides. Exit 3 means no issue has started in 15 minutes (the app held the note back). If an issue is still running, do nothing: its result wait, and later its note, give the start another chance. Otherwise send `Run paused: run /run-tasks <open issues> to continue`, naming only the issues not yet merged or stopped (see "Slack"), `touch "<results>/paused"`, and stop. On any later call, a parent that finds `<results>/paused` does nothing and sends no DM. When `list_sessions` fails, start a start wait and end the turn too; on its exit 3, call `list_sessions` again, and if it fails again, pause as above even while an issue still counts as running, since its state cannot be read.
 
 When every issue the run did not leave out (step 2) is merged or stopped, go to step 5.
 
@@ -214,7 +214,7 @@ DM the user with the Slack connector: `slack_read_user_profile` without a user I
 - **Stop:** one per stopped issue, as soon as the parent knows it stopped (step 3): `#<issue> stopped: <reason>; run continues` (`run ends` when no issue is still running or ready). An issue stopped because it depends on another gets its own DM, with the reason `depends on #<issue>`.
 - **End:** the report link and a three-line summary (merged, stopped, what needs the user).
 
-If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to these DMs: when `start_session` is refused (or `list_sessions` fails) while issues are still ready, the parent first waits for a session's note, and only when the 15-minute start wait of step 3 ends with no issue started since and none still running does it send `Run paused: run /run-tasks <open issues> to continue`, naming only the issues not yet merged or stopped, and stop. A refused start alone sends no DM. The new run skips the merged issues.
+If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to these DMs: when `start_session` is refused (or `list_sessions` fails) while issues are still ready, the parent first waits for a session's note, and only when the newest 15-minute start wait of step 3 ends with no issue started since and none still running (or `list_sessions` fails again) does it send `Run paused: run /run-tasks <open issues> to continue`, naming only the issues not yet merged or stopped, and stop. A refused start alone sends no DM. The new run skips the merged issues.
 
 ## Report
 
