@@ -385,6 +385,23 @@ void main() {
       expect(await repository.accessToken(), isNull);
     });
 
+    test('still announces it when clearing the session fails', () async {
+      final failing = _ClearThrowingLocal()..session = testSession();
+      final repo = AuthRepositoryImpl(remote, failing);
+      addTearDown(repo.dispose);
+      when(
+        () => remote.deleteAccount(currentPassword: 'run4medals'),
+      ).thenAnswer((_) async {});
+      var deleted = 0;
+      final subscription = repo.accountDeleted.listen((_) => deleted++);
+      addTearDown(subscription.cancel);
+
+      await repo.deleteAccount(currentPassword: 'run4medals');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(deleted, 1);
+    });
+
     for (final code in [
       AuthFailureCode.incorrectPassword,
       AuthFailureCode.lastAdmin,
@@ -554,4 +571,9 @@ class _ThrowingLocal extends InMemoryAuthLocalDataSource {
   @override
   Future<void> saveSession(AuthSessionModel session) async =>
       throw StateError('storage failed');
+}
+
+class _ClearThrowingLocal extends InMemoryAuthLocalDataSource {
+  @override
+  Future<void> clear() async => throw StateError('storage failed');
 }
