@@ -20,3 +20,6 @@ Loaded through `mobile/CLAUDE.md` whenever Claude works on files under `mobile/`
 - **2026-10-27, #127.** `AuthRemoteDataSource` reaches the authenticated Dio through `DioProvider`, resolved on first use: injecting `authenticatedDio` directly makes a DI cycle (Dio → token handler → repository → data source) that crashes `injectable_generator`.
 - **2026-10-27, #127.** In `AuthRepositoryImpl`, an API call that can hit a `401` runs outside `_serialized`; only the local write and the announcement run inside it, or the token refresh waits on the same queue and deadlocks.
 - **2026-10-27, #129.** In an integration test, hide the snackbar left by a previous save before reopening a form: it can cover the next form's Save button.
+- **2026-10-29, #190.** A test that builds a real `AuthBloc` over a mocktail `AuthRepository` stubs every repository stream, `accountDeleted` included, or the `AuthBloc` constructor throws.
+- **2026-10-29, #191.** `colorScheme.onError` is dark, not white: white on the error red is 3.8:1 and fails `expectAccessible`. Use `onError` for text on an error-filled button.
+- **2026-10-29, #192.** The simulator panel's typing drops characters sent before a Flutter text field has focus: tap the field, wait about 2 seconds, then type.

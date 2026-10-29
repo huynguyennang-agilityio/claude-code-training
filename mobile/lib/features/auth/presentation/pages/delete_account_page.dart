@@ -95,6 +95,7 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
               label: 'Current Password',
               hint: 'Your current password',
               enabled: !state.isSubmitting,
+              errorText: state.lengthError,
               textInputAction: TextInputAction.done,
               autofillHints: const [AutofillHints.password],
               scrollPadding: SettingsFormLayout.scrollPadding,
