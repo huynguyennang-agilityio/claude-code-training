@@ -145,11 +145,20 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
 
   @override
   Future<void> deleteAccount({required String currentPassword}) async {
+    final before = await _local.readSession();
     // Outside `_serialized`, for the same reason as `changeEmail`.
     await _remote.deleteAccount(currentPassword: currentPassword);
     // The account is gone and its tokens are dead, so the local session goes
     // now, and only now: a failed request leaves everything as it was.
     return _serialized(() async {
+      final session = await _local.readSession();
+      // A sign-out, or another user's session, while the request ran is not
+      // this account's session: leave it alone.
+      if (before == null ||
+          session == null ||
+          session.user.id != before.user.id) {
+        return;
+      }
       try {
         await _local.clear();
       } on Object {

@@ -11,6 +11,7 @@ import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/auth/presentation/bloc/change_email_bloc.dart';
 import 'package:stridequest/features/auth/presentation/bloc/change_password_bloc.dart';
+import 'package:stridequest/features/auth/presentation/bloc/delete_account_bloc.dart';
 import 'package:stridequest/features/auth/presentation/pages/sign_in_page.dart';
 import 'package:stridequest/features/home/presentation/pages/home_shell.dart';
 import 'package:stridequest/features/profile/data/datasources/fake_profile_remote_data_source.dart';
@@ -71,7 +72,8 @@ void main() {
     when(auth.restoreSession).thenAnswer((_) async => _user);
     getIt
       ..registerFactory<ChangeEmailBloc>(() => ChangeEmailBloc(auth))
-      ..registerFactory<ChangePasswordBloc>(() => ChangePasswordBloc(auth));
+      ..registerFactory<ChangePasswordBloc>(() => ChangePasswordBloc(auth))
+      ..registerFactory<DeleteAccountBloc>(() => DeleteAccountBloc(auth));
     getIt.registerFactory<ProfileInfoBloc>(
       () =>
           ProfileInfoBloc(ProfileRepositoryImpl(FakeProfileRemoteDataSource())),
@@ -98,9 +100,8 @@ void main() {
     );
   }
 
-  testWidgets('shows the initials, the three rows and Sign out', (
-    tester,
-  ) async {
+  testWidgets('shows the initials, the three rows, Sign out and Delete '
+      'account', (tester) async {
     await pumpProfile(tester);
 
     expect(find.text('LR'), findsOneWidget);
@@ -110,6 +111,19 @@ void main() {
     }
     expect(find.byIcon(Icons.chevron_right), findsNWidgets(3));
     expect(find.text('Sign out'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Delete account'), findsOneWidget);
+  });
+
+  testWidgets('the Delete account text is in the error color', (tester) async {
+    await pumpProfile(tester);
+
+    final style = tester
+        .widget<TextButton>(find.widgetWithText(TextButton, 'Delete account'))
+        .style!;
+    final colors = Theme.of(
+      tester.element(find.byType(ProfilePage)),
+    ).colorScheme;
+    expect(style.foregroundColor!.resolve({}), colors.error);
   });
 
   testWidgets('a one-word name gives one initial', (tester) async {
@@ -176,6 +190,31 @@ void main() {
   });
 
   group('navigation', () {
+    testWidgets('Delete account opens its page and back returns', (
+      tester,
+    ) async {
+      whenListen(
+        bloc,
+        const Stream<AuthState>.empty(),
+        initialState: AuthAuthenticated(_user),
+      );
+      await tester.pumpWidget(_routerApp(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Delete account'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.widgetWithText(AppBar, 'Delete Account'), findsOneWidget);
+      verifyNever(() => bloc.add(const AuthSignOutRequested()));
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Sign out'), findsOneWidget);
+    });
+
     for (final (row, path) in [
       ('Profile', '/profile/info'),
       ('Email', '/profile/email'),
@@ -221,6 +260,7 @@ void main() {
       '/profile/info',
       '/profile/email',
       '/profile/password',
+      '/profile/delete-account',
     ]) {
       test('$path sends a signed-out user to sign in', () {
         expect(

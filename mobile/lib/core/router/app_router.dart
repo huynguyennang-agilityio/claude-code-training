@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/bloc/change_email_bloc.dart';
 import '../../features/auth/presentation/bloc/change_password_bloc.dart';
+import '../../features/auth/presentation/bloc/delete_account_bloc.dart';
 import '../../features/auth/presentation/bloc/sign_in_bloc.dart';
 import '../../features/auth/presentation/bloc/sign_up_bloc.dart';
 import '../../features/auth/presentation/pages/change_email_page.dart';
 import '../../features/auth/presentation/pages/change_password_page.dart';
+import '../../features/auth/presentation/pages/delete_account_page.dart';
 import '../../features/auth/presentation/pages/sign_in_page.dart';
 import '../../features/auth/presentation/pages/sign_up_page.dart';
 import '../../features/challenges/presentation/bloc/challenge_detail_bloc.dart';
@@ -41,6 +43,7 @@ const protectedPaths = <String>{
   ProfileInfoPage.path,
   ChangeEmailPage.path,
   ChangePasswordPage.path,
+  DeleteAccountPage.path,
 };
 
 final appRoutes = <RouteBase>[
@@ -131,6 +134,13 @@ final appRoutes = <RouteBase>[
     builder: (context, state) => BlocProvider(
       create: (_) => getIt<ChangePasswordBloc>(),
       child: const ChangePasswordPage(),
+    ),
+  ),
+  GoRoute(
+    path: DeleteAccountPage.path,
+    builder: (context, state) => BlocProvider(
+      create: (_) => getIt<DeleteAccountBloc>(),
+      child: const DeleteAccountPage(),
     ),
   ),
   GoRoute(
