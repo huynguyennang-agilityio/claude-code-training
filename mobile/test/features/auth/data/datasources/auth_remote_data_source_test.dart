@@ -625,6 +625,8 @@ void main() {
 
     for (final (status, code, expected) in [
       (401, 'not_authenticated', AuthFailureCode.notAuthenticated),
+      (401, 'invalid_token', AuthFailureCode.invalidToken),
+      (401, 'token_expired', AuthFailureCode.tokenExpired),
       (403, 'incorrect_password', AuthFailureCode.incorrectPassword),
       (409, 'last_admin', AuthFailureCode.lastAdmin),
       (422, 'validation_error', AuthFailureCode.validation),
@@ -824,6 +826,27 @@ void main() {
         );
         verify(() => tokens.refreshTokens()).called(1);
         verifyNever(() => tokens.expireSession());
+      },
+    );
+
+    test(
+      'deleteAccount: an invalid_token 401 with a rejected refresh ends the '
+      'session',
+      () async {
+        when(
+          () => tokens.refreshTokens(),
+        ).thenAnswer((_) async => TokenRefreshResult.rejected);
+        when(() => tokens.expireSession()).thenAnswer((_) async {});
+        final source = build((_) async => _error('invalid_token', 401));
+
+        final failure = await _failureOf(
+          source.deleteAccount(currentPassword: 'p'),
+        );
+
+        expect(failure.code, AuthFailureCode.invalidToken);
+        expect(adapter.requests, hasLength(1));
+        verify(() => tokens.refreshTokens()).called(1);
+        verify(() => tokens.expireSession()).called(1);
       },
     );
 
