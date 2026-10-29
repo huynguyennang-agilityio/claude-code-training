@@ -215,7 +215,8 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
     return _issueTokens(current);
   }
 
-  /// Checks like the backend, in the order of `docs/api/auth.md`: the rate
+  /// Checks like the backend, in the order of `docs/api/auth.md`: the field
+  /// rule (422), the rate
   /// limit (429), the current password (403), the last admin (409). On success
   /// the user and their refresh tokens are gone.
   @override
@@ -223,6 +224,16 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
     await Future<void>.delayed(latency);
     final current = _currentUser;
     if (current == null) throw AuthFailure(AuthFailureCode.notAuthenticated);
+    if (currentPassword.isEmpty || currentPassword.length > 128) {
+      throw AuthFailure(
+        AuthFailureCode.validation,
+        fieldErrors: const {
+          'current_password':
+              'Enter your current password (up to 128 '
+              'characters).',
+        },
+      );
+    }
 
     final failures = _recentFailures(current.email);
     if (failures.length >= maxFailedSignIns) {

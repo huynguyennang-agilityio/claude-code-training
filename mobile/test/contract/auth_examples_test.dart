@@ -416,6 +416,28 @@ void main() {
       expect(failure.message, example['message']);
     });
 
+    test('delete account checks the field rules first', () async {
+      final fake = FakeAuthRemoteDataSource();
+      await fake.signUp(
+        email: 'runner@example.com',
+        password: 'run4medals',
+        displayName: 'Lan',
+      );
+
+      for (final password in ['', 'a' * 129]) {
+        final failure = await _failureOf(
+          fake.deleteAccount(currentPassword: password),
+        );
+        expect(failure.code, AuthFailureCode.validation);
+        expect(failure.fieldErrors.keys, ['current_password']);
+      }
+      // Neither attempt counted toward the rate limit.
+      for (var i = 0; i < FakeAuthRemoteDataSource.maxFailedSignIns - 1; i++) {
+        await _failureOf(fake.deleteAccount(currentPassword: 'wrong123'));
+      }
+      await fake.deleteAccount(currentPassword: 'run4medals');
+    });
+
     test('the last admin gets error_last_admin', () async {
       final fake = FakeAuthRemoteDataSource(
         lastAdminEmails: {'runner@example.com'},

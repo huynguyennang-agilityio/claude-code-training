@@ -72,7 +72,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (state is AuthAuthenticated) emit(AuthAuthenticated(event.user));
   }
 
+  /// Ignored when already signed out, so a refresh that was queued behind a
+  /// sign-out or a deleted account cannot replace its message.
   void _onSessionExpired(_AuthSessionExpired event, Emitter<AuthState> emit) {
+    if (state is AuthUnauthenticated) return;
     emit(const AuthUnauthenticated(sessionExpired: true));
   }
 

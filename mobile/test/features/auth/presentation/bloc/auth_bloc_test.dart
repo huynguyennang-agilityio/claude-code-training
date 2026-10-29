@@ -110,6 +110,18 @@ void main() {
     expect: () => [const AuthUnauthenticated(accountDeleted: true)],
   );
 
+  blocTest<AuthBloc, AuthState>(
+    'a session expiry after a deleted account keeps the deleted notice',
+    build: () => AuthBloc(repository),
+    seed: () => AuthAuthenticated(user),
+    act: (_) async {
+      accountDeleted.add(null);
+      await Future<void>.delayed(Duration.zero);
+      sessionExpired.add(null);
+    },
+    expect: () => [const AuthUnauthenticated(accountDeleted: true)],
+  );
+
   test('a deleted account is not a session expiry', () {
     expect(
       const AuthUnauthenticated(accountDeleted: true),
