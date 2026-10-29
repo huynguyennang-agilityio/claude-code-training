@@ -334,7 +334,7 @@ Responses:
 
   After the delete, any access token issued before gets `401 invalid_token` ("The account no longer exists."), since its user no longer exists, and `POST /api/v1/auth/refresh` with any of the user's refresh tokens gets `401 invalid_refresh_token`. The app should delete both tokens locally.
 - `403 incorrect_password` (the example in `PUT /api/v1/users/me/email`).
-- `409 last_admin` when the caller is the only remaining `admin`. Two admins deleting themselves at the same time cannot both succeed: one of them gets this error.
+- `409 last_admin` when the caller is the only remaining `admin`. When only two admins remain and both delete themselves at the same time, one of them gets this error.
 
 <!-- example: auth/error_last_admin.json -->
 ```json
