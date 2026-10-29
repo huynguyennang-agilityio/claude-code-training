@@ -62,7 +62,7 @@ For each ready issue, start one child session with the desktop app's `start_sess
 - `background`: the run, the plan, and that the parent collects results and writes the report;
 - `prompt`: the session brief below, with the issue brief from step 2 and the result file `<results>/<issue>.result`.
 
-Right after each `start_session`, record the issue's 3-hour deadline, `echo $(( $(date +%s) + 10800 )) > "<results>/<issue>.deadline"` (after `mkdir -p "<results>"`), and start a **result wait**: one background command for that issue, which only reads the disk. A background command may be stopped by the Bash tool before 3 hours, so each wait runs at most 25 minutes, and only the deadline decides that the issue has run out:
+Right after each `start_session`, record the issue's 3-hour deadline, `echo $(( $(date +%s) + 10800 )) > "<results>/<issue>.deadline"` (after `mkdir -p "<results>"`), record how the turn began in `<results>/<issue>.started` (`command` for a turn that began with the user's words, `note` for one that began with a session's note; the report reads it), and start a **result wait**: one background command for that issue, which only reads the disk. A background command may be stopped by the Bash tool before 3 hours, so each wait runs at most 25 minutes, and only the deadline decides that the issue has run out:
 
 ```bash
 f="<results>/<issue>.result"
@@ -76,7 +76,7 @@ exit 2
 
 **At most two issues run at once.** An issue runs from its `start_session` until its result file appears, or, past its deadline, until its child is no longer working. A slot is freed only once its child is no longer working. Start an issue only when fewer than two are running and it pairs (step 2) with the one still running.
 
-**Never end a turn while an issue is running unless its result wait is running.** A finished background command always calls the parent again, so the parent never relies on the app's notifications. Each time the parent is called (a result wait ended, or the app continued it), for each running issue:
+**Never end a turn while an issue is running unless its result wait is running.** A finished background command always calls the parent again, so the parent never relies on the app's notifications. Each time the parent is called (a result wait or the start wait below ended, a session's note arrived, or the app continued it), for each running issue:
 
 - its result file exists: read the `RESULT:` line from the file, not from the child's messages. That ends the issue;
 - no result file and the deadline has passed (exit 1): read the child's state with `list_sessions` (`linked: true`). If the child is still working and has not been told to stop yet (no `<results>/<issue>.stopping` file), tell it to stop and `touch "<results>/<issue>.stopping"`: a `SendMessage` with `to` set to the child's `local_…` session id (from `list_sessions`) that the 3-hour deadline has passed and it should stop the issue now (step 4) and write its result file. Then give it 15 minutes (`echo $(( $(date +%s) + 900 )) > "<results>/<issue>.deadline"`) and start a new result wait; a result file that appears in that time is read as usual. If it is still working when those 15 minutes pass, end it with the desktop app's `stop_session` tool. Once the child is no longer working, settle the issue by its PR, found with `gh pr list --state all --search "Closes #<issue> in:body" --json number,state,body --jq '.[] | select(.body | test("Closes #<issue>\\b")) | "\(.number) \(.state)"'`: a `MERGED` PR counts as merged (look up CI on `develop` as in step 11); anything else counts as stopped ("no RESULT within 3 hours"), and the report says when the parent had to stop the child. A late result file of that issue is not read again;
@@ -85,7 +85,21 @@ exit 2
 
 When an issue ends as stopped, for any reason (step 4), leave its issue and PR open (posting its `Stopped:` comment when the parent decided the stop, step 4) and, in the same turn, mark every issue of the run that depends on it, directly or through another, as stopped ("depends on #<issue>") without starting it. Then DM each newly stopped issue (see "Slack"): `#<issue> stopped: <reason>; run continues`, or `; run ends` when no issue is still running or ready. The other issues go on.
 
-Then start the next ready issues the rule above allows, each with its result wait, or, when some are still running, end the turn: their result waits wake the parent. When every issue the run did not leave out (step 2) is merged or stopped, go to step 5.
+Then start the next ready issues the rule above allows, each with its result wait, or, when some are still running, end the turn: their result waits wake the parent.
+
+**A refused start waits for a session's note** ([plan 037](../../../docs/plans/037-decisions-per-area.md), assumption 9). The app allows `start_session` only in a turn that begins with the user's words or with a session's note, so it refuses one in a turn that a result wait woke. When it is refused, the issue result read above stands, the issue stays ready, and no "Run paused" DM goes out (the stop DMs above still do). Start one **start wait** as a background command and end the turn:
+
+```bash
+m="<results>/start-wait-$(date +%s)"
+touch "$m"
+sleep 900                                                     # 15 minutes
+[ -n "$(find "<results>" \( -name '*.started' -o -name 'start-wait-*' \) -newer "$m")" ] && exit 0
+exit 3
+```
+
+A child sends the parent a note when it ends its turn. The turn that note begins starts the ready issues, each with its result wait, as above. A start wait that ends with exit 0 needs nothing: an issue has started since, or a newer start wait decides. Exit 3 means no issue has started in 15 minutes (the app held the note back). If an issue is still running, do nothing: its result wait, and later its note, give the start another chance. Otherwise send `Run paused: run /run-tasks <open issues> to continue`, naming only the issues not yet merged or stopped (see "Slack"), `touch "<results>/paused"`, and stop. On any later call, a parent that finds `<results>/paused` does nothing and sends no DM. When `list_sessions` fails, start a start wait and end the turn too; on its exit 3, call `list_sessions` again, and if it fails again, pause as above even while an issue still counts as running, since its state cannot be read.
+
+When every issue the run did not leave out (step 2) is merged or stopped, go to step 5.
 
 #### Session brief
 
@@ -165,7 +179,7 @@ Every stop a child takes goes the same way: it commits its unfinished work as `w
   ```
   then `/understand backend` and/or `/understand mobile` (incremental). Never `--full` or `--review`.
 - **Report artifact.** Publish a private artifact in Vietnamese named `Run YYYY-MM-DD #a #b …`, with:
-  1. each issue: its PR, status (merged, stopped, left out), main changes, and the CI result on `develop`;
+  1. each issue: its PR, status (merged, stopped, left out), main changes, the CI result on `develop`, and, for each issue after the first, whether it started on a session note or after the user's command (`<results>/<issue>.started`);
   2. **Kế hoạch tiếp theo**:
      - for each stopped issue, why it did not finish and the proposed fix;
      - one `/run-tasks <issues>` command for every stopped issue whose fix stays inside its plan (for example `/run-tasks 2,3`), unless the issue was already a rerun of a real attempt (its brief carried an earlier `Stopped:` comment for a reason other than `depends on #N`): a rerun that stops again gets a draft fix plan instead (plan 035, "Risks"). An issue stopped only because it depends on another gets no fix plan of its own: it goes in the same command as its dependency, or waits for its dependency's fix plan;
@@ -200,7 +214,7 @@ DM the user with the Slack connector: `slack_read_user_profile` without a user I
 - **Stop:** one per stopped issue, as soon as the parent knows it stopped (step 3): `#<issue> stopped: <reason>; run continues` (`run ends` when no issue is still running or ready). An issue stopped because it depends on another gets its own DM, with the reason `depends on #<issue>`.
 - **End:** the report link and a three-line summary (merged, stopped, what needs the user).
 
-If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to these DMs: when the parent cannot continue while issues are still ready (`start_session` or `list_sessions` fails), send `Run paused: run /run-tasks <open issues> to continue` with the open issue numbers, and stop. The new run skips the merged issues.
+If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to these DMs: when `start_session` is refused (or `list_sessions` fails) while issues are still ready, the parent first waits for a session's note, and only when the newest 15-minute start wait of step 3 ends with no issue started since and none still running (or `list_sessions` fails again) does it send `Run paused: run /run-tasks <open issues> to continue`, naming only the issues not yet merged or stopped, and stop. A refused start alone sends no DM. The new run skips the merged issues.
 
 ## Report
 
