@@ -6,13 +6,13 @@ Every Claude workflow on GitHub reads `.claude/workflow/` from the PR's base bra
 
 ## Phase 4: Verification gate
 
-Before opening a PR, confirm:
+Before opening a PR, confirm the points below. An issue without `## Verification` (the old format) keeps its required checks in its acceptance criteria and is checked as before.
 
-1. **Acceptance criteria:** each criterion is met, and you can say how it was checked.
+1. **Acceptance criteria and Verification:** each acceptance criterion and each Verification item of the issue (when it has one) is met, and you can say how it was checked.
 2. **Regression:** the full test suite passes.
 3. **Security:** no leaked secrets, inputs are validated and authorization checks are in place. Every `security-guidance` finding in this branch's sessions is fixed or answered.
 4. **Git diff:** `git diff develop...HEAD` contains only changes for this issue.
-5. **Evidence:** the drafted `## Evidence` section covers each acceptance criterion, with evidence or a `Not verified: <reason>` line ([`evidence.md`](evidence.md)).
+5. **Evidence:** the drafted `## Evidence` section covers each acceptance criterion and each Verification item of the issue (when it has one), with evidence or a `Not verified: <reason>` line ([`evidence.md`](evidence.md)).
 
 ## Phase 5: PR and review
 
@@ -37,8 +37,8 @@ Before opening a PR, confirm:
 
 When asked to review a PR, walk these five steps in order and report findings under each step's heading. Write "No issues found" for a step with nothing to report. Don't skip ahead: a correctness problem matters more than a naming nit.
 
-1. **Correctness:** does the change do what the linked issue asks? Check edge cases, error handling and the issue's acceptance criteria. Check that the PR links its issue (`Closes #<id>`) and names its plan (`Plan: docs/plans/NNN-<short-name>.md`), and that it lists its deviations from the plan or says "No deviations".
-2. **Tests:** is new logic covered by tests, and do the tests check behavior rather than implementation? Compare the tests with the contract in `docs/api/` and the issue's acceptance criteria, not only with the code, and flag an assertion that was changed to make a test pass. Do lint and tests pass, locally or in CI? Does the PR's `## Evidence` section cover each acceptance criterion of the linked issue, or say `Not verified: <reason>`?
+1. **Correctness:** does the change do what the linked issue asks? Check edge cases, error handling, and each acceptance criterion and each Verification item of the issue (when it has one). Check that the PR links its issue (`Closes #<id>`) and names its plan (`Plan: docs/plans/NNN-<short-name>.md`), and that it lists its deviations from the plan or says "No deviations".
+2. **Tests:** is new logic covered by tests, and do the tests check behavior rather than implementation? Compare the tests with the contract in `docs/api/` and with each acceptance criterion and each Verification item of the issue (when it has one), not only with the code, and flag an assertion that was changed to make a test pass. Do lint and tests pass, locally or in CI? Does the PR's `## Evidence` section cover each acceptance criterion and each Verification item of the issue (when it has one), or say `Not verified: <reason>`?
 3. **Readability:** are names clear, functions short and code free of duplication? Does it follow the layered structure in [`CLAUDE.md`](../../CLAUDE.md#architecture-rules)?
 4. **Security basics:** are there leaked secrets, unvalidated inputs or missing authorization checks?
 5. **Scope:** does the PR cover exactly one issue? Flag unrelated changes.

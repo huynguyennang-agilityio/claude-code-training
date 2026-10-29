@@ -47,7 +47,7 @@ A mobile feature that calls an endpoint is planned as two issues, so mobile work
 - **Required evidence missing:** ask for it before writing code. Don't guess what the user wants.
 - **Non-essential detail missing:** continue only if you state the assumption in the issue or plan and it doesn't materially change the result.
 
-For `ui` tickets and features with UI, the acceptance criteria also name the states the screen can show (loading, empty, error, success, as they apply) and the screen sizes and text scales to support. The default is 375×667 and 430×932 at text scale 1.0 and 2.0 (`pumpScreen` in `mobile/test/helpers/`).
+For `ui` tickets and features with UI, the task's Verification also names the states the screen can show (loading, empty, error, success, as they apply) and the screen sizes and text scales to support; an issue without `## Verification` (the old format) names them in its acceptance criteria. The default is 375×667 and 430×932 at text scale 1.0 and 2.0 (`pumpScreen` in `mobile/test/helpers/`).
 
 Don't demand images for every ticket. A bug with a wrong HTTP status needs the request, response and log, not a screenshot.
 

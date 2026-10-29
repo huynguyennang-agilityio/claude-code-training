@@ -5,7 +5,7 @@ Read this before you report a task as done or write a PR's `## Evidence` section
 Verification evidence shows the work was checked. It is not the ticket evidence from Phase 1 ([`plan.md`](plan.md#ticket-evidence-gate)), which is input from the reporter.
 
 - Don't report a task as done without an `## Evidence` section in your report, in the format of the PR template. When the user asks for a PR, the same section goes into its description.
-- Map each acceptance criterion to at least one piece of evidence. A change can match several rows below. Every row also includes the lint and type-check results.
+- Map each acceptance criterion and each Verification item of the issue (when it has one) to at least one piece of evidence. A change can match several rows below. Every row also includes the lint and type-check results.
 - Redact tokens, passwords, `Authorization` headers, cookies and connection strings before pasting anything.
 - Attach large logs and screenshots to the PR instead of committing them. Golden test baselines are test fixtures and are committed as usual. Rendering differs between operating systems, so generate and compare goldens on the same platform: baselines are generated on an Apple Silicon Mac (`flutter test --update-goldens --tags golden`) and CI compares them on `macos-15` (the `goldens` job). If the `goldens` job fails, its `golden-failures` artifact holds the diff images.
 
