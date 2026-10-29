@@ -29,6 +29,8 @@ An area matches a backend module (`backend/app/modules/`) or a mobile feature (`
 
 A task that spans areas takes the area of the code it mostly changes.
 
+Each side keeps one DECISIONS file per area that has code there, `backend/decisions/<area>.md` and `mobile/decisions/<area>.md`, imported by that side's `CLAUDE.md` next to its common `DECISIONS.md` ([plan 037](037-decisions-per-area.md)). A new area adds its `decisions/<area>.md`, with the same header as the other files of that side, and its `@decisions/<area>.md` import line, on each side where it has code (`health` gets its files with its first code).
+
 ## Template
 
 Copy this into `docs/plans/NNN-<short-name>.md`.
