@@ -90,6 +90,9 @@ void main() {
       () => repository.sessionExpired,
     ).thenAnswer((_) => sessionExpired.stream);
     when(
+      () => repository.accountDeleted,
+    ).thenAnswer((_) => const Stream<void>.empty());
+    when(
       () => repository.userUpdated,
     ).thenAnswer((_) => const Stream<AuthUser>.empty());
     when(

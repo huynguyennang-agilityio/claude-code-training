@@ -44,6 +44,10 @@ abstract interface class AuthRemoteDataSource {
     required String currentPassword,
     required String newPassword,
   });
+
+  /// `POST /users/me/delete`: needs the access token. Answers `204` with no
+  /// body.
+  Future<void> deleteAccount({required String currentPassword});
 }
 
 /// [AuthRemoteDataSource] backed by the StrideQuest REST API.
@@ -126,6 +130,37 @@ class DioAuthRemoteDataSource implements AuthRemoteDataSource {
       'new_password': newPassword,
     });
     return _parse(json, TokenPairModel.fromJson);
+  }
+
+  @override
+  Future<void> deleteAccount({required String currentPassword}) async {
+    // A POST, not a DELETE with a body (see `docs/api/auth.md`).
+    final Response<String> response;
+    try {
+      response = await _authenticatedDio()
+          .post<String>(
+            'users/me/delete',
+            data: jsonEncode({'current_password': currentPassword}),
+            // Default `validateStatus`, so a 401 reaches the auth interceptor.
+            options: Options(
+              responseType: ResponseType.plain,
+              contentType: Headers.jsonContentType,
+            ),
+          )
+          .timeout(timeout);
+    } on DioException catch (error) {
+      final failed = error.response;
+      if (failed == null) throw AuthFailure(AuthFailureCode.network);
+      throw _failure(
+        failed.statusCode ?? 0,
+        failed.headers,
+        _decode(failed.data as String? ?? ''),
+      );
+    } on TimeoutException {
+      throw AuthFailure(AuthFailureCode.network);
+    }
+    // Anything but 204 is not the contract: do not clear the session for it.
+    if (response.statusCode != 204) throw AuthFailure(AuthFailureCode.unknown);
   }
 
   /// Puts [body] as JSON through the authenticated [Dio] and returns the

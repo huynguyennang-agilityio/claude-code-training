@@ -359,6 +359,59 @@ void main() {
     });
   });
 
+  group('deleteAccount', () {
+    Future<void> delete() =>
+        repository.deleteAccount(currentPassword: 'run4medals');
+
+    test('clears the session after success, then announces it', () async {
+      local.session = testSession();
+      when(
+        () => remote.deleteAccount(currentPassword: 'run4medals'),
+      ).thenAnswer((_) async {});
+      var clearedWhenAnnounced = false;
+      final deleted = <Object?>[];
+      final subscription = repository.accountDeleted.listen((_) {
+        clearedWhenAnnounced = local.session == null;
+        deleted.add(null);
+      });
+      addTearDown(subscription.cancel);
+
+      await delete();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(local.session, isNull);
+      expect(deleted, hasLength(1));
+      expect(clearedWhenAnnounced, isTrue);
+      expect(await repository.accessToken(), isNull);
+    });
+
+    for (final code in [
+      AuthFailureCode.incorrectPassword,
+      AuthFailureCode.lastAdmin,
+      AuthFailureCode.rateLimited,
+      AuthFailureCode.network,
+    ]) {
+      test('${code.wireCode} clears nothing and announces nothing', () async {
+        local.session = testSession();
+        when(
+          () => remote.deleteAccount(currentPassword: 'run4medals'),
+        ).thenThrow(AuthFailure(code));
+        final deleted = <Object?>[];
+        final subscription = repository.accountDeleted.listen(deleted.add);
+        addTearDown(subscription.cancel);
+
+        await expectLater(
+          delete(),
+          throwsA(isA<AuthFailure>().having((f) => f.code, 'code', code)),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(local.session, testSession());
+        expect(deleted, isEmpty);
+      });
+    }
+  });
+
   group('changePassword', () {
     setUp(() {
       when(

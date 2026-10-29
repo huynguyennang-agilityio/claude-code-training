@@ -17,12 +17,17 @@ void main() {
   late StreamController<void> sessionExpired;
   late StreamController<AuthUser> sessionStarted;
   late StreamController<AuthUser> userUpdated;
+  late StreamController<void> accountDeleted;
 
   setUp(() {
     repository = _MockRepository();
     sessionExpired = StreamController<void>.broadcast();
     sessionStarted = StreamController<AuthUser>.broadcast();
     userUpdated = StreamController<AuthUser>.broadcast();
+    accountDeleted = StreamController<void>.broadcast();
+    when(
+      () => repository.accountDeleted,
+    ).thenAnswer((_) => accountDeleted.stream);
     when(() => repository.userUpdated).thenAnswer((_) => userUpdated.stream);
     when(
       () => repository.sessionStarted,
@@ -36,6 +41,7 @@ void main() {
     await sessionExpired.close();
     await sessionStarted.close();
     await userUpdated.close();
+    await accountDeleted.close();
   });
 
   test('starts unknown', () async {
@@ -95,6 +101,25 @@ void main() {
     act: (_) => sessionExpired.add(null),
     expect: () => [const AuthUnauthenticated(sessionExpired: true)],
   );
+
+  blocTest<AuthBloc, AuthState>(
+    'says the account was deleted when the repository announces it',
+    build: () => AuthBloc(repository),
+    seed: () => AuthAuthenticated(user),
+    act: (_) => accountDeleted.add(null),
+    expect: () => [const AuthUnauthenticated(accountDeleted: true)],
+  );
+
+  test('a deleted account is not a session expiry', () {
+    expect(
+      const AuthUnauthenticated(accountDeleted: true),
+      isNot(const AuthUnauthenticated(sessionExpired: true)),
+    );
+    expect(
+      const AuthUnauthenticated(accountDeleted: true).sessionExpired,
+      false,
+    );
+  });
 
   final updated = AuthUser(
     id: user.id,

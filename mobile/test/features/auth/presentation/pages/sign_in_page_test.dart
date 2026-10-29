@@ -211,6 +211,34 @@ void main() {
     });
   });
 
+  group('account deleted', () {
+    testWidgets('says the account has been deleted', (tester) async {
+      await pumpPage(
+        tester,
+        session: const AuthUnauthenticated(accountDeleted: true),
+      );
+
+      expect(find.text('Your account has been deleted.'), findsOneWidget);
+      expect(
+        find.text('Your session has expired. Sign in again.'),
+        findsNothing,
+      );
+      await expectAccessible(tester);
+    });
+
+    testWidgets('fits at the large phone and double text', (tester) async {
+      await pumpPage(
+        tester,
+        session: const AuthUnauthenticated(accountDeleted: true),
+        size: largePhone,
+        textScale: 2,
+      );
+
+      expect(find.text('Your account has been deleted.'), findsOneWidget);
+      await expectAccessible(tester);
+    });
+  });
+
   group('submitting', () {
     testWidgets('sends the trimmed email and the password as typed', (
       tester,

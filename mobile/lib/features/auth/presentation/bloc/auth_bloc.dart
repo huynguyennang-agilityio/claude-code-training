@@ -28,6 +28,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<_AuthSessionStarted>(_onSessionStarted);
     on<_AuthSessionExpired>(_onSessionExpired);
     on<_AuthUserUpdated>(_onUserUpdated);
+    on<_AuthAccountDeleted>(_onAccountDeleted);
     _sessionStarted = _repository.sessionStarted.listen(
       (user) => add(_AuthSessionStarted(user)),
     );
@@ -37,12 +38,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     _sessionExpired = _repository.sessionExpired.listen(
       (_) => add(const _AuthSessionExpired()),
     );
+    _accountDeleted = _repository.accountDeleted.listen(
+      (_) => add(const _AuthAccountDeleted()),
+    );
   }
 
   final AuthRepository _repository;
   late final StreamSubscription<AuthUser> _sessionStarted;
   late final StreamSubscription<AuthUser> _userUpdated;
   late final StreamSubscription<void> _sessionExpired;
+  late final StreamSubscription<void> _accountDeleted;
 
   Future<void> _onStarted(AuthStarted event, Emitter<AuthState> emit) async {
     final user = await _repository.restoreSession();
@@ -71,11 +76,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthUnauthenticated(sessionExpired: true));
   }
 
+  void _onAccountDeleted(_AuthAccountDeleted event, Emitter<AuthState> emit) {
+    emit(const AuthUnauthenticated(accountDeleted: true));
+  }
+
   @override
   Future<void> close() async {
     await _sessionStarted.cancel();
     await _userUpdated.cancel();
     await _sessionExpired.cancel();
+    await _accountDeleted.cancel();
     return super.close();
   }
 }
