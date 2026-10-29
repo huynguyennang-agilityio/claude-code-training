@@ -5,7 +5,7 @@ Loaded through `backend/CLAUDE.md` whenever Claude works on files under `backend
 - One entry: at most three lines, with its date and issue or plan. Newest at the end.
 - Gotchas (odd bugs and how to avoid them), conventions the AI gets wrong, small decisions. A large decision is an ADR in `docs/adr/`; the entry only links to it.
 - Keep this file under 4 KB. Remove an entry once a test or lint enforces it.
-- Claude never edits this file during `/run-tasks`. It proposes entries in the PR description, and Claude picks them after the run.
+- Claude never edits this file while `/run-tasks` issues are in progress. It proposes entries in the PR description, and Claude picks them after the run.
 
 ## Entries
 
