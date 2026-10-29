@@ -167,7 +167,7 @@ Every stop a child takes goes the same way: it commits its unfinished work as `w
   1. each issue: its PR, status (merged, stopped, left out), main changes, and the CI result on `develop`;
   2. **Kế hoạch tiếp theo**:
      - for each stopped issue, why it did not finish and the proposed fix;
-     - one `/run-tasks <issues>` command for every stopped issue whose fix stays inside its plan (for example `/run-tasks 2,3`), unless the issue was already a rerun (its brief carried an earlier `Stopped:` comment): a rerun that stops again gets a draft fix plan instead (plan 035, "Risks");
+     - one `/run-tasks <issues>` command for every stopped issue whose fix stays inside its plan (for example `/run-tasks 2,3`), unless the issue was already a rerun of a real attempt (its brief carried an earlier `Stopped:` comment for a reason other than `depends on #N`): a rerun that stops again gets a draft fix plan instead (plan 035, "Risks"). An issue stopped only because it depends on another gets no fix plan of its own: it goes in the same command as its dependency, or waits for its dependency's fix plan;
      - for a fix that changes the plan, or a rerun that stopped again, the link to a draft fix plan artifact published with the `plan-artifact` skill, which only the user approves (`/approve-plan`); the issues that depend on it wait for that plan;
      - any other big problem that remains, with a proposed fix;
   3. the `Not verified` lines, the PRs above 400 lines with how each could have been split, the PRs that touch auth, the schema or a migration (to look at later), and the review findings answered but not fixed;
