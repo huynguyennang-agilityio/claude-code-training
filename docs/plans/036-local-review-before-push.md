@@ -2,7 +2,7 @@
 
 Status: approved
 Approved: 2026-10-29, by the user in chat: "/approve-plan 036"
-Issues: <filled in after approval>
+Issues: #211, #212
 Draft: https://claude.ai/artifact/SjSKxKvU63WxUXqJ2phjcx, version 1793281466-82d4
 
 ## Context
@@ -154,4 +154,4 @@ The acceptance criteria are each task's Acceptance criteria above, word for word
 | # | Title | Labels | Acceptance criteria | Depends on |
 | --- | --- | --- | --- | --- |
 | 1 | `[infra] chore: local review pass before the first push` | chore, area:infra | - [ ] Phase 4 in `.claude/workflow/pr-review.md` has a sixth point, "Local review": once, after the other five points pass and before the first push of a branch for a PR (also the first push of a rerun; not before review fix pushes; plan PRs and "decisions from run" PRs skip it), Claude runs a fresh `code-reviewer` subagent given the issue and plan, and `/code-review high`, in parallel and report-only, on `git diff origin/develop...HEAD`<br>- [ ] Claude fixes every finding in one pass, or answers it in the PR description when it is wrong or out of scope, then re-runs the other five Phase 4 points, with no second local round; when `/code-review` is not available the pass runs `code-reviewer` alone and the Evidence says `Not verified: /code-review unavailable`<br>- [ ] The PR's `## Evidence` has a "Local review" line with each reviewer's findings found, fixed and answered; the `CLAUDE.md` Phase 4 row, Phase 5 step 2 of `pr-review.md`, `.github/pull_request_template.md` and `docs/workflow.md` describe the pass, and `claude-review` on GitHub stays the merge gate unchanged | none |
-| 2 | `[infra] chore: /run-tasks runs the local review pass` | chore, area:infra | - [ ] Step 3 of the `/run-tasks` session brief runs the local review pass of Phase 4 point 6 before the first push of step 5, also on a rerun before its first push, and not before the pushes of review fix rounds (steps 8 and 9)<br>- [ ] The child's `RESULT:` line gives the local review counts (found, fixed, answered) and the number of `claude-review` rounds until the review approved or the issue stopped, and the run report lists them for each issue<br>- [ ] The merge conditions, the two fix rounds, the 30-minute review wait and the stop reasons stay unchanged | 1 |
+| 2 | `[infra] chore: /run-tasks runs the local review pass` | chore, area:infra | - [ ] Step 3 of the `/run-tasks` session brief runs the local review pass of Phase 4 point 6 before the first push of step 5, also on a rerun before its first push, and not before the pushes of review fix rounds (steps 8 and 9)<br>- [ ] The child's `RESULT:` line gives the local review counts (found, fixed, answered) and the number of `claude-review` rounds until the review approved or the issue stopped, and the run report lists them for each issue<br>- [ ] The merge conditions, the two fix rounds, the 30-minute review wait and the stop reasons stay unchanged | #211 |
