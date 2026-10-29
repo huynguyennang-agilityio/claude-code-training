@@ -19,12 +19,16 @@ import 'package:stridequest/features/auth/presentation/widgets/auth_text_field.d
 ///
 /// Needs the API running at `API_BASE_URL` (see `sign_in_flow_test.dart`), a
 /// simulator or emulator, and the email of the ONLY admin of that database in
-/// `LAST_ADMIN_EMAIL` (password `run4medals`). The test only expects `409`
-/// for it, so that account is never deleted:
+/// `LAST_ADMIN_EMAIL` (password `run4medals`). The test submits that
+/// account's right password and expects `409`; if another admin exists, the
+/// account IS deleted. So run it against a fresh database of its own (for
+/// example a backend on port 8001 on `stridequest_i<issue>_dev` after
+/// `alembic upgrade head`, with one account made admin by
+/// `python -m app.scripts.create_admin`), never the shared dev database:
 ///
 ///     flutter test integration_test/delete_account_flow_test.dart -d <device id> \
-///       --dart-define=API_BASE_URL=http://127.0.0.1:8000/api/v1/ \
-///       --dart-define=LAST_ADMIN_EMAIL=admin@example.com
+///       --dart-define=API_BASE_URL=http://127.0.0.1:8001/api/v1/ \
+///       --dart-define=LAST_ADMIN_EMAIL=<the only admin's email>
 ///
 /// The test creates its other users, so it can be run again. Not many times in
 /// a row, though: each run makes 7 failed password attempts from 127.0.0.1
@@ -196,7 +200,7 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Sign in'), findsNothing);
   });
 
-  testWidgets('five wrong passwords lock the account: 429 with the wait', (
+  testWidgets('five wrong passwords rate-limit the delete: 429 with the wait', (
     tester,
   ) async {
     // A user of its own, so the other tests are not blocked. One wrong attempt
@@ -233,6 +237,16 @@ void main() {
         'Pass the email of the only admin of the test database with '
         '--dart-define=LAST_ADMIN_EMAIL=<email> (password $_password).',
       );
+    }
+    // The API cannot list admins, so only the role is checked here. If another
+    // admin exists, the submit below deletes this account for good.
+    final adminTokens = await _apiSignIn(_lastAdminEmail);
+    final admin = await _api.get<Map<String, dynamic>>(
+      'users/me',
+      options: _bearer(adminTokens),
+    );
+    if (admin.data?['role'] != 'admin') {
+      fail('LAST_ADMIN_EMAIL ($_lastAdminEmail) is not an admin.');
     }
     await _launchApp(tester);
     await _signInToTabs(tester, _lastAdminEmail);
