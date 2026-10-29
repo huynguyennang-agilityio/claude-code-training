@@ -123,7 +123,7 @@ The brief a child session gets, filled in for its issue. It starts with the user
     Right before merging, check that `develop` has not moved since step 9, because the other running issue may have merged while this one waited: `git fetch origin && git merge-base --is-ancestor origin/develop HEAD`. If it fails, go back to step 9, so the green checks are on a head that holds the current `develop`. After three such returns, stop the issue (step 4). Then `gh pr merge <n> --merge --match-head-commit <head SHA>`, never with `--delete-branch`.
 11. **After the merge.** Check that the PR shows as merged and the issue is closed (close it if `Closes` did not), and look up the CI runs for the merge commit (`gh run list --branch develop --event push`).
 12. **Result.** Write one line:
-    `RESULT: merged #<issue> PR #<n> — <CI on develop>; <one-line summary>; <PR above 400 lines: how to split, if any>; <Not verified lines, review answers not fixed, the number of `DECISION:` lines, if any>`
+    `RESULT: merged #<issue> PR #<n> — <CI on develop>; <one-line summary>; <PR above 400 lines: how to split, if any>; <Not verified lines, review answers not fixed, the number of DECISION lines, if any>`
     or, when the issue stopped (step 4), `RESULT: stopped #<issue> PR #<n or none> — <reason>; <proposed fix>`.
     First write it to the result file from the brief, which the parent reads, followed by one `DECISION: <entry>` line for each entry the child drafted itself for the PR's `## Proposed decisions` in step 5 (none when it has none), written from its own draft, never re-read from the PR: the parent picks the `DECISIONS.md` entries only from these lines (step 5, "Decisions"). Write it whole and then rename it, so the parent never reads half a line:
     ```bash
