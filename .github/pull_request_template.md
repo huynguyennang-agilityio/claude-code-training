@@ -18,6 +18,7 @@ Plan: docs/plans/NNN-name.md
      Redact tokens, passwords, Authorization headers, cookies and connection strings.
      Attach large logs and screenshots here instead of committing them.
      Rows to cover where they apply: screen quality (page tests, sizes, text scales, states), API contract (examples, openapi.json diff), authorization sweep and ownership tests.
+     Local review: one line giving, for code-reviewer and for /code-review high, the findings found, fixed and answered; when /code-review is unavailable, code-reviewer's counts and `Not verified: /code-review unavailable`. See Phase 4 point 6 in .claude/workflow/pr-review.md.
      Write `Not verified: <reason>` for anything you couldn't check. See .claude/workflow/evidence.md. -->
 
 ## Review checklist
