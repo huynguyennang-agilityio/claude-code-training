@@ -12,6 +12,10 @@ from app.modules.runs.repository import RunRepository
 from app.modules.runs.service import RunService
 
 
+def get_run_service(session: Annotated[AsyncSession, Depends(get_session)]) -> RunService:
+    return RunService(RunRepository(session))
+
+
 def get_enrollment_service(
     session: Annotated[AsyncSession, Depends(get_session)], challenges: ChallengeServiceDep
 ) -> EnrollmentService:

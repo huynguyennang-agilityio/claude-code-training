@@ -15,6 +15,8 @@ from app.modules.auth.service import (
     ForbiddenError,
     NotAuthenticatedError,
 )
+from app.modules.runs.deps import get_run_service
+from app.modules.runs.service import RunService
 
 # auto_error is off so a missing header raises our own `not_authenticated`.
 _bearer = HTTPBearer(auto_error=False)
@@ -37,8 +39,9 @@ def get_auth_service(
     session: Annotated[AsyncSession, Depends(get_session)],
     repository: Annotated[AuthRepository, Depends(get_auth_repository)],
     settings: Annotated[AuthSettings, Depends(get_auth_settings)],
+    runs: Annotated[RunService, Depends(get_run_service)],
 ) -> AuthService:
-    return AuthService(session, repository, settings)
+    return AuthService(session, repository, settings, runs)
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]

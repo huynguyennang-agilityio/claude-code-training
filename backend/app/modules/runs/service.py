@@ -59,3 +59,10 @@ class RunService:
         if other is None:
             return None
         return BlockedByRead(id=other.challenge_id, title=other.challenge.title)
+
+    async def lock_user_enrollments(self, user_id: uuid.UUID) -> None:
+        """Take the lock that serializes the changes to one user's enrollments, and hold it
+        until the transaction ends. Another module that must not run at the same time as a
+        join or resume of the user (deleting the account) takes it first, before any other
+        lock, to keep the lock order of `EnrollmentService`."""
+        await self._repository.lock_user_enrollments(user_id)

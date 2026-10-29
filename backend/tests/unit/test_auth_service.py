@@ -14,11 +14,12 @@ from app.core.security import (
     hash_refresh_token,
     verify_password,
 )
-from app.modules.auth.models import RefreshToken, User
+from app.modules.auth.models import RefreshToken, User, UserRole
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import (
     ChangeEmailRequest,
     ChangePasswordRequest,
+    DeleteAccountRequest,
     SignInRequest,
     SignUpRequest,
 )
@@ -34,11 +35,13 @@ from app.modules.auth.service import (
     InvalidAccessTokenError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
+    LastAdminError,
     RateLimitedError,
     SameEmailError,
     SamePasswordError,
     _utcnow,
 )
+from app.modules.runs.service import RunService
 
 SECRET = "a-test-secret-that-is-long-enough-for-hs256"
 START = datetime(2026, 10, 13, 9, 55, tzinfo=UTC)
@@ -79,6 +82,11 @@ def session() -> AsyncMock:
 
 
 @pytest.fixture
+def runs() -> AsyncMock:
+    return AsyncMock(spec=RunService)
+
+
+@pytest.fixture
 def repository() -> AsyncMock:
     repository = AsyncMock(spec=AuthRepository)
     repository.get_user_by_email.return_value = None
@@ -90,13 +98,15 @@ def repository() -> AsyncMock:
 
 
 @pytest.fixture
-def service(session: AsyncMock, repository: AsyncMock, clock: Clock) -> AuthService:
+def service(
+    session: AsyncMock, repository: AsyncMock, runs: AsyncMock, clock: Clock
+) -> AuthService:
     settings = AuthSettings(
         jwt_secret=SECRET,
         access_token_ttl=timedelta(minutes=15),
         refresh_token_ttl=timedelta(days=30),
     )
-    return AuthService(session, repository, settings, clock)
+    return AuthService(session, repository, settings, runs, clock)
 
 
 def sign_up_request() -> SignUpRequest:
@@ -833,3 +843,116 @@ def test_utcnow_is_timezone_aware_and_current() -> None:
 
     assert now.tzinfo is not None
     assert abs(datetime.now(UTC) - now) < timedelta(seconds=5)
+
+
+def delete_request(password: str = PASSWORD) -> DeleteAccountRequest:
+    return DeleteAccountRequest(current_password=password)
+
+
+@pytest.mark.anyio
+async def test_delete_account_deletes_the_user_and_clears_the_failures(
+    service: AuthService, repository: AsyncMock, runs: AsyncMock, session: AsyncMock
+) -> None:
+    user = make_user()
+    order = AsyncMock()
+    order.attach_mock(runs.lock_user_enrollments, "enrollments")
+    order.attach_mock(repository.lock_user_refresh_tokens, "refresh_tokens")
+    order.attach_mock(repository.stored_password_hash, "stored_hash")
+    order.attach_mock(repository.delete_user, "delete")
+    order.attach_mock(session.commit, "commit")
+
+    await service.delete_account(user, delete_request(), IP)
+
+    # The enrollment lock comes before the refresh token lock, as in join and resume.
+    assert [c[0] for c in order.mock_calls] == [
+        "enrollments",
+        "refresh_tokens",
+        "stored_hash",
+        "delete",
+        "commit",
+    ]
+    runs.lock_user_enrollments.assert_awaited_once_with(user.id)
+    repository.lock_user_refresh_tokens.assert_awaited_once_with(user.id)
+    repository.lock_admins_and_count.assert_not_awaited()
+    repository.delete_user.assert_awaited_once_with(user.id)
+    repository.clear_login_attempts.assert_awaited_once_with("runner@example.com")
+    repository.add_login_attempt.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_delete_account_with_a_wrong_password_records_the_failure(
+    service: AuthService, repository: AsyncMock, runs: AsyncMock, session: AsyncMock
+) -> None:
+    with pytest.raises(IncorrectPasswordError) as error:
+        await service.delete_account(make_user(), delete_request("wrong-pass1"), IP)
+
+    assert error.value.status_code == 403
+    assert error.value.code == "incorrect_password"
+    repository.add_login_attempt.assert_awaited_once_with("runner@example.com", IP, START)
+    runs.lock_user_enrollments.assert_not_awaited()
+    repository.delete_user.assert_not_awaited()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_delete_account_refuses_a_password_that_changed_while_it_waited(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    repository.stored_password_hash.return_value = hash_password("newrun5medals")
+
+    with pytest.raises(IncorrectPasswordError) as error:
+        await service.delete_account(make_user(), delete_request(), IP)
+
+    assert error.value.status_code == 403
+    repository.add_login_attempt.assert_awaited_once_with("runner@example.com", IP, START)
+    repository.delete_user.assert_not_awaited()
+    repository.clear_login_attempts.assert_not_awaited()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_delete_account_is_rate_limited_even_with_the_right_password(
+    service: AuthService, repository: AsyncMock, runs: AsyncMock
+) -> None:
+    repository.failed_attempts_by_email.return_value = [START] * MAX_FAILED_SIGN_INS_PER_EMAIL
+
+    with pytest.raises(RateLimitedError) as error:
+        await service.delete_account(make_user(), delete_request(), IP)
+
+    assert error.value.status_code == 429
+    assert error.value.code == "rate_limited"
+    assert error.value.headers is not None and "Retry-After" in error.value.headers
+    runs.lock_user_enrollments.assert_not_awaited()
+    repository.delete_user.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_delete_account_refuses_the_only_admin(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    user = make_user()
+    user.role = UserRole.ADMIN.value
+    repository.lock_admins_and_count.return_value = 1
+
+    with pytest.raises(LastAdminError) as error:
+        await service.delete_account(user, delete_request(), IP)
+
+    assert error.value.status_code == 409
+    assert error.value.code == "last_admin"
+    repository.delete_user.assert_not_awaited()
+    repository.clear_login_attempts.assert_not_awaited()
+    session.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_delete_account_lets_an_admin_go_when_another_remains(
+    service: AuthService, repository: AsyncMock, session: AsyncMock
+) -> None:
+    user = make_user()
+    user.role = UserRole.ADMIN.value
+    repository.lock_admins_and_count.return_value = 2
+
+    await service.delete_account(user, delete_request(), IP)
+
+    repository.delete_user.assert_awaited_once_with(user.id)
+    session.commit.assert_awaited_once()

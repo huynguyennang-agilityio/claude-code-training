@@ -6,6 +6,7 @@ from app.modules.auth.schemas import (
     AuthResponse,
     ChangeEmailRequest,
     ChangePasswordRequest,
+    DeleteAccountRequest,
     RefreshTokenRequest,
     SignInRequest,
     SignUpRequest,
@@ -83,3 +84,20 @@ async def change_password(
     body: ChangePasswordRequest, request: Request, user: CurrentUserDep, service: AuthServiceDep
 ) -> TokenPair:
     return await service.change_password(user, body, _client_ip(request))
+
+
+@users_router.post(
+    "/me/delete",
+    status_code=204,
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        429: {"model": ErrorResponse},
+    },
+)
+async def delete_account(
+    body: DeleteAccountRequest, request: Request, user: CurrentUserDep, service: AuthServiceDep
+) -> None:
+    await service.delete_account(user, body, _client_ip(request))
