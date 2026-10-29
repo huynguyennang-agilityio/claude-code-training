@@ -21,6 +21,7 @@ This is the source of truth for sign up and sign in between the Flutter app and 
 | `GET` | `/api/v1/users/me` | access token | Read the signed-in user, with their `role` |
 | `PUT` | `/api/v1/users/me/email` | access token | Change the email, with the current password |
 | `PUT` | `/api/v1/users/me/password` | access token | Change the password, with the current password |
+| `POST` | `/api/v1/users/me/delete` | access token | Delete the signed-in user's account for good, with the current password |
 
 ## Roles
 
@@ -147,7 +148,8 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 | 401 | `invalid_token` | The access token is malformed, has a bad signature, or its user no longer exists. |
 | 401 | `token_expired` | The access token has expired. Refresh and retry. |
 | 403 | `forbidden` | The caller is signed in, but the route needs the `admin` role. |
-| 403 | `incorrect_password` | The `current_password` sent to change the email or the password is wrong. It is not `401`, so the app's refresh-and-retry (for `token_expired` and `invalid_token`) never runs for it. |
+| 403 | `incorrect_password` | The `current_password` sent to change the email or the password, or to delete the account, is wrong. It is not `401`, so the app's refresh-and-retry (for `token_expired` and `invalid_token`) never runs for it. |
+| 409 | `last_admin` | The only remaining `admin` tries to delete their own account. Make another account an admin first. |
 | 429 | `rate_limited` | Too many failed sign-ins (a wrong `current_password` counts) for this email or device. Wait for the number of seconds in the `Retry-After` header. |
 | 404 | `not_found` | No route matches the path. |
 | 405 | `method_not_allowed` | The path exists but not for this method. The `Allow` header lists the valid methods. |
@@ -298,6 +300,54 @@ Responses:
 - `200 OK` with a new `TokenPair` for the device in use. Every refresh token of the user is revoked, including the one this device held, so the app must store the new pair at once and every other device is signed out when its access token expires. Access tokens issued before stay valid until they expire (15 minutes by default); there is no deny list.
 - `403 incorrect_password` (the example above).
 - `422 validation_error` when `new_password` breaks the rule or equals `current_password`; in both cases `fields[0].field` is `new_password`.
+- `429 rate_limited` with a `Retry-After` header, under the same rate limit as above.
+- `401 not_authenticated`, `401 invalid_token`, `401 token_expired`.
+
+## `POST /api/v1/users/me/delete`
+
+Header: `Authorization: Bearer <access_token>`.
+
+Request:
+
+<!-- example: auth/delete_account_request.json -->
+```json
+{
+  "current_password": "run4medals"
+}
+```
+
+The route takes no user id: it always deletes the account of the access token's user, so a user can only delete themselves. It is a `POST`, not a `DELETE` with a body, because a `DELETE` body has no defined meaning (RFC 9110) and proxies may drop it.
+
+Order of checks: the body's field rules (`422`), the rate limit (`429`), the current password (`403`), and last the last admin (`409`). This is the order of `PUT /users/me/email` and `PUT /users/me/password`, plus the admin step: every request whose body passes the field rules goes through the rate limit and the password check, and the rate limit applies even with the right password.
+
+A wrong `current_password` is recorded as a failed sign-in for the rate limit of `POST /api/v1/auth/signin` (by the user's email and by IP), as on the two routes above, so this route cannot be used to guess the password.
+
+Responses:
+
+- `204 No Content`, with no body. The account is deleted for good, in one transaction, with no undo:
+  - the user and their profile;
+  - every refresh token of the user;
+  - their runs (challenge enrollments) and the step samples of those runs;
+  - their daily activity synced from Apple Health or Health Connect.
+
+  The failed sign-in attempts recorded for the user's email are cleared, as a successful sign-in does. Attempts recorded by IP for other emails are kept: they expire with the rate-limit window. Data in Apple Health or Health Connect on the phone is not touched.
+
+  After the delete, any access token issued before gets `401 invalid_token` ("The account no longer exists."), since its user no longer exists, and `POST /api/v1/auth/refresh` with any of the user's refresh tokens gets `401 invalid_refresh_token`. The app should delete both tokens locally.
+- `403 incorrect_password` (the example in `PUT /api/v1/users/me/email`).
+- `409 last_admin` when the caller is the only remaining `admin`. When only two admins remain and both delete themselves at the same time, one of them gets this error.
+
+<!-- example: auth/error_last_admin.json -->
+```json
+{
+  "error": {
+    "code": "last_admin",
+    "message": "You're the only admin. Make another account an admin before deleting yours.",
+    "fields": []
+  }
+}
+```
+
+- `422 validation_error` when `current_password` is missing, empty or longer than 128 characters; `fields[0].field` is `current_password`.
 - `429 rate_limited` with a `Retry-After` header, under the same rate limit as above.
 - `401 not_authenticated`, `401 invalid_token`, `401 token_expired`.
 
