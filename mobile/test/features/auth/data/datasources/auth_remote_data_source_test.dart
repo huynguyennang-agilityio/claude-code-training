@@ -829,26 +829,22 @@ void main() {
       },
     );
 
-    test(
-      'deleteAccount: an invalid_token 401 with a rejected refresh ends the '
-      'session',
-      () async {
-        when(
-          () => tokens.refreshTokens(),
-        ).thenAnswer((_) async => TokenRefreshResult.rejected);
-        when(() => tokens.expireSession()).thenAnswer((_) async {});
-        final source = build((_) async => _error('invalid_token', 401));
+    test('deleteAccount: an invalid_token 401 with a rejected refresh ends the '
+        'session', () async {
+      when(
+        () => tokens.refreshTokens(),
+      ).thenAnswer((_) async => TokenRefreshResult.rejected);
+      final source = build((_) async => _error('invalid_token', 401));
 
-        final failure = await _failureOf(
-          source.deleteAccount(currentPassword: 'p'),
-        );
+      final failure = await _failureOf(
+        source.deleteAccount(currentPassword: 'p'),
+      );
 
-        expect(failure.code, AuthFailureCode.invalidToken);
-        expect(adapter.requests, hasLength(1));
-        verify(() => tokens.refreshTokens()).called(1);
-        verify(() => tokens.expireSession()).called(1);
-      },
-    );
+      expect(failure.code, AuthFailureCode.invalidToken);
+      expect(adapter.requests, hasLength(1));
+      verify(() => tokens.refreshTokens()).called(1);
+      verify(() => tokens.expireSession()).called(1);
+    });
 
     test('deleteAccount: a 403 is not refreshed or retried', () async {
       final source = build((_) async => _error('incorrect_password', 403));
