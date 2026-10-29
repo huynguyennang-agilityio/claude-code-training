@@ -26,6 +26,8 @@ from app.modules.auth.service import (
     InvalidCredentialsError,
     InvalidRefreshTokenError,
 )
+from app.modules.runs.repository import RunRepository
+from app.modules.runs.service import RunService
 
 SECRET = "an-integration-test-secret-that-is-long-enough"
 PASSWORD = "run4medals"
@@ -44,7 +46,9 @@ def auth_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 def _service(session: AsyncSession) -> AuthService:
-    return AuthService(session, AuthRepository(session), get_auth_settings())
+    return AuthService(
+        session, AuthRepository(session), get_auth_settings(), RunService(RunRepository(session))
+    )
 
 
 @pytest.fixture

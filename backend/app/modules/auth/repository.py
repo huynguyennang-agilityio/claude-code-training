@@ -6,7 +6,7 @@ from sqlalchemy import ColumnElement, String, Uuid, cast, delete, func, literal,
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import SQLCoreOperations
 
-from app.modules.auth.models import LoginAttempt, RefreshToken, User
+from app.modules.auth.models import LoginAttempt, RefreshToken, User, UserRole
 
 # Salts the advisory lock key, so it can't equal a key another feature derives from the id.
 _REFRESH_TOKENS_LOCK_SALT = 7_301_224
@@ -37,6 +37,23 @@ class AuthRepository:
 
     async def update_email(self, user: User, email: str) -> None:
         user.email = email
+        await self._session.flush()
+
+    async def lock_admins_and_count(self) -> int:
+        """Lock every admin row until the transaction ends and return how many there are.
+        Two admins deleting themselves at once queue here, so the second sees the first's
+        delete. The rows are locked in id order, so two callers can't wait on each other."""
+        rows = await self._session.scalars(
+            select(User.id)
+            .where(User.role == UserRole.ADMIN.value)
+            .order_by(User.id)
+            .with_for_update()
+        )
+        return len(rows.all())
+
+    async def delete_user(self, user_id: uuid.UUID) -> None:
+        """Delete the user. The database cascades to everything that references the row."""
+        await self._session.execute(delete(User).where(User.id == user_id))
         await self._session.flush()
 
     async def add_refresh_token(self, token: RefreshToken) -> None:

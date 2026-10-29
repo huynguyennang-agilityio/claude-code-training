@@ -19,6 +19,8 @@ from app.core.database import get_engine, get_sessionmaker
 from app.modules.auth.models import UserRole
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.service import AuthService, AuthSettings, UnknownUserError
+from app.modules.runs.repository import RunRepository
+from app.modules.runs.service import RunService
 
 
 def _parse(argv: Sequence[str] | None) -> argparse.Namespace:
@@ -40,7 +42,9 @@ async def set_role(email: str, role: UserRole) -> None:
     )
     try:
         async with get_sessionmaker()() as session:
-            service = AuthService(session, AuthRepository(session), auth_settings)
+            service = AuthService(
+                session, AuthRepository(session), auth_settings, RunService(RunRepository(session))
+            )
             await service.set_role(email, role)
     finally:
         await get_engine().dispose()

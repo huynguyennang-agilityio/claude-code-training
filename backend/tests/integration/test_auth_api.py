@@ -5,6 +5,7 @@ every documented error code is produced by a real call. Generated values (ids,
 tokens, timestamps) are compared by type.
 """
 
+import asyncio
 import re
 import uuid
 from collections.abc import Iterator
@@ -13,20 +14,34 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient, Response
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, text
+from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.core.config import get_settings
 from app.core.errors import ErrorResponse
-from app.core.security import create_access_token
+from app.core.security import create_access_token, hash_password
+from app.modules.auth.deps import get_auth_settings
 from app.modules.auth.models import RefreshToken, User
 from app.modules.auth.repository import AuthRepository
+from app.modules.auth.schemas import DeleteAccountRequest
 from app.modules.auth.service import (
     FAILED_SIGN_IN_WINDOW,
     MAX_FAILED_SIGN_INS_PER_EMAIL,
     MAX_FAILED_SIGN_INS_PER_IP,
+    AuthService,
 )
+from app.modules.challenges.models import Challenge, Quest
+from app.modules.challenges.repository import ChallengeRepository
+from app.modules.challenges.service import ChallengeService
+from app.modules.medals.repository import MedalRepository
+from app.modules.medals.service import MedalService
+from app.modules.runs.enrollments import EnrollmentService
+from app.modules.runs.models import DailyActivity, StepSample
+from app.modules.runs.repository import RunRepository
+from app.modules.runs.service import RunService
 from tests.api_docs import API_DOCS_DIR, AUTH_MODULE_ERROR_CODES, error_codes, load_example
+from tests.integration.enrollment_helpers import make_run
 
 SECRET = "an-integration-test-secret-that-is-long-enough"
 PASSWORD = "run4medals"
@@ -786,6 +801,328 @@ async def test_change_password_without_a_token_returns_not_authenticated(
     assert_error(response, 401, "not_authenticated")
 
 
+# delete account
+
+DELETE_ACCOUNT = load_example("auth/delete_account_request.json")
+USER_TABLES = ("users", "user_profiles", "refresh_tokens", "runs", "step_samples", "daily_activity")
+
+
+async def delete_account(client: AsyncClient, token: str, **changes: str) -> Response:
+    return await client.post(
+        f"{PREFIX}/users/me/delete", json={**DELETE_ACCOUNT, **changes}, headers=bearer(token)
+    )
+
+
+async def seed_account_data(
+    client: AsyncClient, session: AsyncSession, email: str, quest_title: str
+) -> dict[str, Any]:
+    """Sign up `email` and give the account a row in each table that references it."""
+    body = await sign_up(client, email=email)
+    token = body["tokens"]["access_token"]
+    user_id = uuid.UUID(body["user"]["id"])
+    saved = await client.put(
+        f"{PREFIX}/users/me/profile",
+        json=load_example("profile/profile_put_request.json"),
+        headers=bearer(token),
+    )
+    assert saved.status_code == 200, saved.text
+    now = datetime.now(UTC)
+    quest = Quest(title=quest_title, description="")
+    challenge = Challenge(
+        title=quest_title,
+        type="run",
+        metric="steps",
+        target_value=1000,
+        starts_at=now - timedelta(days=1),
+        ends_at=now + timedelta(days=5),
+        status="published",
+    )
+    quest.challenges.append(challenge)
+    session.add(quest)
+    run = make_run(user_id, challenge)
+    run.samples.append(
+        StepSample(
+            health_record_id=f"record-{email}",
+            start_time=now - timedelta(minutes=30),
+            end_time=now - timedelta(minutes=20),
+            steps=100,
+        )
+    )
+    session.add(run)
+    session.add(DailyActivity(user_id=user_id, day=now.date(), steps=1000, updated_at=now))
+    await session.flush()
+    return {"user_id": user_id, "tokens": body["tokens"]}
+
+
+async def row_counts(session: AsyncSession, user_id: uuid.UUID) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    queries = {
+        "users": "SELECT count(*) FROM users WHERE id = :u",
+        "user_profiles": "SELECT count(*) FROM user_profiles WHERE user_id = :u",
+        "refresh_tokens": "SELECT count(*) FROM refresh_tokens WHERE user_id = :u",
+        "runs": "SELECT count(*) FROM runs WHERE user_id = :u",
+        "step_samples": (
+            "SELECT count(*) FROM step_samples s JOIN runs r ON r.id = s.run_id "
+            "WHERE r.user_id = :u"
+        ),
+        "daily_activity": "SELECT count(*) FROM daily_activity WHERE user_id = :u",
+    }
+    for table in USER_TABLES:
+        counts[table] = (await session.scalar(text(queries[table]), {"u": user_id})) or 0
+    return counts
+
+
+@pytest.mark.anyio
+async def test_delete_account_removes_every_row_of_the_user_and_only_theirs(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    mine = await seed_account_data(client, session, SIGNUP["email"], "Mine")
+    other = await seed_account_data(client, session, "other.runner@example.com", "Other")
+    before_mine = await row_counts(session, mine["user_id"])
+    before_other = await row_counts(session, other["user_id"])
+    assert all(count >= 1 for count in before_mine.values())
+
+    response = await delete_account(client, mine["tokens"]["access_token"])
+
+    assert response.status_code == 204
+    assert response.content == b""
+    assert await row_counts(session, mine["user_id"]) == dict.fromkeys(USER_TABLES, 0)
+    assert await row_counts(session, other["user_id"]) == before_other
+
+
+@pytest.mark.anyio
+async def test_after_delete_account_the_old_tokens_are_refused(client: AsyncClient) -> None:
+    body = await sign_up(client)
+    tokens = body["tokens"]
+    assert (await delete_account(client, tokens["access_token"])).status_code == 204
+
+    me = await client.get(f"{PREFIX}/users/me", headers=bearer(tokens["access_token"]))
+
+    assert_error(me, 401, "invalid_token")
+    assert_error(await refresh(client, tokens["refresh_token"]), 401, "invalid_refresh_token")
+    assert_error(await sign_in(client), 401, "invalid_credentials")
+
+
+@pytest.mark.anyio
+async def test_delete_account_with_a_wrong_password_matches_the_example_and_deletes_nothing(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    body = await sign_up(client)
+    token = body["tokens"]["access_token"]
+
+    response = await delete_account(client, token, current_password="wrong-pass1")
+
+    assert assert_error(response, 403, "incorrect_password") == load_example(
+        "auth/error_incorrect_password.json"
+    )
+    assert (await row_counts(session, uuid.UUID(body["user"]["id"])))["users"] == 1
+    assert (await client.get(f"{PREFIX}/users/me", headers=bearer(token))).status_code == 200
+
+
+@pytest.mark.anyio
+async def test_wrong_passwords_on_delete_account_count_toward_the_sign_in_limit(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    body = await sign_up(client)
+    token = body["tokens"]["access_token"]
+    for _ in range(MAX_FAILED_SIGN_INS_PER_EMAIL):
+        assert_error(
+            await delete_account(client, token, current_password="wrong-pass1"),
+            403,
+            "incorrect_password",
+        )
+
+    blocked = await delete_account(client, token)  # the right password
+
+    assert_error(blocked, 429, "rate_limited")
+    assert int(blocked.headers["retry-after"]) >= 1
+    assert (await row_counts(session, uuid.UUID(body["user"]["id"])))["users"] == 1
+    assert_error(await sign_in(client), 429, "rate_limited")
+
+
+@pytest.mark.anyio
+async def test_a_successful_delete_account_clears_the_failures_for_the_email(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+    for _ in range(MAX_FAILED_SIGN_INS_PER_EMAIL - 1):
+        await delete_account(client, token, current_password="wrong-pass1")
+
+    assert (await delete_account(client, token)).status_code == 204
+
+    count = await session.scalar(
+        text("SELECT count(*) FROM login_attempts WHERE email = :e"), {"e": SIGNUP["email"]}
+    )
+    assert count == 0
+
+
+@pytest.mark.anyio
+async def test_delete_account_with_an_empty_password_is_a_validation_error(
+    client: AsyncClient,
+) -> None:
+    token = (await sign_up(client))["tokens"]["access_token"]
+
+    response = await delete_account(client, token, current_password="")
+
+    body = assert_error(response, 422, "validation_error")
+    assert body["error"]["fields"][0]["field"] == "current_password"
+
+
+@pytest.mark.anyio
+async def test_delete_account_without_a_token_returns_not_authenticated(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(f"{PREFIX}/users/me/delete", json=DELETE_ACCOUNT)
+
+    assert_error(response, 401, "not_authenticated")
+
+
+async def make_admin(session: AsyncSession, email: str) -> None:
+    await session.execute(text("UPDATE users SET role = 'admin' WHERE email = :e"), {"e": email})
+
+
+@pytest.mark.anyio
+async def test_the_only_admin_cannot_delete_the_account(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    body = await sign_up(client)
+    await make_admin(session, SIGNUP["email"])
+
+    response = await delete_account(client, body["tokens"]["access_token"])
+
+    assert assert_error(response, 409, "last_admin") == load_example("auth/error_last_admin.json")
+    assert (await row_counts(session, uuid.UUID(body["user"]["id"])))["users"] == 1
+
+
+@pytest.mark.anyio
+async def test_with_two_admins_one_can_delete_the_account(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    first = await sign_up(client)
+    await sign_up(client, email="second.admin@example.com")
+    await make_admin(session, SIGNUP["email"])
+    await make_admin(session, "second.admin@example.com")
+
+    response = await delete_account(client, first["tokens"]["access_token"])
+
+    assert response.status_code == 204
+    admins = await session.scalar(text("SELECT count(*) FROM users WHERE role = 'admin'"))
+    assert admins == 1
+
+
+# delete account at the same time as a join
+
+
+async def _seed_account_and_challenge(engine: AsyncEngine) -> tuple[uuid.UUID, int, int]:
+    """Commit a user who knows their password and a published challenge; return their ids."""
+    now = datetime.now(UTC)
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        quest = Quest(title="Delete race", description="")
+        challenge = Challenge(
+            title="Delete race",
+            type="run",
+            metric="steps",
+            target_value=1000,
+            starts_at=now + timedelta(days=1),
+            ends_at=now + timedelta(days=20),
+            status="published",
+        )
+        quest.challenges.append(challenge)
+        session.add(quest)
+        user = User(
+            id=uuid.uuid4(),
+            email=f"race-{uuid.uuid4().hex[:8]}@example.com",
+            password_hash=hash_password(PASSWORD),
+            display_name="Racer",
+            created_at=now,
+        )
+        session.add(user)
+        await session.commit()
+        return user.id, challenge.id, quest.id
+
+
+async def _delete_in_own_session(engine: AsyncEngine, user_id: uuid.UUID) -> str:
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        runs = RunService(RunRepository(session))
+        service = AuthService(session, AuthRepository(session), get_auth_settings(), runs)
+        user = await session.get(User, user_id)
+        assert user is not None
+        await service.delete_account(user, DeleteAccountRequest(current_password=PASSWORD), "ip")
+        return "deleted"
+
+
+async def _join_in_own_session(engine: AsyncEngine, user_id: uuid.UUID, challenge_id: int) -> str:
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        runs = RunService(RunRepository(session))
+        challenges = ChallengeService(
+            session,
+            ChallengeRepository(session),
+            MedalService(MedalRepository(session)),
+            runs=runs,
+        )
+        enrollments = EnrollmentService(session, RunRepository(session), challenges.get)
+        try:
+            await enrollments.join(user_id, challenge_id)
+        except IntegrityError:
+            # The delete committed first, so the user the row points to is gone.
+            return "user_gone"
+        return "joined"
+
+
+async def _clean_up_race(engine: AsyncEngine, user_id: uuid.UUID, quest_id: int) -> None:
+    async with AsyncSession(engine) as session:
+        await session.execute(delete(Quest).where(Quest.id == quest_id))
+        await session.execute(delete(User).where(User.id == user_id))
+        await session.commit()
+
+
+@pytest.mark.anyio
+async def test_a_delete_and_a_join_of_the_same_user_at_once_do_not_deadlock(
+    engine: AsyncEngine,
+) -> None:
+    user_id, challenge_id, quest_id = await _seed_account_and_challenge(engine)
+    try:
+        results = await asyncio.wait_for(
+            asyncio.gather(
+                _delete_in_own_session(engine, user_id),
+                _join_in_own_session(engine, user_id, challenge_id),
+                return_exceptions=True,
+            ),
+            timeout=15,
+        )
+
+        assert not any(isinstance(result, DBAPIError) for result in results), results
+        assert results[0] == "deleted"
+        assert results[1] in ("joined", "user_gone")
+        async with AsyncSession(engine) as session:
+            assert await session.get(User, user_id) is None
+            runs = await session.scalar(
+                text("SELECT count(*) FROM runs WHERE user_id = :u"), {"u": user_id}
+            )
+            assert runs == 0
+    finally:
+        await _clean_up_race(engine, user_id, quest_id)
+
+
+@pytest.mark.anyio
+async def test_a_delete_waits_while_another_request_of_the_user_holds_the_enrollment_lock(
+    engine: AsyncEngine,
+) -> None:
+    """Deterministic: without the lock the delete would finish at once."""
+    user_id, _, quest_id = await _seed_account_and_challenge(engine)
+    try:
+        async with AsyncSession(engine) as holder:
+            await RunRepository(holder).lock_user_enrollments(user_id)
+            delete_task = asyncio.create_task(_delete_in_own_session(engine, user_id))
+            done, _ = await asyncio.wait({delete_task}, timeout=0.5)
+            assert not done, "delete did not wait for the user's enrollment lock"
+            await holder.rollback()
+
+        assert await asyncio.wait_for(delete_task, timeout=5) == "deleted"
+    finally:
+        await _clean_up_race(engine, user_id, quest_id)
+
+
 # the contract
 
 
@@ -801,6 +1138,7 @@ def test_the_error_codes_this_file_produces_are_the_documented_ones() -> None:
         "invalid_token",  # test_users_me_with_a_garbage_token_returns_invalid_token
         "token_expired",  # test_users_me_with_an_expired_token_returns_token_expired
         "rate_limited",  # test_sign_in_is_blocked_after_five_failures_for_the_email
+        "last_admin",  # test_the_only_admin_cannot_delete_the_account
     }
     assert produced == AUTH_MODULE_ERROR_CODES
 

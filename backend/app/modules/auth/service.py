@@ -23,10 +23,12 @@ from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import (
     ChangeEmailRequest,
     ChangePasswordRequest,
+    DeleteAccountRequest,
     SignInRequest,
     SignUpRequest,
     TokenPair,
 )
+from app.modules.runs.service import RunService
 
 MAX_FAILED_SIGN_INS_PER_EMAIL = 5
 MAX_FAILED_SIGN_INS_PER_IP = 20
@@ -85,6 +87,11 @@ class SamePasswordError(DomainError):
     code = VALIDATION_ERROR_CODE
 
 
+class LastAdminError(DomainError):
+    status_code = 409
+    code = "last_admin"
+
+
 class UnknownUserError(Exception):
     """No account has the given email. Used by the command-line script, not by the API."""
 
@@ -121,11 +128,14 @@ class AuthService:
         session: AsyncSession,
         repository: AuthRepository,
         settings: AuthSettings,
+        runs: RunService,
         now: Callable[[], datetime] = _utcnow,
     ) -> None:
         self._session = session
         self._repository = repository
         self._settings = settings
+        # The only way auth reaches the enrollments: for the lock in `delete_account`.
+        self._runs = runs
         self._now = now
 
     async def sign_up(self, data: SignUpRequest) -> tuple[User, TokenPair]:
@@ -230,6 +240,27 @@ class AuthService:
         tokens = await self._issue_tokens(user.id)
         await self._session.commit()
         return tokens
+
+    async def delete_account(self, user: User, data: DeleteAccountRequest, ip: str) -> None:
+        """Delete `user` and everything that belongs to them, for good. The order of checks is
+        part of the contract: rate limit, current password, last admin (see `docs/api/auth.md`).
+
+        The locks are taken in the order `join` and `resume` use (enrollments, then refresh
+        tokens, then rows), so a delete running with them waits instead of deadlocking.
+        """
+        await self._verify_current_password(user, data.current_password, ip, self._now())
+        await self._runs.lock_user_enrollments(user.id)
+        await self._repository.lock_user_refresh_tokens(user.id)
+        if (
+            user.role == UserRole.ADMIN.value
+            and await self._repository.lock_admins_and_count() <= 1
+        ):
+            raise LastAdminError(
+                "You're the only admin. Make another account an admin before deleting yours."
+            )
+        await self._repository.delete_user(user.id)
+        await self._repository.clear_login_attempts(user.email)
+        await self._session.commit()
 
     async def refresh(self, refresh_token: str) -> TokenPair:
         token_hash = hash_refresh_token(refresh_token)
