@@ -129,8 +129,10 @@ flowchart TD
     C -- "start_session fails" --> PD["DM: Run paused: run /run-tasks<br/>with the issues not started"]
     PD --> RW
     subgraph child ["Each child session"]
-      G{"Wait gate: result file of every<br/>issue it waits for (25 min rounds)"} -- "a dependency stopped" --> GS["Comment, RESULT: stopped,<br/>depends on #N"]
-      G -- "no dependency stopped,<br/>or none to wait for" --> W["Write the .working file (3-hour deadline starts);<br/>integration gate; branch from origin/develop,<br/>worktree-setup.sh"]
+      G{"Wait gate: result file of every<br/>issue it waits for (25 min rounds)"} -- "a dependency stopped" --> GS["Comment, RESULT: stopped,<br/>depends on #N or integration gate closed"]
+      G -- "no dependency stopped,<br/>or none to wait for" --> IG{"Write the .working file (3-hour deadline starts);<br/>integration gate open?"}
+      IG -- "closed" --> GS
+      IG -- "open or not needed" --> W["Branch from origin/develop,<br/>worktree-setup.sh"]
       W --> I["Implement (Phase 3), check Phase 4"]
       I --> LR["PROGRESS line and DECISIONS entries, then<br/>local review (Phase 4 point 6), once, before the first push"]
       LR --> P["PR with Decisions added, size check,<br/>CI, claude-review"]
@@ -144,7 +146,7 @@ flowchart TD
       GS --> RF
     end
     C --> G
-    C --> RW["Background result wait per issue,<br/>25 min each, until a 3-hour deadline<br/>counted from the .working file"]
+    C --> RW["Background result wait per issue,<br/>25 min each, until a 3-hour deadline<br/>counted from the .working file<br/>(30-min start-by before it)"]
     RF -. "file appears" .-> RW
     RF -. "file appears" .-> G
     RW -- "file appears (merged or stopped),<br/>or deadline passed: stop a child still working,<br/>then PR state; write its result file" --> ST{"Stopped?"}
