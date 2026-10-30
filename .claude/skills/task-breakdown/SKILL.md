@@ -89,7 +89,7 @@ Count code files: not tests, fixtures, examples or generated files. A Dart libra
 ### Phases and checkpoints
 
 - Tasks sit under `### Phase N: <name>`, in the order the dependencies allow. Each dependency is a lower-numbered task, in the same or an earlier phase. Tasks of one phase that depend on each other run one after the other in its batch.
-- Put a high-risk task in the earliest phase its dependencies allow (fail fast), and say so in its Description.
+- Put a high-risk task in the earliest phase its dependencies allow (fail fast); its Description says "High risk".
 - After each phase comes `#### Checkpoint: <name>` with a checklist: the tests pass, the build or lint is clean, the main flow of the phase works, and the user reviews before the next phase. A checkpoint is not a task and gets no issue.
 - **A checkpoint is a suggested `/run-tasks` batch:** run the tasks of one phase together, then stop for the user's review. `/run-tasks` itself does not change.
 - A plan with 1–2 tasks has one phase and one checkpoint at the end.
