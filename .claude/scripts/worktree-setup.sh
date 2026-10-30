@@ -3,9 +3,12 @@
 # the backend and mobile tests run there without touching another worktree.
 #   .claude/scripts/worktree-setup.sh <main-checkout> <issue>
 # Run it from inside the worktree. It:
-#   - copies <main-checkout>/.env when the worktree has none (never overwrites one), and
-#     points TEST_DATABASE_URL in that copy at the issue's own database,
-#     stridequest_i<issue>_test (integration conftest creates it on first use);
+#   - copies <main-checkout>/.env when the worktree has none, and points TEST_DATABASE_URL
+#     in that copy at the issue's own database, stridequest_i<issue>_test (integration
+#     conftest creates it on first use);
+#   - in a worktree that already has an .env (a reused one), points a TEST_DATABASE_URL that
+#     names another database at the issue's and keeps every other line; an .env that
+#     already names it is not touched;
 #   - creates backend/.venv and installs requirements-dev.txt;
 #   - runs `flutter pub get` in mobile/;
 #   - prints the TEST_DATABASE_URL line with the password masked.
@@ -86,25 +89,41 @@ database_of() {
   printf '%s' "$url_database"
 }
 
-if [ -e "$root/.env" ]; then
-  echo "worktree-setup.sh: $root/.env already exists; left as it is." >&2
-else
-  [ -f "$main/.env" ] || die "$main/.env is missing; copy .env.example to it first"
-  line=$(grep -E '^TEST_DATABASE_URL=' "$main/.env" | tail -n 1) ||
-    die "$main/.env has no TEST_DATABASE_URL"
-  new=$(issue_url "$line") || exit 1
-  # Write the copy, with only the TEST_DATABASE_URL lines swapped, to a private temp file
-  # and move it into place in one step, so a stopped run leaves no .env on the shared
-  # database and no stray copy of the password.
-  tmp=$(umask 077 && mktemp "$root/.env.XXXXXX")
+# write_env <source>: write <source> to $root/.env with each TEST_DATABASE_URL line pointed
+# at the issue's database and every other line kept. It writes a private temp file and moves
+# it into place in one step, so a stopped run leaves no .env on the shared database and no
+# stray copy of the password.
+write_env() {
+  local l new
+  tmp=$(umask 077 && mktemp "$root/.env.XXXXXX") || return 1
   trap 'rm -f "$tmp"' EXIT
   while IFS= read -r l || [ -n "$l" ]; do
     case "$l" in
-      TEST_DATABASE_URL=*) printf '%s\n' "$new" ;;
+      TEST_DATABASE_URL=*)
+        new=$(issue_url "$l") || return 1
+        printf '%s\n' "$new"
+        ;;
       *) printf '%s\n' "$l" ;;
     esac
-  done <"$main/.env" >"$tmp"
+  done <"$1" >"$tmp"
   mv "$tmp" "$root/.env"
+}
+
+if [ -e "$root/.env" ]; then
+  stale=0
+  while IFS= read -r l; do
+    [ "$(database_of "${l#TEST_DATABASE_URL=}")" = "$database" ] || stale=1
+  done < <(grep -E '^TEST_DATABASE_URL=' "$root/.env" || true)
+  if [ "$stale" = 1 ]; then
+    write_env "$root/.env" || exit 1
+    echo "worktree-setup.sh: pointed TEST_DATABASE_URL in the existing $root/.env at $database; kept every other line." >&2
+  else
+    echo "worktree-setup.sh: $root/.env already exists and names $database; left as it is." >&2
+  fi
+else
+  [ -f "$main/.env" ] || die "$main/.env is missing; copy .env.example to it first"
+  grep -qE '^TEST_DATABASE_URL=' "$main/.env" || die "$main/.env has no TEST_DATABASE_URL"
+  write_env "$main/.env" || exit 1
   echo "Copied $main/.env to $root/.env with the issue's test database."
 fi
 

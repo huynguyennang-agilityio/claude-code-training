@@ -61,16 +61,52 @@ grep -q 's3cret-pass' <<<"$out" && bad "the password was printed: $out" || ok
 db=$(sed -n 's#^TEST_DATABASE_URL=.*/##p' "$wt/.env")
 [[ $db =~ ^[A-Za-z0-9_]+_test$ ]] && ok || bad "database name '$db' does not match ^[A-Za-z0-9_]+_test$"
 
-# 4. An existing .env is never overwritten, and a shared database is flagged.
+# 4. An existing .env on another database gets only its TEST_DATABASE_URL line swapped.
 wt2="$tmp/wt-165"
 g -C "$main" worktree add -q -b feat/165-x "$wt2"
-printf 'TEST_DATABASE_URL=postgresql+asyncpg://u:pw-local@localhost:5432/stridequest_test\nMINE=1\n' >"$wt2/.env"
-before=$(cat "$wt2/.env")
+printf 'A=1\nTEST_DATABASE_URL=postgresql+asyncpg://u:pw-local@localhost:5432/stridequest_test\nMINE=x & y\n' >"$wt2/.env"
 run "$wt2" "$main" '#165'
 [ $code -eq 0 ] && ok || bad "existing .env: exit $code: $out"
-[ "$(cat "$wt2/.env")" = "$before" ] && ok || bad "existing .env was changed"
-grep -q 'another worktree may use the same database' <<<"$out" && ok || bad "shared database not flagged: $out"
+expected=$(printf 'A=1\nTEST_DATABASE_URL=postgresql+asyncpg://u:pw-local@localhost:5432/stridequest_i165_test\nMINE=x & y')
+[ "$(cat "$wt2/.env")" = "$expected" ] && ok || bad "existing .env: other lines changed or URL not swapped"
+[ "$(stat -f %Lp "$wt2/.env" 2>/dev/null || stat -c %a "$wt2/.env")" = 600 ] && ok || bad "existing .env: rewritten file is not mode 600"
+grep -q 'pointed TEST_DATABASE_URL in the existing' <<<"$out" && ok || bad "existing .env: rewrite not reported: $out"
+grep -q 'another worktree may use the same database' <<<"$out" && bad "existing .env: still flagged as shared: $out" || ok
 grep -q 'pw-local' <<<"$out" && bad "the password was printed: $out" || ok
+ls "$wt2"/.env.* >/dev/null 2>&1 && bad "existing .env: a temp .env file was left behind" || ok
+
+# 4b. An existing .env that already names the issue's database is kept byte for byte.
+wt2b="$tmp/wt-171"
+g -C "$main" worktree add -q -b feat/171-x "$wt2b"
+printf 'TEST_DATABASE_URL=postgresql+asyncpg://u:pw-ok@localhost:5432/stridequest_i171_test\nNO_NEWLINE=1' >"$wt2b/.env"
+chmod 644 "$wt2b/.env"
+cp "$wt2b/.env" "$tmp/before-171"
+run "$wt2b" "$main" 171
+[ $code -eq 0 ] && ok || bad "right .env: exit $code: $out"
+cmp -s "$wt2b/.env" "$tmp/before-171" && ok || bad "right .env: changed"
+[ "$(stat -f %Lp "$wt2b/.env" 2>/dev/null || stat -c %a "$wt2b/.env")" = 644 ] && ok || bad "right .env: mode changed"
+grep -q 'left as it is' <<<"$out" && ok || bad "right .env: not reported as kept: $out"
+
+# 4c. An existing .env whose password holds @, / and & is swapped and masked whole.
+wt2c="$tmp/wt-172"
+g -C "$main" worktree add -q -b feat/172-x "$wt2c"
+printf 'TEST_DATABASE_URL="postgresql+asyncpg://u:a@b/c&d\\1-secret@localhost:5432/stridequest_i9_test?ssl=disable"\nZ=2\n' >"$wt2c/.env"
+run "$wt2c" "$main" 172
+expected=$(printf 'TEST_DATABASE_URL="postgresql+asyncpg://u:a@b/c&d\\1-secret@localhost:5432/stridequest_i172_test?ssl=disable"\nZ=2')
+[ "$(cat "$wt2c/.env")" = "$expected" ] && ok || bad "special password: wrong .env"
+grep -qx 'export TEST_DATABASE_URL="postgresql+asyncpg://u:\*\*\*\*@localhost:5432/stridequest_i172_test?ssl=disable"' <<<"$out" &&
+  ok || bad "special password: export line wrong: $out"
+grep -q 'secret' <<<"$out" && bad "special password: part of the password was printed: $out" || ok
+
+# 4d. An existing .env with a URL it cannot read fails, is left as it is, and is not printed.
+wt2d="$tmp/wt-173"
+g -C "$main" worktree add -q -b feat/173-x "$wt2d"
+printf 'TEST_DATABASE_URL=not-a-url-pw-hidden\nK=1\n' >"$wt2d/.env"
+cp "$wt2d/.env" "$tmp/before-173"
+run "$wt2d" "$main" 173
+[ $code -ne 0 ] && cmp -s "$wt2d/.env" "$tmp/before-173" && ok || bad "unreadable existing URL: exit $code or .env changed"
+grep -q 'pw-hidden' <<<"$out" && bad "unreadable existing URL was printed" || ok
+ls "$wt2d"/.env.* >/dev/null 2>&1 && bad "unreadable existing URL: a temp .env file was left behind" || ok
 
 # 5. A second run keeps the .env from the first.
 echo 'MARKER=kept' >>"$wt/.env"
