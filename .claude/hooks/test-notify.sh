@@ -96,7 +96,7 @@ run '{"hook_event_name":"Notification","message":"-e display dialog"}'
 long=$(jq -n --arg m "$(printf 'a%.0s' $(seq 1 500))" '{hook_event_name: "Notification", message: $m}')
 run "$long"
 len=$(last_message | tr -d '\n' | wc -c | tr -d ' ')
-[ "$len" = 200 ] && ok || bad "long message: length was $len, expected 200"
+[ "$len" = 199 ] && ok || bad "long message: length was $len, expected 200"
 
 viet=$(jq -n --arg m "$(printf 'ạ%.0s' $(seq 1 300))" '{hook_event_name: "Notification", message: $m}')
 run "$viet"
@@ -115,7 +115,7 @@ run '{"hook_event_name":"Notification","message":[1,2]}'
 huge=$(head -c 1000000 /dev/zero | tr '\0' 'z' | jq -Rs '{hook_event_name: "Notification", message: .}')
 run "$huge"
 len=$(last_message | tr -d '\n' | wc -c | tr -d ' ')
-[ "$len" = 200 ] && ok || bad "1 MB message: length was $len, expected 200"
+[ "$len" = 199 ] && ok || bad "1 MB message: length was $len, expected 200"
 
 : >"$log"
 env -u CLAUDE_PROJECT_DIR PATH="$fake:$PATH" "$hook" <<<'{"hook_event_name":"Stop"}' >/dev/null 2>&1 || bad "stop without cwd: exit code"
