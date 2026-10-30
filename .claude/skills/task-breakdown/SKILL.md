@@ -48,7 +48,7 @@ One task is one issue. Each backend endpoint is its own task.
 - [ ] The user reviews before the next phase starts
 ````
 
-- **Description** says only what the contract, `CLAUDE.md` and the plan's Approach do not already say for this task. The order of work goes here (the old Steps part is gone). A high-risk task says so.
+- **Description** says only what the contract, `CLAUDE.md` and the plan's Approach do not already say for this task. The order of work goes here (the old Steps part is gone). A task is **high risk** when it moves money or handles payment data, changes auth or another security boundary, runs a migration that can lose data, or touches real data or production. Its Description then says "High risk", so its local review runs `/code-review max` instead of `high` ([Phase 4 point 6](../../workflow/pr-review.md#phase-4-verification-gate)).
 - **Acceptance criteria** are behaviour only: what a user, a client or another module can observe. **Aim for at most 3 items.** 4 or 5 are allowed only when the task cannot be split further (one endpoint, one screen); more than 5 means split the task. No "works well", no "clean code".
 - **Verification** holds the commands, the repo's required checks for the task type (below) and the manual check. A reviewer ticks it from the test output and the evidence.
 - **Dependencies** are lower task numbers, as in the table's "Depends on" (`1, 3`), or `None`. `/approve-plan` creates the issues in order, so a task never depends on a later one.
@@ -89,7 +89,7 @@ Count code files: not tests, fixtures, examples or generated files. A Dart libra
 ### Phases and checkpoints
 
 - Tasks sit under `### Phase N: <name>`, in the order the dependencies allow. Each dependency is a lower-numbered task, in the same or an earlier phase. Tasks of one phase that depend on each other run one after the other in its batch.
-- Put a high-risk task in the earliest phase its dependencies allow (fail fast), and say so in its Description.
+- Put a high-risk task in the earliest phase its dependencies allow (fail fast); its Description says "High risk".
 - After each phase comes `#### Checkpoint: <name>` with a checklist: the tests pass, the build or lint is clean, the main flow of the phase works, and the user reviews before the next phase. A checkpoint is not a task and gets no issue.
 - **A checkpoint is a suggested `/run-tasks` batch:** run the tasks of one phase together, then stop for the user's review. `/run-tasks` itself does not change.
 - A plan with 1–2 tasks has one phase and one checkpoint at the end.
@@ -123,4 +123,5 @@ Run this review before you publish a draft or return one, and again after every 
 - [ ] No task title has "and"
 - [ ] There is a checkpoint after every phase
 - [ ] Each backend task has exactly one route
+- [ ] Every task that is high risk (see Description) says "High risk" in its Description
 - [ ] The table matches the tasks: same titles, Acceptance criteria word for word, and "Depends on" equal to each task's Dependencies
