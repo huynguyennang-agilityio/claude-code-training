@@ -90,34 +90,44 @@ database_of() {
 }
 
 # write_env <source>: write <source> to $root/.env with each TEST_DATABASE_URL line pointed
-# at the issue's database and every other line kept. It writes a private temp file and moves
-# it into place in one step, so a stopped run leaves no .env on the shared database and no
-# stray copy of the password.
+# at the issue's database and every other line kept byte for byte (a CRLF ending, a last
+# line without a newline). It writes a private temp file and moves it into place in one
+# step, so a stopped run leaves no .env on the shared database and no stray copy of the
+# password.
 write_env() {
-  local l new
+  local l nl cr
   tmp=$(umask 077 && mktemp "$root/.env.XXXXXX") || return 1
   trap 'rm -f "$tmp"' EXIT
-  while IFS= read -r l || [ -n "$l" ]; do
+  while :; do
+    nl=$'\n'
+    if ! IFS= read -r l; then
+      [ -n "$l" ] || break
+      nl=""
+    fi
     case "$l" in
       TEST_DATABASE_URL=*)
-        new=$(issue_url "$l") || return 1
-        printf '%s\n' "$new"
+        cr=""
+        [[ $l != *$'\r' ]] || cr=$'\r' l=${l%$'\r'}
+        l=$(issue_url "$l")$cr || return 1
         ;;
-      *) printf '%s\n' "$l" ;;
     esac
+    printf '%s%s' "$l" "$nl"
   done <"$1" >"$tmp"
   mv "$tmp" "$root/.env"
 }
 
 if [ -e "$root/.env" ]; then
-  stale=0
+  # Rewrite only when a TEST_DATABASE_URL line names another database (or cannot be read).
+  stale=0 found=0
   while IFS= read -r l; do
+    found=1
+    l=${l%$'\r'}
     [ "$(database_of "${l#TEST_DATABASE_URL=}")" = "$database" ] || stale=1
   done < <(grep -E '^TEST_DATABASE_URL=' "$root/.env" || true)
   if [ "$stale" = 1 ]; then
     write_env "$root/.env" || exit 1
     echo "worktree-setup.sh: pointed TEST_DATABASE_URL in the existing $root/.env at $database; kept every other line." >&2
-  else
+  elif [ "$found" = 1 ]; then
     echo "worktree-setup.sh: $root/.env already exists and names $database; left as it is." >&2
   fi
 else

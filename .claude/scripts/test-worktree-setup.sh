@@ -40,6 +40,9 @@ run() {
   code=$?
 }
 
+# mode <file>: its permission bits, with GNU stat first (BSD stat -f means another thing there).
+mode() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
+
 # 1. A fresh worktree gets a copy of .env with its own test database.
 wt="$tmp/wt-164"
 g -C "$main" worktree add -q -b feat/164-x "$wt"
@@ -69,7 +72,7 @@ run "$wt2" "$main" '#165'
 [ $code -eq 0 ] && ok || bad "existing .env: exit $code: $out"
 expected=$(printf 'A=1\nTEST_DATABASE_URL=postgresql+asyncpg://u:pw-local@localhost:5432/stridequest_i165_test\nMINE=x & y')
 [ "$(cat "$wt2/.env")" = "$expected" ] && ok || bad "existing .env: other lines changed or URL not swapped"
-[ "$(stat -f %Lp "$wt2/.env" 2>/dev/null || stat -c %a "$wt2/.env")" = 600 ] && ok || bad "existing .env: rewritten file is not mode 600"
+[ "$(mode "$wt2/.env")" = 600 ] && ok || bad "existing .env: rewritten file is not mode 600"
 grep -q 'pointed TEST_DATABASE_URL in the existing' <<<"$out" && ok || bad "existing .env: rewrite not reported: $out"
 grep -q 'another worktree may use the same database' <<<"$out" && bad "existing .env: still flagged as shared: $out" || ok
 grep -q 'pw-local' <<<"$out" && bad "the password was printed: $out" || ok
@@ -84,7 +87,7 @@ cp "$wt2b/.env" "$tmp/before-171"
 run "$wt2b" "$main" 171
 [ $code -eq 0 ] && ok || bad "right .env: exit $code: $out"
 cmp -s "$wt2b/.env" "$tmp/before-171" && ok || bad "right .env: changed"
-[ "$(stat -f %Lp "$wt2b/.env" 2>/dev/null || stat -c %a "$wt2b/.env")" = 644 ] && ok || bad "right .env: mode changed"
+[ "$(mode "$wt2b/.env")" = 644 ] && ok || bad "right .env: mode changed"
 grep -q 'left as it is' <<<"$out" && ok || bad "right .env: not reported as kept: $out"
 
 # 4c. An existing .env whose password holds @, / and & is swapped and masked whole.
@@ -107,6 +110,25 @@ run "$wt2d" "$main" 173
 [ $code -ne 0 ] && cmp -s "$wt2d/.env" "$tmp/before-173" && ok || bad "unreadable existing URL: exit $code or .env changed"
 grep -q 'pw-hidden' <<<"$out" && bad "unreadable existing URL was printed" || ok
 ls "$wt2d"/.env.* >/dev/null 2>&1 && bad "unreadable existing URL: a temp .env file was left behind" || ok
+
+# 4e. A CRLF .env without a final newline keeps both; an already right one is not touched.
+wt2e="$tmp/wt-174"
+g -C "$main" worktree add -q -b feat/174-x "$wt2e"
+printf 'A=1\r\nTEST_DATABASE_URL=postgresql+asyncpg://u:pw-crlf@localhost:5432/stridequest_test\r\nLAST=1' >"$wt2e/.env"
+run "$wt2e" "$main" 174
+printf 'A=1\r\nTEST_DATABASE_URL=postgresql+asyncpg://u:pw-crlf@localhost:5432/stridequest_i174_test\r\nLAST=1' >"$tmp/want-174"
+cmp -s "$wt2e/.env" "$tmp/want-174" && ok || bad "CRLF .env: line endings or the last line changed"
+cp "$wt2e/.env" "$tmp/before-174"
+run "$wt2e" "$main" 174
+cmp -s "$wt2e/.env" "$tmp/before-174" && grep -q 'left as it is' <<<"$out" && ok || bad "CRLF .env: an already right one was rewritten: $out"
+
+# 4f. An existing .env without TEST_DATABASE_URL is not called right, and fails.
+wt2f="$tmp/wt-175"
+g -C "$main" worktree add -q -b feat/175-x "$wt2f"
+printf 'ONLY=1\n' >"$wt2f/.env"
+run "$wt2f" "$main" 175
+[ $code -ne 0 ] && grep -q 'has no TEST_DATABASE_URL' <<<"$out" && ok || bad "no URL line: exit $code: $out"
+grep -q 'left as it is' <<<"$out" && bad "no URL line: reported as right: $out" || ok
 
 # 5. A second run keeps the .env from the first.
 echo 'MARKER=kept' >>"$wt/.env"
