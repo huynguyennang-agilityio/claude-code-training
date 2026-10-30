@@ -52,7 +52,7 @@ Every change goes through the phases below in order. Don't skip a gate. When a g
 General rules:
 
 - Every non-trivial change starts from an approved plan file (Phase 1). No plan, no issue and no code.
-- Work on one GitHub issue at a time in a session. `/run-tasks` runs at most two issue sessions at once, each in its own worktree; never run `docker compose` from a worktree ([details](.claude/workflow/implement.md#working-in-a-worktree)).
+- Work on one GitHub issue at a time in a session. `/run-tasks` starts one session for each ready issue in the command turn, and at most two sessions work at once, each in its own worktree; never run `docker compose` from a worktree ([details](.claude/workflow/implement.md#working-in-a-worktree)).
 - `develop` is the default branch. `main` holds released code and only receives merges from `develop`.
 - Never push directly to `develop` or `main`.
 - GitHub is the primary repository. GitLab is a read-only mirror that the user updates by hand from a machine on the VPN (see [GitLab mirror](README.md#gitlab-mirror)). Claude never pushes to the `gitlab` remote.
