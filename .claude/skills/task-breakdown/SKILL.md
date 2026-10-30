@@ -48,7 +48,7 @@ One task is one issue. Each backend endpoint is its own task.
 - [ ] The user reviews before the next phase starts
 ````
 
-- **Description** says only what the contract, `CLAUDE.md` and the plan's Approach do not already say for this task. The order of work goes here (the old Steps part is gone). A high-risk task says so.
+- **Description** says only what the contract, `CLAUDE.md` and the plan's Approach do not already say for this task. The order of work goes here (the old Steps part is gone). A task is **high risk** when it moves money or handles payment data, changes auth or another security boundary, runs a migration that can lose data, or touches real data or production. Its Description then says "High risk", so its local review runs `/code-review max` instead of `high` ([Phase 4 point 6](../../workflow/pr-review.md#phase-4-verification-gate)).
 - **Acceptance criteria** are behaviour only: what a user, a client or another module can observe. **Aim for at most 3 items.** 4 or 5 are allowed only when the task cannot be split further (one endpoint, one screen); more than 5 means split the task. No "works well", no "clean code".
 - **Verification** holds the commands, the repo's required checks for the task type (below) and the manual check. A reviewer ticks it from the test output and the evidence.
 - **Dependencies** are lower task numbers, as in the table's "Depends on" (`1, 3`), or `None`. `/approve-plan` creates the issues in order, so a task never depends on a later one.
