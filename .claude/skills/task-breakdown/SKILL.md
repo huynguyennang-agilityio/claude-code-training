@@ -104,7 +104,7 @@ Every task's Verification lists what applies of these, so the Acceptance criteri
 - **Mobile mock:** `Fake<Feature>RemoteDataSource` with fixtures equal to the examples, checked in `test/contract`; a screenshot with `API_MODE=mock`; the Integration row `Not verified: backend not merged`.
 - **Mobile integration:** the app against the local backend, one success case and each documented error; the integration gate (the backend tasks closed and their endpoints in `docs/api/openapi.json` on `develop`).
 - **Docs and tooling:** the diff limited to the listed files; the `Stop` hook checks pass.
-- **Every task:** the Evidence section ([`.claude/workflow/evidence.md`](../../workflow/evidence.md)). A task that changes a rule, name, value or command written in more than one file also lists `git grep -n "<old text>" -- . ':!docs/plans' ':!*PROGRESS.md'`, which finds nothing once the task is done (plans and progress lines are records and keep the old text; name any other hit that rightly keeps it), and its Files likely touched lists every file that grep finds before the change ([plan 038](../../../docs/plans/038-at-most-two-reviews.md)).
+- **Every task:** the Evidence section ([`.claude/workflow/evidence.md`](../../workflow/evidence.md)). A task that changes a rule, name, value or command written in more than one file also lists `git grep -n "<old text>" -- ':/' ':/!docs/plans' ':/!*PROGRESS.md'` (searched from the repository root wherever it runs), which finds nothing once the task is done (plans and progress lines are records and keep the old text; name any other hit that rightly keeps it), and its Files likely touched lists every file that grep finds before the change ([plan 038](../../../docs/plans/038-at-most-two-reviews.md)).
 
 ### The table
 
