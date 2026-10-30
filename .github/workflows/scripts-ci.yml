@@ -32,12 +32,13 @@ jobs:
       # ruff, at the version pinned in backend/requirements-dev.txt, lets the Python cases of
       # test-format-on-edit.sh run; its Dart cases print a SKIPPED line, since dart is not installed.
       - name: Install ruff
-        run: pipx install "$(grep '^ruff==' backend/requirements-dev.txt)"
+        run: |
+          version=$(sed -n 's/^ruff==\([0-9.]*\).*/\1/p' backend/requirements-dev.txt)
+          [ -n "$version" ] || { echo "::error::no ruff==<version> pin in backend/requirements-dev.txt"; exit 1; }
+          pipx install "ruff==$version"
 
       - name: Run the script tests
         run: |
-          git config --global user.name ci
-          git config --global user.email ci@example.invalid
           failed=()
           for t in .github/scripts/test-*.sh .claude/hooks/test-*.sh .claude/scripts/test-*.sh; do
             echo "::group::$t"
