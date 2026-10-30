@@ -123,4 +123,5 @@ Run this review before you publish a draft or return one, and again after every 
 - [ ] No task title has "and"
 - [ ] There is a checkpoint after every phase
 - [ ] Each backend task has exactly one route
+- [ ] Every task that is high risk (see Description) says "High risk" in its Description
 - [ ] The table matches the tasks: same titles, Acceptance criteria word for word, and "Depends on" equal to each task's Dependencies

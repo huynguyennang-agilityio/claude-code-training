@@ -212,4 +212,4 @@ If the connector is not available, say so once in the run and go on: Slack is a 
 
 ## Report
 
-End the parent's last message with a short summary and the report link: the merged PRs and issues, the stopped and left-out issues with reasons, the CI result on `develop`, the DECISIONS entries the merged PRs added, and what is left for the user (the rerun command or fix plans of "Kế hoạch tiếp theo", the GitLab mirror).
+End the parent's last message with a short summary and the report link: the merged PRs and issues, the stopped and left-out issues with reasons, the CI result on `develop`, the DECISIONS entries the merged PRs added, and what is left for the user (the rerun command or fix plans of "Kế hoạch tiếp theo", the optional `/code-review ultra <PR#>` for each high-risk PR, the GitLab mirror).
