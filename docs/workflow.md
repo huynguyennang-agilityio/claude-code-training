@@ -126,7 +126,7 @@ flowchart TD
     A["User: /run-tasks 1,2,3,4"] --> PF["Preflight: check tools, keys and settings;<br/>ask once if something is missing"]
     PF --> O["Order by Depends on, then area; split into at most<br/>two lanes of issues that pair; DM the start"]
     O --> C["In the command turn, start a child session<br/>for every ready issue, each in its own worktree,<br/>naming the issues it waits for (two lanes)"]
-    C -- "start_session fails" --> PD["DM: Run paused: run /run-tasks<br/>with the issues not started"]
+    C -- "start_session fails" --> PD["DM: Run paused for the issues not started;<br/>rerun them only after this run's report"]
     PD --> RW
     subgraph child ["Each child session"]
       G{"Wait gate: result file of every<br/>issue it waits for (25 min rounds)"} -- "a dependency stopped" --> GS["Comment, RESULT: stopped,<br/>depends on #N or integration gate closed"]
