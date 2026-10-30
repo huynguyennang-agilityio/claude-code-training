@@ -95,7 +95,7 @@ sequenceDiagram
             A->>G: claude-review again: each earlier finding fixed or not, then only the changes since (High findings only on other lines)
         end
     end
-    Note over C,A: At most two claude-review runs per PR: fix every finding of the first (nits too), comment "@claude review" once; the second is the last (nits under "Nits left", request changes means no merge and a draft fix plan)
+    Note over C,A: At most two claude-review runs per PR. Fix every finding of the first (nits too), comment "@claude review" once. The second is the last (nits under "Nits left", request changes means no merge and a draft fix plan)
     U->>C: Merge PR #id
     C->>G: merge into develop
     C->>G: check PR merged, diff on develop
