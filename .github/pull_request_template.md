@@ -21,6 +21,10 @@ Plan: docs/plans/NNN-name.md
      Local review: one line giving, for code-reviewer and for /code-review high, the findings found, fixed and answered; when /code-review is unavailable, code-reviewer's counts and `Not verified: /code-review unavailable`. See Phase 4 point 6 in .claude/workflow/pr-review.md.
      Write `Not verified: <reason>` for anything you couldn't check. See .claude/workflow/evidence.md. -->
 
+## Decisions added
+
+<!-- Each DECISIONS entry this PR adds, with its file (`backend/DECISIONS.md`, `mobile/decisions/<area>.md`, ...), or "None". See step 4 of the session brief in .claude/skills/run-tasks/SKILL.md. -->
+
 ## Review checklist
 
 Comment `@claude review` after your last push, before asking for a merge.
