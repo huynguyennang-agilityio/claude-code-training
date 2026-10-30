@@ -96,7 +96,7 @@ Each phase's full rules are in `.claude/workflow/`. **Read the file for a phase 
 | 3. Implement and test | [`.claude/workflow/implement.md`](.claude/workflow/implement.md) | Small steps: code, tests, lint, type checks, then verify by ticket type |
 | Evidence | [`.claude/workflow/evidence.md`](.claude/workflow/evidence.md) | No task is done without an `## Evidence` section; `Not verified: <reason>` instead of silence |
 | 4. Verification gate | [`.claude/workflow/pr-review.md`](.claude/workflow/pr-review.md) | Criteria and Verification met, full suite passes, security checked, diff in scope, evidence drafted, local review pass done before an issue PR's first push |
-| 5. PR and review | [`.claude/workflow/pr-review.md`](.claude/workflow/pr-review.md#phase-5-pr-and-review) | PR only when the user asks (or `/run-tasks` names the issue), with `Closes #<id>`, `Plan:` and deviations; address review and security-scan findings |
+| 5. PR and review | [`.claude/workflow/pr-review.md`](.claude/workflow/pr-review.md#phase-5-pr-and-review) | PR only when the user asks (or `/run-tasks` names the issue), with `Closes #<id>`, `Plan:` and deviations; address review and security-scan findings; at most two `claude-review` runs per PR: fix every finding of the first (nits too) and comment `@claude review` once; the second is the last (its nits go under `## Nits left`; request changes means no merge and a draft fix plan) |
 | 6. Merge and close | [`.claude/workflow/pr-review.md`](.claude/workflow/pr-review.md#phase-6-merge-and-close) | Merge only when the user authorizes that PR, or `/run-tasks` names its issue and every merge condition holds; then verify `develop`, report CI and remind the GitLab mirror |
 
 The rules that apply in every phase:
