@@ -37,7 +37,7 @@ flowchart TD
     LR --> P5["Phase 5, when the user asks:<br/>first time: push, open PR into develop,<br/>Closes #id, Plan: link, deviations<br/>after review: push fixes to the same PR"]
     G4 -- "yes, review fix push<br/>or local review done" --> P5
     LR -- "recheck fails:<br/>fix, no second review" --> P3
-    P5 --> REV["On GitHub: CI (backend, mobile) on every push;<br/>claude-review when the PR opens<br/>and again on @claude review"]
+    P5 --> REV["On GitHub: CI (backend, mobile) on every push;<br/>claude-review when the PR opens<br/>and again on @claude review,<br/>then only the changes since the earlier review"]
     REV --> UREV{"User review:<br/>changes needed?"}
     UREV -- yes --> P3
     UREV -- no --> MERGE{"User authorizes<br/>the merge of this PR?"}
@@ -91,6 +91,7 @@ sequenceDiagram
         U->>C: commit and push
         C->>G: push fixes to the same PR
         G->>A: CI runs again (a new review only on "@claude review")
+        A->>G: second claude-review: each earlier finding fixed or not, then only the changes since the earlier review (High findings only on unchanged lines)
     end
     U->>C: Merge PR #id
     C->>G: merge into develop
