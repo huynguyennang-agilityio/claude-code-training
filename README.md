@@ -355,6 +355,7 @@ Three kinds of workflow run on GitHub. The design and its reasons are in [plan 0
 | `backend-ci.yml` (job `backend`) | every PR into `develop`, every push to `develop` | `ruff check`, `ruff format --check`, `mypy`, `pytest tests/unit` and `pytest tests/integration` against a PostgreSQL 17 service |
 | `mobile-ci.yml` (job `mobile`) | the same | `flutter analyze` and `flutter test` without the golden tests, on Linux |
 | `mobile-ci.yml` (job `goldens`) | the same | `flutter test --tags golden` on `macos-15`; on failure, the diff images are the run's `golden-failures` artifact |
+| `scripts-ci.yml` (job `scripts`) | the same | every `test-*.sh` in `.github/scripts/`, `.claude/hooks/` and `.claude/scripts/`, on Linux; the log names each test and each skipped part |
 | `claude-review.yml` | a PR into `develop` is opened, marked ready for review or reopened; a collaborator comments `@claude review` on a PR | Claude reviews the PR with the `code-reviewer` agent and posts one comment, edited on later runs |
 | `claude-security-scan.yml` | the same PR events, except PRs that change only `docs/` or `*.md` files (`.claude/**` and `CLAUDE.md` are scanned); a collaborator comments `@claude security` on a PR | Claude scans the diff for security issues against `.claude/claude-security-guidance.md` from `develop` and posts one comment, edited on later runs. Advisory: it never fails on findings |
 | `claude.yml` | a collaborator mentions `@claude` in an issue, an issue comment or a PR review | Claude answers as `claude[bot]`, and may push a `claude/...` branch and open a PR into `develop` |
@@ -388,7 +389,7 @@ The user does these once, in the repository settings:
 1. **Secret `CLAUDE_CODE_OAUTH_TOKEN`:** run `claude setup-token` (Claude Code CLI) and add the token under Settings → Secrets and variables → Actions. Its usage counts against your Pro/Max subscription. To bill the API instead, add `ANTHROPIC_API_KEY` and use `anthropic_api_key:` in place of `claude_code_oauth_token:` in the three Claude workflows. If the token leaks, revoke it, make a new one and replace the secret.
 2. **Claude GitHub App:** install it from <https://github.com/apps/claude> for this repository only ("Only select repositories"). `claude.yml` needs it; `claude-review.yml` and `claude-security-scan.yml` do not. The App issues its token only when `claude.yml` matches the version on `develop`, so a change to that workflow can be tested only after it is merged.
 3. **Ruleset "Protect develop and main":** `develop` and `main` require a pull request, block force pushes and deletion, and have no bypass actors. Approvals required: 0.
-4. **Ruleset "Require CI on develop":** targets `develop` only and requires the status checks `backend`, `mobile` and `goldens` (source GitHub Actions), with no bypass actors. It is separate from the ruleset above because CI does not run on PRs into `main`, so a required check there would never report.
+4. **Ruleset "Require CI on develop":** targets `develop` only and requires the status checks `backend`, `mobile`, `goldens` and `scripts` (source GitHub Actions), with no bypass actors. It is separate from the ruleset above because CI does not run on PRs into `main`, so a required check there would never report.
 
 ## Release
 

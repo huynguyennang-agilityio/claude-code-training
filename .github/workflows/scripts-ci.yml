@@ -1,0 +1,55 @@
+# Shell script tests: every test-*.sh in .github/scripts/, .claude/hooks/ and .claude/scripts/.
+# Plan: docs/plans/039-plan-038-follow-ups.md (assumption 7)
+#
+# The trigger has no `paths:` filter on purpose. A required check that never reports
+# stays pending and blocks the merge, so the job always runs.
+name: scripts
+
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  # A new push to a PR cancels its older run. Each push to develop gets its own group
+  # (the commit SHA), so every commit there gets a result.
+  group: scripts-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  scripts:
+    name: scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The tests fake the macOS-only tools they need (osascript, uname) themselves.
+      # ruff, at the version pinned in backend/requirements-dev.txt, lets the Python cases of
+      # test-format-on-edit.sh run; its Dart cases print a SKIPPED line, since dart is not installed.
+      - name: Install ruff
+        run: pipx install "$(grep '^ruff==' backend/requirements-dev.txt)"
+
+      - name: Run the script tests
+        run: |
+          git config --global user.name ci
+          git config --global user.email ci@example.invalid
+          failed=()
+          for t in .github/scripts/test-*.sh .claude/hooks/test-*.sh .claude/scripts/test-*.sh; do
+            echo "::group::$t"
+            if bash "$t"; then
+              echo "PASS: $t"
+            else
+              echo "FAIL: $t"
+              failed+=("$t")
+            fi
+            echo "::endgroup::"
+          done
+          if [ "${#failed[@]}" -gt 0 ]; then
+            printf '::error::Failed: %s\n' "${failed[@]}"
+            exit 1
+          fi
