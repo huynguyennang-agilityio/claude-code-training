@@ -211,7 +211,19 @@ run "$wt7" "$bad_url" 170
 grep -q 'pw-hidden' <<<"$out" && bad "an unreadable URL was printed" || ok
 ls "$wt7"/.env.* >/dev/null 2>&1 && bad "a temp .env file was left behind" || ok
 
-# 12. It never runs docker compose.
+# 12. A fresh copy points each TEST_DATABASE_URL line at the issue's database with its own
+# credentials.
+two="$tmp/two"
+g init -q -b develop "$two"
+g -C "$two" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+printf 'TEST_DATABASE_URL=postgresql+asyncpg://a:pw-a@localhost:5432/stridequest_test\nTEST_DATABASE_URL=postgresql+asyncpg://b:pw-b@db:5433/other_test\n' >"$two/.env"
+wt8="$tmp/wt-176"
+g -C "$two" worktree add -q -b feat/176-x "$wt8"
+run "$wt8" "$two" 176
+printf 'TEST_DATABASE_URL=postgresql+asyncpg://a:pw-a@localhost:5432/stridequest_i176_test\nTEST_DATABASE_URL=postgresql+asyncpg://b:pw-b@db:5433/stridequest_i176_test\n' >"$tmp/want-176"
+[ $code -eq 0 ] && cmp -s "$wt8/.env" "$tmp/want-176" && ok || bad "two URL lines: each did not keep its own credentials"
+
+# 13. It never runs docker compose.
 grep -Eq '^[^#]*docker([[:space:]]|-)compose' "$script" && bad "the script runs docker compose" || ok
 
 echo "$pass passed, $fail failed"
