@@ -57,7 +57,7 @@ If anything is missing, put it all in **one** message (one question, a list of w
 
 Before the first issue, pick the run's **result folder**, from the main checkout: `<results>` is `$(git rev-parse --path-format=absolute --git-common-dir)/run-tasks/<run-id>`, where `<run-id>` is the time the run started (`date +%Y%m%d-%H%M%S`). It is inside the main checkout's `.git`, shared by every worktree and never committed. Write the absolute path into each brief: a relative `.git` would point elsewhere from a worktree.
 
-**Start every issue in the command turn** ([plan 038](../../../docs/plans/038-at-most-two-reviews.md), assumptions 7 and 8). The app allows `start_session` only in the turn of the user's command (it refused it even in turns that a child's note began, plan 038, "Problem"), so the parent starts a child session for **every** ready issue in the turn of the user's command, in run order, with the desktop app's `start_session` tool:
+**Start every issue in the command turn** ([plan 038](../../../docs/plans/038-at-most-two-reviews.md), assumptions 7 and 8). The app allows `start_session` only in a turn that begins with the user's own words (it refused it even in turns that a child's note began, plan 038, "Problem"), so the parent starts a child session for **every** ready issue in the **command turn**, in run order: the turn of the user's command, or, when the preflight asked its one question (step 1), the turn of the user's answer. Start them with the desktop app's `start_session` tool:
 
 - `initiation: "user_asked"` (the user's command asked for this work), `context: "fresh"`, `use_worktree: true`, a `title` of `#<issue> <short title>`, a `name` of `i<issue>`, and `wake_when_done: true`;
 - `background`: the run, the plan, and that the parent collects results and writes the report;
@@ -210,7 +210,7 @@ DM the user with the Slack connector: `slack_read_user_profile` without a user I
 - **Stop:** one per stopped issue, as soon as the parent knows it stopped (step 3): `#<issue> stopped: <reason>; run continues` (`run ends` when no issue is still running). An issue stopped because it depends on another gets its own DM, with the reason `depends on #<issue>`.
 - **End:** the report link and a three-line summary (merged, stopped, what needs the user).
 
-If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to these DMs: when `start_session` is refused or fails in the turn of the user's command, the parent sends `Run paused for <issues not started> (start_session refused); the run goes on with <issues started>: run /run-tasks <issues not started> only after its report` and goes on with the issues that started (step 3). No other turn starts a session, so no other turn sends it. The report repeats the command.
+If the connector is not available, say so once in the run and go on: Slack is a report, not a gate. The one exception to these DMs: when `start_session` is refused or fails in the command turn (step 3), the parent sends `Run paused for <issues not started> (start_session refused); the run goes on with <issues started>: run /run-tasks <issues not started> only after its report` and goes on with the issues that started (step 3). No other turn starts a session, so no other turn sends it. The report repeats the command.
 
 ## Report
 
