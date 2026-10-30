@@ -13,7 +13,7 @@ Build in small steps. For each step:
 
 ## Working in a worktree
 
-`/run-tasks` runs **at most two issue sessions at once**, each in its own git worktree ([plan 028](../../docs/plans/028-parallel-run-tasks.md)). In a worktree:
+`/run-tasks` starts one session for each ready issue in the command turn, and **at most two sessions work at once**, each in its own git worktree ([plan 028](../../docs/plans/028-parallel-run-tasks.md), [plan 038](../../docs/plans/038-at-most-two-reviews.md)). In a worktree:
 
 - Branch from `origin/develop` first (`git switch -c <type>/<issue>-<name> origin/develop`), never `git switch develop`, which fails while `develop` is checked out in the main folder.
 - Then run `.claude/scripts/worktree-setup.sh <main checkout> <issue>`. It copies `.env` with the issue's own test database (`stridequest_i<issue>_test`, created by the integration conftest), creates `backend/.venv` and runs `flutter pub get`. The `export` line it prints has the password masked: never run it; the real URL is in the worktree's `.env`. If the script warns about an exported `TEST_DATABASE_URL`, prefix each test command with `env -u TEST_DATABASE_URL`, since each Bash call starts a new shell.

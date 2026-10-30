@@ -371,6 +371,7 @@ Scheduled runs outside GitHub (an evening PR report on the Mac, a morning issue 
 
 - A review runs when the PR opens or is marked ready for review. New commits do not start one: comment `@claude review` after your last push.
 - To skip the review while a PR is not ready, open it as a draft.
+- A PR gets at most two `claude-review` runs. When the first has findings, fix them all (or answer one in the PR description), push once and comment `@claude review` once. The second review is the last: the nits it leaves go under `## Nits left` in the PR description, and when it requests changes, don't push or merge; the fix goes through a draft fix plan.
 - The review is advice. It never approves, merges or labels; merging is still up to you.
 
 ### Asking for a security scan
