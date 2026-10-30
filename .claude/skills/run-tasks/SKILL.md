@@ -189,7 +189,7 @@ Every stop a child takes goes the same way: it commits its unfinished work as `w
      - any other big problem that remains, with a proposed fix;
      - the process lessons from the `RESULT:` lines (step 12), each as a follow-up that needs a plan;
   3. the `Not verified` lines, the PRs above 400 lines with how each could have been split, the PRs that touch auth, the schema or a migration (to look at later), and the review findings answered but not fixed;
-  4. the DECISIONS entries each merged PR added, taken from its `## Decisions added` and checked against the DECISIONS files in its diff (`gh pr diff <n> --name-only`; a mismatch is listed as such), with the PR link and the file, or "none" when no merged PR added any;
+  4. the DECISIONS entries each merged PR added, taken from the lines the PR added to DECISIONS files in its full diff (`gh pr diff <n>`), with `## Decisions added` only as a cross-check (a mismatch is listed as such), with the PR link and the file, or "none" when no merged PR added any;
   5. a reminder to mirror `develop` to GitLab.
 - **Final DM** with the report link and a three-line summary (see "Slack").
 - **Sessions.** Merged child sessions are archived by the app when `auto_archive_on_pr_close` is on. When it stays off, the report lists the merged sessions under "archive by hand". Child sessions of stopped issues are kept for the user to look at. Never archive a session yourself unless the user says so for that session.
