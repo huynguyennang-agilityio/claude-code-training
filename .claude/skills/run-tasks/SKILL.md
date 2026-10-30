@@ -141,7 +141,7 @@ The brief a child session gets, filled in for its issue. It starts with the user
 
    Either way, re-run the five Phase 4 points of step 3 (not the local review), push (on a rerun branch, as step 4, "Rerun", says), and wait for the required checks on the new head, and after a conflict for the review of the new head (step 7).
 10. **Merge (Phase 6)** only when every condition holds:
-    - the required checks `backend`, `mobile` and `goldens` are green on the head commit;
+    - the required checks `backend`, `mobile`, `goldens` and `scripts` are green on the head commit;
     - the latest `claude-review` (posted by `github-actions[bot]`) says approve or approve with nits, for the head SHA or, after conflict-free step 9 merges only, for the commit they were made on: `git rev-list --first-parent <reviewed SHA>..HEAD` lists only merges of `origin/develop`, and `git show --remerge-diff --format= <merge>` prints nothing for each (no conflict was resolved);
     - each nit is fixed, answered, or, after the second review, listed under `## Nits left`;
     - every high-severity security-scan finding is fixed or answered;
