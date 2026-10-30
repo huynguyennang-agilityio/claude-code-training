@@ -23,10 +23,14 @@ DEADLINE_SECONDS=11700 # 3 h 15 min
 # The hook input is not needed; read it so the writer never gets a broken pipe.
 cat >/dev/null
 
-# The session's folder, not the shell's current one, which a `cd` may have moved.
-git_dir=$(git -C "${CLAUDE_PROJECT_DIR:-.}" rev-parse --absolute-git-dir 2>/dev/null) || exit 0
-marker="$git_dir/run-task"
-[ -f "$marker" ] || exit 0
+# Look in the shell's current folder, then in the session's folder ($CLAUDE_PROJECT_DIR), so a
+# `cd` out of the worktree does not hide the marker. The main checkout never has one.
+marker=
+for dir in . "${CLAUDE_PROJECT_DIR:-.}"; do
+  git_dir=$(git -C "$dir" rev-parse --absolute-git-dir 2>/dev/null) || continue
+  [ -f "$git_dir/run-task" ] && marker="$git_dir/run-task" && break
+done
+[ -n "$marker" ] || exit 0
 
 {
   IFS= read -r results || true

@@ -90,8 +90,11 @@ allows "GitHub Actions"
 # --- the main checkout has no marker of its own: not blocked by the worktree's ---
 run "$repo"
 allows "main checkout"
+run "$repo" CLAUDE_PROJECT_DIR="$repo"
+allows "main checkout with CLAUDE_PROJECT_DIR"
+# --- CLAUDE_PROJECT_DIR names the main checkout, the shell is in the worktree: still blocks ---
 run "$tree" CLAUDE_PROJECT_DIR="$repo"
-allows "CLAUDE_PROJECT_DIR is the main checkout"
+[ "$code" = 2 ] && ok || bad "CLAUDE_PROJECT_DIR is the main checkout: exit code was $code, expected 2"
 
 # --- a result present: let the turn end ---
 echo "RESULT: merged #7 PR #1" >"$results/7.result"
