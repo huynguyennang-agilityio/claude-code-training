@@ -91,7 +91,9 @@ sequenceDiagram
         U->>C: commit and push
         C->>G: push fixes to the same PR
         G->>A: CI runs again (a new review only on "@claude review")
-        A->>G: second claude-review: each earlier finding fixed or not, then only the changes since the earlier review (High findings only on unchanged lines)
+        opt comment "@claude review"
+            A->>G: claude-review again: each earlier finding fixed or not, then only the changes since (High findings only on other lines)
+        end
     end
     U->>C: Merge PR #id
     C->>G: merge into develop
