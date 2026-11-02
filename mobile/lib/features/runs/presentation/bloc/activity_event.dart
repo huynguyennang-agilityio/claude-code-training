@@ -7,7 +7,8 @@ sealed class ActivityEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-/// The tab opened with access to [allowed] metrics: read and sync.
+/// The tab opened with access to [allowed] metrics: show the service's latest
+/// result and ask it for a (throttled) sync.
 class ActivityStarted extends ActivityEvent {
   const ActivityStarted(this.allowed);
 
@@ -20,4 +21,14 @@ class ActivityStarted extends ActivityEvent {
 /// The user tapped **Refresh data**.
 class ActivityRefreshRequested extends ActivityEvent {
   const ActivityRefreshRequested();
+}
+
+/// The [HealthSync] has a new state.
+class _SyncStateChanged extends ActivityEvent {
+  const _SyncStateChanged(this.sync);
+
+  final HealthSyncState sync;
+
+  @override
+  List<Object?> get props => [sync];
 }

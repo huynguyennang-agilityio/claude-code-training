@@ -1,7 +1,9 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:stridequest/core/di/injection.dart';
 import 'package:stridequest/features/runs/data/datasources/health_data_source.dart';
 import 'package:stridequest/features/runs/data/datasources/health_prompt_store.dart';
+import 'package:stridequest/features/runs/data/health_sync_service.dart';
 import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 import 'package:stridequest/features/runs/domain/repositories/health_repository.dart';
@@ -10,6 +12,7 @@ import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/health_gate_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart';
 
+import 'auth_fixtures.dart';
 import 'runs_fixtures.dart';
 
 class MockHealthGateBloc extends MockBloc<HealthGateEvent, HealthGateState>
@@ -204,10 +207,15 @@ class InMemoryHealthPromptStore implements HealthPromptStore {
 void registerHealthBlocs([HealthRepository? repository]) {
   final repo = repository ?? FakeHealthRepository();
   final runs = FakeRunsRepository();
+  final auth = MockAuthRepository();
+  when(auth.restoreSession).thenAnswer((_) async => null);
+  final service = HealthSyncService(
+    repo,
+    auth,
+    SyncActivity(repo, runs, FakeSyncStateRepository()),
+  );
   getIt
     ..registerFactory<HealthGateBloc>(() => HealthGateBloc(repo))
-    ..registerFactory<ActivityBloc>(
-      () => ActivityBloc(SyncActivity(repo, runs, FakeSyncStateRepository())),
-    )
+    ..registerFactory<ActivityBloc>(() => ActivityBloc(service))
     ..registerFactory<MyChallengesBloc>(() => MyChallengesBloc(runs));
 }
