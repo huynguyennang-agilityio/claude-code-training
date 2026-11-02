@@ -56,7 +56,8 @@ hurl --test --variable "base=$base" --variable "admin_token=$admin_token" \
   --variable "sample_end=$sample_end" "$dir/runs.hurl"
 
 # step_hours.hurl needs an enrollment whose hours count: an hour counts only from the join time,
-# so a fresh user joins a run challenge and its counting times are moved three days back. That
+# so a fresh user joins a run challenge; its `hours_from` and `session_started_at` are moved three
+# days back and its `counting_from` four, so a step sample before `hours_from` still counts. That
 # step writes to the database of the local backend settings (`.env`), so it needs the API at
 # base_url and that database on this machine, like create_admin above.
 hours_email="hurl-hours-$stamp@example.com"
