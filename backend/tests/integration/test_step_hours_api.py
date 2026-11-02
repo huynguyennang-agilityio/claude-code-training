@@ -28,10 +28,24 @@ __all__ = ["_settings", "admin", "auth_settings", "client", "storage", "user"]
 LONG_AGO = datetime.now(UTC) - 3 * DAY
 
 
+def _hour_now() -> datetime:
+    return datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+
+
+# The current hour, read once at the start of each test (`_read_the_current_hour`), so a request
+# and its assertions use the same hours even when an hour boundary passes in between.
+_current_hour = _hour_now()
+
+
+@pytest.fixture(autouse=True)
+def _read_the_current_hour() -> None:
+    global _current_hour
+    _current_hour = _hour_now()
+
+
 def ago(hours: int) -> datetime:
-    """The start of the UTC hour that began `hours` hours before the current one, read at each
-    call so a run that crosses an hour boundary still sees the right current hour."""
-    return datetime.now(UTC).replace(minute=0, second=0, microsecond=0) - hours * HOUR
+    """The start of the UTC hour that began `hours` hours before the current one."""
+    return _current_hour - hours * HOUR
 
 
 def body(*hours: tuple[datetime, int]) -> dict[str, Any]:
