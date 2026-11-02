@@ -12,4 +12,5 @@ Loaded through `mobile/CLAUDE.md`, with every `mobile/decisions/<area>.md`, when
 - **2026-11-02, #262.** `RunsRepository.earliestRunJoin` is the join time; a run challenge counts steps only from `startsAt`. For "how long steps have counted", use `earliestRunCounting` (the later of the two).
 - **2026-11-02, #256.** On iOS, read step hours with one `getHealthIntervalDataFromTypes(interval: 3600)` anchored at a UTC hour, not one `getTotalStepsInInterval` per hour: 30 days read in about 60 ms on an iPhone 13.
 - **2026-11-02, #257.** In `SyncActivity`, only step hours start at the earliest run join; daily figures ignore the join and start at the later of the window start and `firstSyncAt`, so they are sent with no active run.
-- **2026-11-02, #258.** Only `HealthSyncService` runs `SyncActivity`: screens read its `state`/`stream` and call `sync(force: true)` for a manual refresh. Its tests use `HealthSyncService.withClock` and call `sync()` directly; `AppLifecycleListener` resume can't be driven from a unit test.
+- **2026-11-02, #258.** Only `HealthSyncService` runs `SyncActivity`; screens and `ActivityBloc` use the domain `HealthSync` (`state`/`stream`/`sync(force: true)`). A session change bumps a generation so an in-flight run's result is dropped.
+  Tests use `HealthSyncService.withClock`; `AppLifecycleListener` resume can't be driven from a unit test.

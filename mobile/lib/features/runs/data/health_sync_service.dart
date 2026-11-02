@@ -1,40 +1,15 @@
 import 'dart:async';
 
-import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:injectable/injectable.dart';
 
 import '../../auth/domain/repositories/auth_repository.dart';
-import '../domain/entities/activity.dart';
 import '../domain/entities/health_access.dart';
 import '../domain/failures/runs_failure.dart';
 import '../domain/repositories/health_repository.dart';
+import '../domain/services/health_sync.dart';
 import '../domain/usecases/sync_activity.dart';
-
-/// What the screens show of the health sync.
-class HealthSyncState extends Equatable {
-  const HealthSyncState({
-    this.busy = false,
-    this.reading,
-    this.error,
-    this.syncedAt,
-  });
-
-  /// A sync is running.
-  final bool busy;
-
-  /// Today's figures from the last sync that read them; null before the first.
-  final ActivityReading? reading;
-
-  /// What went wrong in the last sync, or null.
-  final String? error;
-
-  /// When the figures last reached StrideQuest.
-  final DateTime? syncedAt;
-
-  @override
-  List<Object?> get props => [busy, reading, error, syncedAt];
-}
 
 /// Syncs the health data when the app opens, comes back to the foreground and
 /// when a session starts, so the Active tab is not the only way data reaches the
@@ -42,11 +17,14 @@ class HealthSyncState extends Equatable {
 ///
 /// A sync runs only when someone is signed in and steps may be read. Two
 /// triggers at once share one run (single-flight). A trigger within [throttle]
-/// of the end of the last successful sync does nothing, unless it is forced.
+/// of the end of the last successful sync does nothing, unless it is forced or
+/// the allowed metrics changed since. A forced trigger, or one after the session
+/// changed, queues one follow-up run behind the one in flight; the in-flight
+/// run's result is dropped when the session changed under it.
 /// A run that threw a `HealthFailure` or returned a `RunsFailure` does not
 /// start the throttle, so the next trigger retries.
-@lazySingleton
-class HealthSyncService {
+@LazySingleton(as: HealthSync)
+class HealthSyncService implements HealthSync {
   HealthSyncService(
     HealthRepository health,
     AuthRepository auth,
@@ -73,18 +51,26 @@ class HealthSyncService {
   final _subscriptions = <StreamSubscription<Object?>>[];
   AppLifecycleListener? _lifecycle;
   Future<void>? _running;
+  Future<void>? _followUp;
+  int _runGeneration = 0;
+  // Bumped by every session change; a run that started earlier is stale.
+  int _generation = 0;
   DateTime? _lastSuccessAt;
+  Set<HealthMetric>? _lastAllowed;
   HealthSyncState _state = const HealthSyncState();
 
   /// The latest state; it never goes back to empty while the app runs, except
   /// when the session ends.
+  @override
   HealthSyncState get state => _state;
 
   /// Every change of [state].
+  @override
   Stream<HealthSyncState> get stream => _controller.stream;
 
   /// Listens for resume and for new or ended sessions, and runs the cold-start
   /// sync. Call once, after the dependencies are set up.
+  @override
   void start() {
     if (_lifecycle != null) return;
     _lifecycle = AppLifecycleListener(onResume: () => unawaited(sync()));
@@ -101,24 +87,44 @@ class HealthSyncService {
   }
 
   /// Runs a sync if signed in and steps are allowed. Joins the one that is
-  /// running. [force] skips the throttle (the **Refresh data** button). Never
-  /// throws: failures are in [state].
+  /// running, unless [force] is set or the session changed since it started: then
+  /// one follow-up run waits for it. [force] skips the throttle (the
+  /// **Refresh data** button). Never throws: failures are in [state].
+  @override
   Future<void> sync({bool force = false}) {
+    final queued = _followUp;
+    if (queued != null) return queued;
     final running = _running;
-    if (running != null) return running;
-    final now = _clock();
-    final last = _lastSuccessAt;
-    if (!force && last != null && now.difference(last) < throttle) {
-      return Future.value();
-    }
-    return _running = _run().whenComplete(() => _running = null);
+    if (running == null) return _begin(force: force);
+    if (!force && _runGeneration == _generation) return running;
+    return _followUp = running.then((_) {
+      _followUp = null;
+      return _begin(force: true);
+    });
   }
 
-  Future<void> _run() async {
+  Future<void> _begin({required bool force}) {
+    _runGeneration = _generation;
+    return _running = _run(
+      force: force,
+      generation: _generation,
+    ).whenComplete(() => _running = null);
+  }
+
+  Future<void> _run({required bool force, required int generation}) async {
+    bool stale() => generation != _generation;
     try {
-      if (await _auth.restoreSession() == null) return;
+      if (await _auth.restoreSession() == null || stale()) return;
       final access = await _health.checkAccess();
+      if (stale()) return;
       if (!access.isGranted || !access.allowed.contains(HealthMetric.steps)) {
+        return;
+      }
+      final last = _lastSuccessAt;
+      if (!force &&
+          last != null &&
+          _clock().difference(last) < throttle &&
+          setEquals(access.allowed, _lastAllowed)) {
         return;
       }
       _emit(
@@ -130,8 +136,12 @@ class HealthSyncService {
       );
       try {
         final result = await _sync(access.allowed, clock: _clock);
+        if (stale()) return;
         final failure = result.failure;
-        if (failure == null) _lastSuccessAt = _clock();
+        if (failure == null) {
+          _lastSuccessAt = _clock();
+          _lastAllowed = access.allowed;
+        }
         _emit(
           HealthSyncState(
             reading: result.reading,
@@ -140,6 +150,7 @@ class HealthSyncService {
           ),
         );
       } on HealthFailure catch (failure) {
+        if (stale()) return;
         // Keep the figures on screen; say why they could not be updated.
         _emit(
           HealthSyncState(
@@ -154,12 +165,21 @@ class HealthSyncService {
       FlutterError.reportError(
         FlutterErrorDetails(exception: error, stack: stack),
       );
-      if (_state.busy) _emit(HealthSyncState(reading: _state.reading));
+      if (stale()) return;
+      _emit(
+        HealthSyncState(
+          reading: _state.reading,
+          error: const HealthFailure().message,
+          syncedAt: _state.syncedAt,
+        ),
+      );
     }
   }
 
   void _reset() {
+    _generation++;
     _lastSuccessAt = null;
+    _lastAllowed = null;
     _emit(const HealthSyncState());
   }
 
@@ -169,6 +189,8 @@ class HealthSyncService {
   }
 
   /// Stops listening. The service lives as long as the app; tests call this.
+  @override
+  @disposeMethod
   Future<void> dispose() async {
     _lifecycle?.dispose();
     _lifecycle = null;

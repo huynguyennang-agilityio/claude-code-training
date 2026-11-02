@@ -4,14 +4,14 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 
-import '../../data/health_sync_service.dart';
 import '../../domain/entities/activity.dart';
 import '../../domain/entities/health_access.dart';
+import '../../domain/services/health_sync.dart';
 
 part 'activity_event.dart';
 part 'activity_state.dart';
 
-/// The Active tab: today's figures, as the [HealthSyncService] last found them,
+/// The Active tab: today's figures, as the [HealthSync] last found them,
 /// and the manual sync. A factory bloc created once access is granted; it does
 /// not sync by itself, the service does.
 @injectable
@@ -25,7 +25,7 @@ class ActivityBloc extends Bloc<ActivityEvent, ActivityState> {
     on<_SyncStateChanged>((event, emit) => emit(_from(event.sync)));
   }
 
-  final HealthSyncService _service;
+  final HealthSync _service;
   StreamSubscription<HealthSyncState>? _subscription;
 
   Future<void> _onStarted(
@@ -36,8 +36,9 @@ class ActivityBloc extends Bloc<ActivityEvent, ActivityState> {
     _subscription = _service.stream.listen((s) => add(_SyncStateChanged(s)));
     final current = _service.state;
     emit(_from(current, allowed: event.allowed));
-    // Nothing to show yet: ask for the usual (throttled) sync.
-    if (current.reading == null && !current.busy) await _service.sync();
+    // The usual sync: the service skips it when the figures are fresh and
+    // the allowed metrics are the ones it last synced.
+    if (!current.busy) await _service.sync();
   }
 
   ActivityState _from(HealthSyncState sync, {Set<HealthMetric>? allowed}) =>

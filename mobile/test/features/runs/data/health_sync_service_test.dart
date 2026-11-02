@@ -1,16 +1,43 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
+import 'package:stridequest/features/auth/domain/entities/session_end_reason.dart';
 import 'package:stridequest/features/runs/data/health_sync_service.dart';
+import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 import 'package:stridequest/features/runs/domain/failures/runs_failure.dart';
+import 'package:stridequest/features/runs/domain/services/health_sync.dart';
 import 'package:stridequest/features/runs/domain/usecases/sync_activity.dart';
 
 import '../../../helpers/auth_fixtures.dart';
 import '../../../helpers/health_fixtures.dart';
 import '../../../helpers/runs_fixtures.dart';
+
+/// A health repository whose reads wait for the test to release them.
+class _GatedHealthRepository extends FakeHealthRepository {
+  final gates = <Completer<ActivityReading>>[];
+  Object? accessError;
+
+  @override
+  Future<ActivityReading> readToday(Set<HealthMetric> allowed) {
+    readTodayCalls++;
+    final gate = Completer<ActivityReading>();
+    gates.add(gate);
+    return gate.future;
+  }
+
+  @override
+  Future<HealthAccess> checkAccess() {
+    if (accessError != null) return Future.error(accessError!);
+    return super.checkAccess();
+  }
+}
+
+ActivityReading _at(int steps) =>
+    ActivityReading(readAt: DateTime(2026, 10, 19, 10), steps: steps);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -19,30 +46,39 @@ void main() {
   late FakeRunsRepository runs;
   late MockAuthRepository auth;
   late StreamController<AuthUser> sessionStarted;
+  late StreamController<SessionEndReason> sessionEnded;
+  late StreamController<void> accountDeleted;
   late DateTime now;
   late HealthSyncService service;
+
+  HealthSyncService build(FakeHealthRepository repo) =>
+      HealthSyncService.withClock(
+        repo,
+        auth,
+        SyncActivity(repo, runs, FakeSyncStateRepository()),
+        () => now,
+      );
 
   setUp(() {
     health = FakeHealthRepository();
     runs = FakeRunsRepository();
     auth = MockAuthRepository();
     sessionStarted = StreamController<AuthUser>.broadcast();
+    sessionEnded = StreamController<SessionEndReason>.broadcast();
+    accountDeleted = StreamController<void>.broadcast();
     now = DateTime(2026, 10, 19, 10);
     when(auth.restoreSession).thenAnswer((_) async => testUser.toEntity());
     when(() => auth.sessionStarted).thenAnswer((_) => sessionStarted.stream);
-    when(() => auth.sessionEnded).thenAnswer((_) => const Stream.empty());
-    when(() => auth.accountDeleted).thenAnswer((_) => const Stream.empty());
-    service = HealthSyncService.withClock(
-      health,
-      auth,
-      SyncActivity(health, runs, FakeSyncStateRepository()),
-      () => now,
-    );
+    when(() => auth.sessionEnded).thenAnswer((_) => sessionEnded.stream);
+    when(() => auth.accountDeleted).thenAnswer((_) => accountDeleted.stream);
+    service = build(health);
   });
 
   tearDown(() async {
     await service.dispose();
     await sessionStarted.close();
+    await sessionEnded.close();
+    await accountDeleted.close();
   });
 
   test('cold start runs a sync', () async {
@@ -134,5 +170,125 @@ void main() {
     await service.sync();
     await service.sync(force: true);
     expect(health.readTodayCalls, 2);
+  });
+
+  group('with a read in flight', () {
+    late _GatedHealthRepository gated;
+
+    setUp(() {
+      gated = _GatedHealthRepository();
+      service = build(gated)..start();
+    });
+
+    test('a new session drops the old result and runs again', () async {
+      await pumpEventQueue();
+      expect(gated.gates, hasLength(1));
+      expect(service.state.busy, isTrue);
+
+      sessionStarted.add(testUser.toEntity());
+      await pumpEventQueue();
+      expect(service.state, const HealthSyncState());
+      expect(gated.gates, hasLength(1)); // the follow-up waits for the old run
+
+      gated.gates[0].complete(_at(1)); // the previous user's figures
+      await pumpEventQueue();
+      expect(gated.gates, hasLength(2));
+      expect(service.state.reading, isNull);
+      expect(service.state.busy, isTrue);
+
+      gated.gates[1].complete(_at(2));
+      await pumpEventQueue();
+      expect(service.state.reading, _at(2));
+      expect(service.state.busy, isFalse);
+      expect(gated.readTodayCalls, 2);
+    });
+
+    test('the old run does not throttle the new session', () async {
+      await pumpEventQueue();
+      sessionStarted.add(testUser.toEntity());
+      await pumpEventQueue();
+      gated.gates[0].complete(_at(1));
+      await pumpEventQueue();
+      gated.gates[1].complete(_at(2));
+      await pumpEventQueue();
+      expect(gated.readTodayCalls, 2); // not skipped by the 5-minute throttle
+    });
+
+    test('a session end or account deletion drops the result', () async {
+      await pumpEventQueue();
+      sessionEnded.add(SessionEndReason.expired);
+      await pumpEventQueue();
+      expect(service.state, const HealthSyncState());
+      gated.gates[0].complete(_at(1));
+      await pumpEventQueue();
+      expect(service.state, const HealthSyncState());
+
+      final next = service.sync();
+      await pumpEventQueue();
+      accountDeleted.add(null);
+      await pumpEventQueue();
+      gated.gates[1].complete(_at(2));
+      await next;
+      expect(service.state, const HealthSyncState());
+    });
+
+    test('force queues exactly one follow-up', () async {
+      await pumpEventQueue();
+      final a = service.sync(force: true);
+      final b = service.sync(force: true);
+      final c = service.sync();
+      expect(gated.gates, hasLength(1));
+      gated.gates[0].complete(_at(1));
+      await pumpEventQueue();
+      expect(gated.gates, hasLength(2));
+      gated.gates[1].complete(_at(2));
+      await Future.wait([a, b, c]);
+      expect(gated.gates, hasLength(2));
+      expect(service.state.reading, _at(2));
+    });
+  });
+
+  group('state resets', () {
+    test('when idle, a session end or account deletion empties it', () async {
+      service.start();
+      await pumpEventQueue();
+      expect(service.state.reading, isNotNull);
+      sessionEnded.add(SessionEndReason.expired);
+      await pumpEventQueue();
+      expect(service.state, const HealthSyncState());
+
+      await service.sync();
+      expect(service.state.reading, isNotNull);
+      accountDeleted.add(null);
+      await pumpEventQueue();
+      expect(service.state, const HealthSyncState());
+    });
+  });
+
+  test('a changed allowed set skips the throttle', () async {
+    await service.sync();
+    health.access = const HealthAccess(
+      HealthAccessStatus.granted,
+      allowed: {HealthMetric.steps, HealthMetric.sleep},
+    );
+    now = now.add(const Duration(minutes: 1));
+    await service.sync();
+    expect(health.readTodayCalls, 2);
+    await service.sync(); // same set again: throttled
+    expect(health.readTodayCalls, 2);
+  });
+
+  test('an access check that throws is an error, not busy', () async {
+    final gated = _GatedHealthRepository()..accessError = StateError('boom');
+    service = build(gated);
+    final reports = <FlutterErrorDetails>[];
+    final onError = FlutterError.onError;
+    FlutterError.onError = reports.add;
+    addTearDown(() => FlutterError.onError = onError);
+
+    await service.sync();
+    expect(reports, hasLength(1));
+    expect(service.state.busy, isFalse);
+    expect(service.state.error, const HealthFailure().message);
   });
 }

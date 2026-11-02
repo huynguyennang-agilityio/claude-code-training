@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -5,6 +7,7 @@ import 'package:stridequest/features/runs/data/health_sync_service.dart';
 import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 import 'package:stridequest/features/runs/domain/failures/runs_failure.dart';
+import 'package:stridequest/features/runs/domain/services/health_sync.dart';
 import 'package:stridequest/features/runs/domain/usecases/sync_activity.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 
@@ -18,6 +21,33 @@ final _reading = ActivityReading(
   steps: 5490,
   sleepMinutes: 390,
 );
+
+/// A [HealthSync] a test drives by hand.
+class _FakeHealthSync implements HealthSync {
+  final _controller = StreamController<HealthSyncState>.broadcast();
+  var syncs = 0;
+  @override
+  HealthSyncState state = const HealthSyncState();
+
+  bool get hasListener => _controller.hasListener;
+
+  void emit(HealthSyncState next) {
+    state = next;
+    _controller.add(next);
+  }
+
+  @override
+  Stream<HealthSyncState> get stream => _controller.stream;
+
+  @override
+  Future<void> sync({bool force = false}) async => syncs++;
+
+  @override
+  void start() {}
+
+  @override
+  Future<void> dispose() => _controller.close();
+}
 
 void main() {
   late FakeHealthRepository health;
@@ -36,6 +66,8 @@ void main() {
       () => DateTime(2026, 10, 19, 21, 55),
     );
   });
+
+  tearDown(() => service.dispose());
 
   ActivityBloc bloc() => ActivityBloc(service);
 
@@ -150,4 +182,44 @@ void main() {
     expect: () => <ActivityState>[],
     verify: (_) => expect(health.readTodayCalls, 0),
   );
+
+  group('with a fake HealthSync', () {
+    late _FakeHealthSync fake;
+
+    setUp(() => fake = _FakeHealthSync());
+    tearDown(() => fake.dispose());
+
+    blocTest<ActivityBloc, ActivityState>(
+      'follows a sync the service starts on its own and a later success '
+      'clears an earlier error',
+      build: () => ActivityBloc(fake),
+      act: (bloc) async {
+        bloc.add(const ActivityStarted(_allowed));
+        await Future<void>.delayed(Duration.zero);
+        fake.emit(HealthSyncState(reading: _reading, error: 'offline'));
+        await Future<void>.delayed(Duration.zero);
+        fake.emit(
+          HealthSyncState(reading: _reading, syncedAt: _reading.readAt),
+        );
+      },
+      skip: 1,
+      expect: () => [
+        ActivityState(allowed: _allowed, reading: _reading, error: 'offline'),
+        ActivityState(
+          allowed: _allowed,
+          reading: _reading,
+          syncedAt: _reading.readAt,
+        ),
+      ],
+      verify: (_) => expect(fake.syncs, 1),
+    );
+
+    test('stops listening to the service when closed', () async {
+      final bloc = ActivityBloc(fake)..add(const ActivityStarted(_allowed));
+      await Future<void>.delayed(Duration.zero);
+      expect(fake.hasListener, isTrue);
+      await bloc.close();
+      expect(fake.hasListener, isFalse);
+    });
+  });
 }

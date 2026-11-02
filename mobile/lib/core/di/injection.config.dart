@@ -79,6 +79,8 @@ import 'package:stridequest/features/runs/domain/repositories/runs_repository.da
     as _i137;
 import 'package:stridequest/features/runs/domain/repositories/sync_state_repository.dart'
     as _i824;
+import 'package:stridequest/features/runs/domain/services/health_sync.dart'
+    as _i532;
 import 'package:stridequest/features/runs/domain/usecases/get_health_notice.dart'
     as _i1054;
 import 'package:stridequest/features/runs/domain/usecases/sync_activity.dart'
@@ -231,18 +233,19 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i48.MyChallengesBloc>(
       () => _i48.MyChallengesBloc(gh<_i137.RunsRepository>()),
     );
-    gh.lazySingleton<_i683.HealthSyncService>(
-      () => _i683.HealthSyncService(
-        gh<_i203.HealthRepository>(),
-        gh<_i231.AuthRepository>(),
-        gh<_i1029.SyncActivity>(),
-      ),
-    );
     gh.factory<_i530.ChallengeDetailBloc>(
       () => _i530.ChallengeDetailBloc(gh<_i756.ChallengeRepository>()),
     );
     gh.factory<_i909.ChallengesBloc>(
       () => _i909.ChallengesBloc(gh<_i756.ChallengeRepository>()),
+    );
+    gh.lazySingleton<_i532.HealthSync>(
+      () => _i683.HealthSyncService(
+        gh<_i203.HealthRepository>(),
+        gh<_i231.AuthRepository>(),
+        gh<_i1029.SyncActivity>(),
+      ),
+      dispose: (i) => i.dispose(),
     );
     gh.factory<_i1054.GetHealthNotice>(
       () => _i1054.GetHealthNotice(
@@ -254,7 +257,7 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i376.ProfileInfoBloc(gh<_i166.ProfileRepository>()),
     );
     gh.factory<_i951.ActivityBloc>(
-      () => _i951.ActivityBloc(gh<_i683.HealthSyncService>()),
+      () => _i951.ActivityBloc(gh<_i532.HealthSync>()),
     );
     return this;
   }
