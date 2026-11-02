@@ -38,8 +38,8 @@ python -m app.scripts.create_admin someone@example.com --revoke   # make a norma
 
 - **Access token:** a JWT, valid for 15 minutes. Send it on protected routes as `Authorization: Bearer <access_token>`. The app must treat it as opaque and must not read its claims.
 - **Refresh token:** an opaque random string, valid for 30 days. Send it only to `/api/v1/auth/refresh` and `/api/v1/auth/signout`.
-- **Rotation:** every successful refresh returns a new refresh token and revokes the old one. Store the new pair and discard the old one. Using a revoked refresh token returns `401 invalid_refresh_token`, or `401 session_replaced` when a newer sign-in revoked it (see `POST /api/v1/auth/refresh`).
-- **One session per account:** a successful sign-in revokes every other refresh token of the user, so only the device that signed in last stays signed in. The other devices are signed out when their access token expires (15 minutes by default).
+- **Rotation:** every successful refresh returns a new refresh token and revokes the old one. Store the new pair and discard the old one. Using a revoked refresh token returns `401 invalid_refresh_token`, or `401 session_replaced` when the token was issued before the account's latest sign-in (see `POST /api/v1/auth/refresh`).
+- **One session per account:** only the device that signed in last stays signed in (see `POST /api/v1/auth/signin`).
 - Store both tokens in secure storage (Keychain or Keystore), never in plain preferences.
 - When a protected route returns `401` with `token_expired` or `invalid_token`, call `/api/v1/auth/refresh` once and retry the request. If the refresh fails, clear the tokens and go to Sign in.
 
@@ -210,7 +210,7 @@ Request:
 Responses:
 
 - `200 OK` with `TokenPair` (a new access token and a new refresh token).
-- `401 session_replaced` when the refresh token was revoked by a newer sign-in of the same account. The app clears the tokens and shows "Your account was signed in on another device." on the Sign in screen:
+- `401 session_replaced` when the refresh token is revoked and was issued before the account's latest sign-in, whatever revoked it: a newer sign-in revokes every older token, so the session was replaced. The app clears the tokens and shows "Your account was signed in on another device." on the Sign in screen:
 
 <!-- example: auth/error_session_replaced.json -->
 ```json
@@ -223,7 +223,7 @@ Responses:
 }
 ```
 
-- `401 invalid_refresh_token` when the token is unknown, expired, or revoked any other way (already used by a refresh, signed out, or revoked by a password change). The app clears the tokens and goes to Sign in with its usual message.
+- `401 invalid_refresh_token` when the token is unknown or expired, or revoked with no sign-in since it was issued (already used by a refresh, signed out, or revoked by a password change). The app clears the tokens and goes to Sign in with its usual message.
 - `422 validation_error`.
 
 ## `POST /api/v1/auth/signout`
