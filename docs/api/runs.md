@@ -35,7 +35,7 @@ A sample counts for an enrollment when **all** of these hold:
 - `start_time` is not before the challenge's `starts_at`, nor before the enrollment's counting time (the moment of joining or of the last resume), so steps taken while paused never count;
 - `end_time` is not after the challenge's `ends_at`, nor after the server's now plus 5 minutes, so a device with a wrong clock cannot count the future;
 - the same `health_record_id` was not counted before for that enrollment. A sample sent twice counts once;
-- `start_time` is before the enrollment's `hours_from`, the moment from which the enrollment counts [hourly steps](#sync-the-steps-of-each-hour) instead. A sample starting at or after it is ignored, so older app versions that still send samples never count an hour twice.
+- `start_time` is before the enrollment's `hours_from`, the moment from which the enrollment counts [hourly steps](#sync-the-steps-of-each-hour) instead. Every active and paused enrollment has one: every join, a rejoin too, sets it to the join time, and the migration set it for the enrollments that were active or paused then. A sample starting at or after it is ignored, so older app versions that still send samples never count an hour twice.
 
 A sample that fails a rule is **ignored**, not an error: the request still answers `200`.
 
@@ -99,19 +99,19 @@ A request has 1 to 744 hours (31 days). The app sends a longer catch-up in sever
 
 | Field | Rule |
 | --- | --- |
-| `hours` | 1 to 744 hours. Each `hour_start` appears once in a request. |
+| `hours` | 1 to 744 hours. Each `hour_start` appears once in a request, compared in UTC: `06:00:00Z` and `13:00:00+07:00` are the same hour. |
 | `hour_start` | ISO 8601 with a timezone (a number is refused), on the start of a UTC hour: minutes, seconds and fractions are zero once converted to UTC. The hour covers `[hour_start, hour_start + 1h)`. |
-| `steps` | A whole number from 0 to 100,000: all the steps of that hour. |
+| `steps` | A whole number from 0 to 2,147,483,647: all the steps of that hour. A value above 15,000 is ignored by the rules below, not refused, so one implausible hour never fails the other hours of the request. |
 
-The server **upserts** each hour per enrollment: a new hour is stored, and an hour sent again replaces the stored value, higher or lower. The enrollment's progress changes by the new value minus the old one, so the call can be repeated and an hour sent twice counts once.
+The server **upserts** each hour per enrollment: a new hour is stored, and an hour sent again replaces the stored value, higher or lower. The enrollment's progress changes by the new value minus the old one, so the call can be repeated and an hour sent twice counts once. An hour that passes the rules is `accepted` even when it repeats the stored value. An ignored hour leaves a value already stored for it unchanged.
 
 An hour counts for an enrollment when **all** of these hold:
 
 - the enrollment is `active` (a paused or left one counts nothing);
 - the challenge is a run (steps); swim and cycle report `tracked: false`;
-- `hour_start` is not before the latest of the challenge's `starts_at`, the enrollment's counting time (the moment of joining or of the last resume), the enrollment's `hours_from`, and the moment the caller signed in on this device (`session_started_at`, see [`auth.md`](auth.md)). An hour that started before any of them is ignored whole, so the hour of joining counts only from the next one, and a device never counts the hours of an earlier session;
-- `hour_start + 1h` is not after the challenge's `ends_at` rounded up to the next whole hour, so the last hour of a challenge that ends at `23:59:59` still counts;
-- `hour_start` is not after the server's now: the current hour counts, and is replaced as it grows;
+- `hour_start` is not before the latest of the challenge's `starts_at`, the enrollment's counting time (the moment of joining or of the last resume), the enrollment's `hours_from`, and the caller's `session_started_at`, the moment of their latest sign up or sign in (see [`auth.md`](auth.md)). An hour that started before any of them is ignored whole, so the hour of joining counts only from the next one, and a device never counts the hours of an earlier session;
+- `hour_start + 1h` is not after the challenge's `ends_at` rounded up to a whole hour (unchanged when it is already one): the last hour that counts is `23:00` for a challenge that ends at `23:59:59`, and also for one that ends at `00:00:00` the next day;
+- `hour_start` is not after the server's now: the current hour counts, and is replaced as it grows. Unlike step sync there is no clock tolerance: an hour ignored because the device clock runs ahead is sent again on the next sync;
 - `steps` is at most 15,000. More in one hour is not plausible (running fast is about 12,000), so the hour is ignored, not an error.
 
 An hour that fails a rule is **ignored**, not an error: the request still answers `200`. A body that breaks a field rule answers `422 validation_error`.
