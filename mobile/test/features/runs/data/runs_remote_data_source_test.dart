@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,6 +42,10 @@ Future<RunsFailure> _failureOf(Future<Object?> call) async {
   }
   fail('Expected a RunsFailure');
 }
+
+Map<String, dynamic> _example(String name) =>
+    jsonDecode(File('../docs/api/examples/runs/$name.json').readAsStringSync())
+        as Map<String, dynamic>;
 
 ResponseBody _error(String code, int status) => jsonBody({
   'error': {'code': code, 'message': 'ignored', 'fields': <Object>[]},
@@ -90,37 +96,40 @@ void main() {
   });
 
   group('syncStepHours', () {
-    test('puts the hours and parses the answer', () async {
-      late RequestOptions sent;
-      final source = _source((request) async {
-        sent = request;
-        return jsonBody({
-          'accepted': 2,
-          'ignored': 1,
-          'enrollments': <Object>[],
-        }, 200);
-      });
-
-      final result = await source.syncStepHours([
-        {'hour_start': '2026-11-02T06:00:00Z', 'steps': 4120},
-      ]);
-
-      expect(sent.method, 'PUT');
-      expect(sent.path, 'runs/step-hours');
-      expect(sentJson(sent), {
-        'hours': [
-          {'hour_start': '2026-11-02T06:00:00Z', 'steps': 4120},
-        ],
-      });
-      expect((result.accepted, result.ignored), (2, 1));
-    });
-
     test('maps an error answer to its failure', () async {
       final source = _source((_) async => _error('validation_error', 422));
 
       expect(
         (await _failureOf(source.syncStepHours([]))).code,
         RunsFailureCode.validation,
+      );
+    });
+
+    test('sends the request example and parses the result example', () async {
+      late RequestOptions sent;
+      final request = _example('step_hours_request');
+      final source = _source((options) async {
+        sent = options;
+        return jsonBody(_example('step_hours_result'), 200);
+      });
+
+      final result = await source.syncStepHours([
+        for (final hour in request['hours'] as List)
+          (hour as Map<String, dynamic>).cast<String, Object>(),
+      ]);
+
+      expect(sent.method, 'PUT');
+      expect(sent.path, 'runs/step-hours');
+      expect(sentJson(sent), request);
+      expect((result.accepted, result.ignored), (2, 1));
+    });
+
+    test('a 400 http_error is unknown', () async {
+      final source = _source((_) async => _error('http_error', 400));
+
+      expect(
+        (await _failureOf(source.syncStepHours([]))).code,
+        RunsFailureCode.unknown,
       );
     });
   });
@@ -144,6 +153,24 @@ void main() {
           {'date': '2026-11-02', 'steps': 5},
         ],
       });
+    });
+
+    test('a refused body is a validation failure', () async {
+      final source = _source((_) async => _error('validation_error', 422));
+
+      expect(
+        (await _failureOf(source.saveDailyActivity([]))).code,
+        RunsFailureCode.validation,
+      );
+    });
+
+    test('a 400 http_error is unknown', () async {
+      final source = _source((_) async => _error('http_error', 400));
+
+      expect(
+        (await _failureOf(source.saveDailyActivity([]))).code,
+        RunsFailureCode.unknown,
+      );
     });
   });
 
@@ -266,6 +293,40 @@ void main() {
       expect(adapter.requests, hasLength(2));
       verifyNever(() => tokens.expireSession());
     });
+
+    test(
+      'step hours: an expired token is refreshed and the PUT retried',
+      () async {
+        when(() => tokens.refreshTokens()).thenAnswer((_) async {
+          accessToken = 'access-2';
+          return TokenRefreshResult.refreshed;
+        });
+        final source = build(
+          (request) async =>
+              request.headers['Authorization'] == 'Bearer access-1'
+              ? _error('token_expired', 401)
+              : jsonBody(_example('step_hours_result'), 200),
+        );
+
+        final result = await source.syncStepHours([
+          for (final hour in _example('step_hours_request')['hours'] as List)
+            (hour as Map<String, dynamic>).cast<String, Object>(),
+        ]);
+
+        expect(result.accepted, 2);
+        expect(adapter.requests, hasLength(2));
+        expect(adapter.requests.map((r) => r.method), ['PUT', 'PUT']);
+        expect(adapter.requests.map((r) => r.path), [
+          'runs/step-hours',
+          'runs/step-hours',
+        ]);
+        expect(
+          sentJson(adapter.requests.last),
+          sentJson(adapter.requests.first),
+        );
+        verifyNever(() => tokens.expireSession());
+      },
+    );
 
     test('a rejected refresh token ends the session', () async {
       when(
