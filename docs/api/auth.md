@@ -38,7 +38,8 @@ python -m app.scripts.create_admin someone@example.com --revoke   # make a norma
 
 - **Access token:** a JWT, valid for 15 minutes. Send it on protected routes as `Authorization: Bearer <access_token>`. The app must treat it as opaque and must not read its claims.
 - **Refresh token:** an opaque random string, valid for 30 days. Send it only to `/api/v1/auth/refresh` and `/api/v1/auth/signout`.
-- **Rotation:** every successful refresh returns a new refresh token and revokes the old one. Store the new pair and discard the old one. Using a revoked refresh token returns `401 invalid_refresh_token`.
+- **Rotation:** every successful refresh returns a new refresh token and revokes the old one. Store the new pair and discard the old one. Using a revoked refresh token returns `401 invalid_refresh_token`, or `401 session_replaced` when the token was issued before the account's latest sign-in (see `POST /api/v1/auth/refresh`).
+- **One session per account:** signing in on a device signs every other device out (see `POST /api/v1/auth/signin`).
 - Store both tokens in secure storage (Keychain or Keystore), never in plain preferences.
 - When a protected route returns `401` with `token_expired` or `invalid_token`, call `/api/v1/auth/refresh` once and retry the request. If the refresh fails, clear the tokens and go to Sign in.
 
@@ -191,6 +192,8 @@ Responses:
 - `200 OK` with `AuthResponse`.
 - `401 invalid_credentials`, `422 validation_error`, `429 rate_limited`.
 
+A successful sign-in revokes every other refresh token of the user: one account has one session at a time. Access tokens issued before stay valid until they expire (15 minutes by default); there is no deny list. So another device keeps working until its access token expires, then its refresh returns `401 session_replaced` and it is signed out.
+
 Sign in is rate limited: after 5 failed attempts for the same email within 15 minutes, or 20 failed attempts from the same IP within 15 minutes, it returns `429` until the window passes, even with the right password. A successful sign-in clears the count for that email.
 
 ## `POST /api/v1/auth/refresh`
@@ -207,7 +210,21 @@ Request:
 Responses:
 
 - `200 OK` with `TokenPair` (a new access token and a new refresh token).
-- `401 invalid_refresh_token`, `422 validation_error`.
+- `401 session_replaced` when the refresh token is revoked and was issued before the account's latest sign-in, whatever revoked it: a newer sign-in revokes every older token, so the session was replaced. The app clears the tokens and shows "Your account was signed in on another device." on the Sign in screen:
+
+<!-- example: auth/error_session_replaced.json -->
+```json
+{
+  "error": {
+    "code": "session_replaced",
+    "message": "Your account was signed in on another device.",
+    "fields": []
+  }
+}
+```
+
+- `401 invalid_refresh_token` when the token is unknown or expired, or revoked with no sign-in since it was issued (already used by a refresh, signed out, or revoked by a password change). An expired token always returns `invalid_refresh_token`, even when a newer sign-in revoked it. The app clears the tokens and goes to Sign in with its usual message.
+- `422 validation_error`.
 
 ## `POST /api/v1/auth/signout`
 
