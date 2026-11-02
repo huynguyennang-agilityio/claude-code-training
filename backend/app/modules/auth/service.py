@@ -141,12 +141,14 @@ class AuthService:
     async def sign_up(self, data: SignUpRequest) -> tuple[User, TokenPair]:
         if await self._repository.get_user_by_email(data.email) is not None:
             raise EmailTakenError("An account with this email already exists.")
+        created_at = self._now()
         user = User(
             id=uuid.uuid4(),
             email=data.email,
             password_hash=await hash_password_async(data.password),
             display_name=data.display_name,
-            created_at=self._now(),
+            created_at=created_at,
+            session_started_at=created_at,
         )
         try:
             await self._repository.add_user(user)
@@ -176,6 +178,10 @@ class AuthService:
             await self._session.commit()
             raise InvalidCredentialsError("Email or password is incorrect.")
         await self._repository.clear_login_attempts(data.email)
+        # One session per account: this sign-in replaces every other one. It runs under the
+        # refresh-token lock taken above, so a refresh in flight can't keep a token alive.
+        await self._repository.revoke_all_refresh_tokens(user.id, now)
+        await self._repository.update_session_started_at(user, now)
         tokens = await self._issue_tokens(user.id)
         await self._session.commit()
         return user, tokens

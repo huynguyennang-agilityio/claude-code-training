@@ -54,13 +54,15 @@ jsonpath "$.error.code" == "validation_error"
 jsonpath "$.error.fields[0].field" == "password"
 jsonpath "$.error.fields[0].message" == "Password must contain at least one digit."
 
-# Sign in
+# Sign in (it starts a new session and revokes the sign-up refresh token, so keep the new one)
 POST {{base}}/auth/signin
 {
   "email": "{{email}}",
   "password": "run4medals"
 }
 HTTP 200
+[Captures]
+refresh_token: jsonpath "$.tokens.refresh_token"
 [Asserts]
 jsonpath "$.user.email" == "{{email}}"
 jsonpath "$.tokens.access_token" isString
@@ -153,6 +155,41 @@ POST {{base}}/auth/refresh
 HTTP 401
 [Asserts]
 jsonpath "$.error.code" == "invalid_refresh_token"
+
+# One session per account: a second sign-in revokes the refresh token of the first
+POST {{base}}/auth/signin
+{
+  "email": "{{email}}",
+  "password": "run4medals"
+}
+HTTP 200
+[Captures]
+first_session_refresh_token: jsonpath "$.tokens.refresh_token"
+
+POST {{base}}/auth/signin
+{
+  "email": "{{email}}",
+  "password": "run4medals"
+}
+HTTP 200
+[Captures]
+second_session_refresh_token: jsonpath "$.tokens.refresh_token"
+
+POST {{base}}/auth/refresh
+{
+  "refresh_token": "{{first_session_refresh_token}}"
+}
+HTTP 401
+[Asserts]
+jsonpath "$.error.code" == "invalid_refresh_token"
+
+POST {{base}}/auth/refresh
+{
+  "refresh_token": "{{second_session_refresh_token}}"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.refresh_token" isString
 
 # Missing body fields are validation errors
 POST {{base}}/auth/refresh

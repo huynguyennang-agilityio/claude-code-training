@@ -19,6 +19,9 @@ class User(Base):
     `role` is `user` for everyone at sign up. An admin is also a normal user in the
     app; the role only opens the routes that change shared data. It is never set by
     an API route: `python -m app.scripts.create_admin` is the way to make an admin.
+
+    `session_started_at` is when the current session began: set at sign up and at every sign
+    in. Refresh and change password leave it as it is.
     """
 
     __tablename__ = "users"
@@ -32,6 +35,7 @@ class User(Base):
         String(10), default=UserRole.USER.value, server_default=UserRole.USER.value
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    session_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class RefreshToken(Base):

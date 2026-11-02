@@ -176,6 +176,7 @@ def _a_normal_user() -> User:
         display_name="Lan Runner",
         role=UserRole.USER.value,
         created_at=datetime(2026, 10, 18, tzinfo=UTC),
+        session_started_at=datetime(2026, 10, 18, tzinfo=UTC),
     )
 
 

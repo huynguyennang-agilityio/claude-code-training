@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient, Response
-from sqlalchemy import delete, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
@@ -357,6 +357,66 @@ async def test_a_refresh_token_works_once(client: AsyncClient) -> None:
     assert again.status_code == 200
 
 
+async def session_started_at(session: AsyncSession, email: str) -> datetime:
+    started = await session.scalar(select(User.session_started_at).where(User.email == email))
+    assert started is not None
+    return started
+
+
+@pytest.mark.anyio
+async def test_a_second_sign_in_replaces_the_first_session(client: AsyncClient) -> None:
+    await sign_up(client)
+    first = (await sign_in(client)).json()["tokens"]
+    second = (await sign_in(client)).json()["tokens"]
+
+    assert_error(await refresh(client, first["refresh_token"]), 401, "invalid_refresh_token")
+    assert (await refresh(client, second["refresh_token"])).status_code == 200
+
+
+@pytest.mark.anyio
+async def test_sign_up_sets_the_session_start_to_the_creation_time(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    body = await sign_up(client)
+
+    user = await session.scalar(select(User).where(User.email == body["user"]["email"]))
+    assert user is not None
+    assert user.session_started_at == user.created_at
+
+
+@pytest.mark.anyio
+async def test_sign_in_moves_the_session_start_but_refresh_and_password_change_do_not(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    signed_up = await sign_up(client)
+    email = signed_up["user"]["email"]
+    at_sign_up = await session_started_at(session, email)
+
+    signed_in = (await sign_in(client)).json()["tokens"]
+    at_sign_in = await session_started_at(session, email)
+    assert at_sign_in > at_sign_up
+
+    refreshed = (await refresh(client, signed_in["refresh_token"])).json()
+    assert await session_started_at(session, email) == at_sign_in
+
+    assert (await change_password(client, refreshed["access_token"])).status_code == 200
+    assert await session_started_at(session, email) == at_sign_in
+
+
+@pytest.mark.anyio
+async def test_a_failed_sign_in_keeps_the_session_start_and_the_tokens(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    tokens = (await sign_up(client))["tokens"]
+    email = SIGNUP["email"].lower()
+    before = await session_started_at(session, email)
+
+    assert_error(await sign_in(client, password="wrong-pass1"), 401, "invalid_credentials")
+
+    assert await session_started_at(session, email) == before
+    assert (await refresh(client, tokens["refresh_token"])).status_code == 200
+
+
 @pytest.mark.anyio
 async def test_refresh_with_an_unknown_token_is_rejected(client: AsyncClient) -> None:
     response = await client.post(f"{PREFIX}/auth/refresh", json={"refresh_token": "made-up"})
@@ -517,9 +577,8 @@ async def test_change_email_then_sign_in_with_the_new_email_only(client: AsyncCl
     assert response.status_code == 200, response.text
     assert response.json() == {**body["user"], "email": NEW_EMAIL}
     assert_same_shape(response.json(), load_example("auth/user.json"))
-    assert (await sign_in(client, email=NEW_EMAIL)).status_code == 200
-    assert_error(await sign_in(client), 401, "invalid_credentials")
-    # Sessions are not revoked: the token in use and the refresh token still work.
+    # Sessions are not revoked: the token in use and the refresh token still work. (Checked
+    # before signing in again, which would start a new session and revoke the refresh token.)
     assert (await client.get(f"{PREFIX}/users/me", headers=bearer(token))).json()["email"] == (
         NEW_EMAIL
     )
@@ -527,6 +586,8 @@ async def test_change_email_then_sign_in_with_the_new_email_only(client: AsyncCl
         f"{PREFIX}/auth/refresh", json={"refresh_token": body["tokens"]["refresh_token"]}
     )
     assert refreshed.status_code == 200
+    assert (await sign_in(client, email=NEW_EMAIL)).status_code == 200
+    assert_error(await sign_in(client), 401, "invalid_credentials")
 
 
 @pytest.mark.anyio
@@ -719,8 +780,8 @@ async def test_change_password_with_a_wrong_password_matches_the_example(
         "auth/error_incorrect_password.json"
     )
     # Nothing changed: the old password and the refresh token still work.
-    assert (await sign_in(client)).status_code == 200
     assert (await refresh(client, body["tokens"]["refresh_token"])).status_code == 200
+    assert (await sign_in(client)).status_code == 200
 
 
 @pytest.mark.anyio
@@ -1027,6 +1088,7 @@ async def _seed_user(engine: AsyncEngine, role: str = "user") -> uuid.UUID:
             display_name="Seed",
             role=role,
             created_at=datetime.now(UTC),
+            session_started_at=datetime.now(UTC),
         )
         session.add(user)
         await session.commit()
@@ -1055,6 +1117,7 @@ async def _seed_account_and_challenge(engine: AsyncEngine) -> tuple[uuid.UUID, i
             password_hash=hash_password(PASSWORD),
             display_name="Racer",
             created_at=now,
+            session_started_at=now,
         )
         session.add(user)
         await session.commit()
@@ -1238,6 +1301,7 @@ async def test_consuming_a_refresh_token_twice_gives_it_to_one_caller(
         password_hash="x",
         display_name="A",
         created_at=now,
+        session_started_at=now,
     )
     repository = AuthRepository(session)
     await repository.add_user(user)

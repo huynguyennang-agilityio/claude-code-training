@@ -20,6 +20,7 @@ async def add_user(session: AsyncSession, name: str = "runner") -> uuid.UUID:
         password_hash="not-a-real-hash",
         display_name=name,
         created_at=JOINED,
+        session_started_at=JOINED,
     )
     session.add(user)
     await session.flush()
