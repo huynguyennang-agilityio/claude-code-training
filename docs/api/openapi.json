@@ -1821,7 +1821,7 @@
                 }
               }
             },
-            "description": "Unauthorized"
+            "description": "`invalid_refresh_token`, or `session_replaced` when a newer sign-in revoked the session."
           },
           "422": {
             "content": {

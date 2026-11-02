@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, NamedTuple
 
 from sqlalchemy import ColumnElement, String, Uuid, cast, delete, func, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,14 @@ def _refresh_tokens_lock(user_id: SQLCoreOperations[uuid.UUID]) -> ColumnElement
     return func.pg_advisory_xact_lock(
         func.hashtextextended(cast(user_id, String), _REFRESH_TOKENS_LOCK_SALT)
     )
+
+
+class RevokedTokenSession(NamedTuple):
+    """What `refresh` needs to tell a replaced session from a plain invalid token."""
+
+    expires_at: datetime
+    created_at: datetime
+    session_started_at: datetime
 
 
 class AuthRepository:
@@ -76,6 +84,18 @@ class AuthRepository:
             .values(revoked_at=now)
             .returning(RefreshToken.user_id)
         )
+
+    async def get_revoked_token_session(self, token_hash: str) -> RevokedTokenSession | None:
+        """A revoked refresh token with its owner's `session_started_at`. None when the token
+        is unknown or not revoked."""
+        row = (
+            await self._session.execute(
+                select(RefreshToken.expires_at, RefreshToken.created_at, User.session_started_at)
+                .join(User, User.id == RefreshToken.user_id)
+                .where(RefreshToken.token_hash == token_hash, RefreshToken.revoked_at.is_not(None))
+            )
+        ).one_or_none()
+        return None if row is None else RevokedTokenSession(*row)
 
     async def revoke_refresh_token(self, token_hash: str, now: datetime) -> None:
         await self._session.execute(

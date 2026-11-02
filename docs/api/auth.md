@@ -144,7 +144,8 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 | 422 | `validation_error` | The body is missing a field or breaks a field rule. See `fields`. |
 | 409 | `email_taken` | Sign up, or change the email, with an email that already has an account. |
 | 401 | `invalid_credentials` | Sign in with a wrong email or a wrong password. Both cases return the same code on purpose. |
-| 401 | `invalid_refresh_token` | Refresh with a token that is unknown, expired or already revoked. |
+| 401 | `invalid_refresh_token` | Refresh with a token that is unknown, expired, or revoked with no sign-in since it was issued (used by a refresh, signed out, or revoked by a password change). |
+| 401 | `session_replaced` | Refresh with a revoked token that was issued before the account's latest sign-in: another device signed in. |
 | 401 | `not_authenticated` | A protected route was called without an `Authorization` header, whatever dependency guards it. |
 | 401 | `invalid_token` | The access token is malformed, has a bad signature, or its user no longer exists. |
 | 401 | `token_expired` | The access token has expired. Refresh and retry. |

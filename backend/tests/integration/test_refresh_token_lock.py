@@ -25,6 +25,7 @@ from app.modules.auth.service import (
     IncorrectPasswordError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
+    SessionReplacedError,
 )
 from app.modules.runs.repository import RunRepository
 from app.modules.runs.service import RunService
@@ -129,7 +130,7 @@ async def _refresh(engine: AsyncEngine, refresh_token: str) -> str:
     async with AsyncSession(engine, expire_on_commit=False) as session:
         try:
             await _service(session).refresh(refresh_token)
-        except InvalidRefreshTokenError:
+        except (InvalidRefreshTokenError, SessionReplacedError):
             return "refused"
         return "refreshed"
 

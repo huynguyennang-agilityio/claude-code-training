@@ -41,7 +41,16 @@ async def sign_in(body: SignInRequest, request: Request, service: AuthServiceDep
     return AuthResponse(user=UserRead.model_validate(user), tokens=tokens)
 
 
-@auth_router.post("/refresh", responses={401: {"model": ErrorResponse}})
+@auth_router.post(
+    "/refresh",
+    responses={
+        401: {
+            "model": ErrorResponse,
+            "description": "`invalid_refresh_token`, or `session_replaced` when a newer "
+            "sign-in revoked the session.",
+        }
+    },
+)
 async def refresh(body: RefreshTokenRequest, service: AuthServiceDep) -> TokenPair:
     return await service.refresh(body.refresh_token)
 

@@ -16,7 +16,7 @@ The app: a Flutter mobile app and a FastAPI backend (modules `auth`, `challenges
 - Only the backend uploads images to Cloudinary (`app/core/storage.py`), with server-side upload parameters. The database stores only the delivery URL. A client never gets Cloudinary credentials or a signed upload it can reuse for other paths.
 - Secrets (`JWT_SECRET`, database URLs, Cloudinary credentials) come from `Settings` in `app/core/config.py`, never from code, logs, `docs/api/examples/`, test fixtures or `.hurl` files.
 - Access tokens are JWTs verified only with HS256 (`decode_access_token` in `app/core/security.py`), with `exp` and `sub` required. Accepting another algorithm, `none` or a missing expiry is an auth bypass.
-- Refresh tokens are random, stored only as a hash, and single-use: `consume_refresh_token` marks one used, and a used, expired or revoked one fails with `invalid_refresh_token`.
+- Refresh tokens are random, stored only as a hash, and single-use: `consume_refresh_token` marks one used, and a used, expired or revoked one fails: with `session_replaced` when it is unexpired and was revoked after being issued before the account's latest sign-in, otherwise with `invalid_refresh_token` (an expired one always gets `invalid_refresh_token`).
 - Passwords are only stored hashed, and never logged or returned.
 - Logs never contain tokens, passwords, `Authorization` headers, cookies or health data.
 - Nothing blocking runs in the event loop (`requests`, `time.sleep`, sync file or database I/O in async code): it is a denial of service for every user.

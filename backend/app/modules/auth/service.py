@@ -60,6 +60,11 @@ class InvalidRefreshTokenError(DomainError):
     code = "invalid_refresh_token"
 
 
+class SessionReplacedError(DomainError):
+    status_code = 401
+    code = "session_replaced"
+
+
 class NotAuthenticatedError(DomainError):
     status_code = 401
     code = NOT_AUTHENTICATED_CODE
@@ -280,8 +285,17 @@ class AuthService:
         token_hash = hash_refresh_token(refresh_token)
         # Serialized with `change_password`, so a password change revokes this pair too.
         await self._repository.lock_refresh_token_owner(token_hash)
-        user_id = await self._repository.consume_refresh_token(token_hash, self._now())
+        now = self._now()
+        user_id = await self._repository.consume_refresh_token(token_hash, now)
         if user_id is None:
+            # Read under the lock taken above, so a sign-in can't change the answer midway.
+            revoked = await self._repository.get_revoked_token_session(token_hash)
+            if (
+                revoked is not None
+                and revoked.expires_at > now
+                and revoked.created_at < revoked.session_started_at
+            ):
+                raise SessionReplacedError("Your account was signed in on another device.")
             raise InvalidRefreshTokenError("The refresh token is unknown, expired or used.")
         tokens = await self._issue_tokens(user_id)
         await self._session.commit()
