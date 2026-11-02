@@ -39,7 +39,8 @@ abstract interface class HealthDataSource {
   /// The steps between exactly [from] and [to], by the rules of [stepHours]:
   /// no manual entries, no double counting. Two days that meet at a moment add
   /// up to the whole, even when that moment is inside a UTC hour: each hour
-  /// takes the same source on both sides.
+  /// takes the same source on both sides (the largest on the whole hour, and on
+  /// a tie the one whose name sorts first).
   Future<int> stepTotal(DateTime from, DateTime to);
 
   /// The step records between [from] and [to], without the ones typed by hand.
@@ -261,11 +262,12 @@ typedef StepSlice = ({String source, DateTime from, DateTime to, double steps});
 
 /// Sums [slices] per UTC hour and source, then takes the largest source of each
 /// hour, so two sources that saw the same walking count once. The largest
-/// source is chosen on the whole hour, then only its steps inside exactly
-/// `[from, to)` count: two ranges that meet inside an hour use the same source
-/// on both sides, so they add up to the whole. A record is split by time
-/// overlap and rounding happens once per hour. Give it the records of every
-/// hour the bounds touch. The result is ordered and holds the hours with steps.
+/// source is chosen on the whole hour (rounded to steps), and a tie goes to the
+/// source whose name sorts first. Then only its steps inside exactly `[from, to)` count: two
+/// ranges that meet inside an hour use the same source on both sides, so they
+/// add up to the whole. A record is split by time overlap and rounding happens
+/// once per hour. Give it the records of every hour the bounds touch. The
+/// result is ordered and holds the hours with steps.
 List<StepHour> stepHoursFromSlices(
   Iterable<StepSlice> slices, {
   required DateTime from,
@@ -318,12 +320,14 @@ List<StepHour> stepHoursFromSlices(
 
   final hours = <StepHour>[];
   for (final MapEntry(key: hour, value: bySource) in sums.entries) {
-    final best = bySource.values.reduce(
-      (a, b) => b.whole > a.whole || (b.whole == a.whole && b.inside > a.inside)
-          ? b
-          : a,
-    );
-    final steps = best.inside.round();
+    // The largest whole hour wins; a tie goes to the smaller source name, which
+    // does not depend on the range, so adjacent ranges pick the same source.
+    // Totals compare rounded: split records leave float noise in equal totals.
+    final best = bySource.entries.reduce((a, b) {
+      final diff = b.value.whole.round() - a.value.whole.round();
+      return diff > 0 || (diff == 0 && b.key.compareTo(a.key) < 0) ? b : a;
+    });
+    final steps = best.value.inside.round();
     if (steps > 0) {
       hours.add(
         StepHour(

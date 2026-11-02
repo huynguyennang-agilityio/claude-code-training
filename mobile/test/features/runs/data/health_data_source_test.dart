@@ -238,6 +238,112 @@ void main() {
       expect(second, isEmpty);
     });
 
+    test('a split hour with equal sources takes the first name', () async {
+      // Both sources have 60 in the whole hour; the tie goes to `a` on both
+      // sides of the 18:30Z day boundary, so the days add up to 60, not 120.
+      final slices = <StepSlice>[
+        (
+          source: 'a',
+          from: DateTime.utc(2026, 10, 19, 18),
+          to: DateTime.utc(2026, 10, 19, 18, 30),
+          steps: 60,
+        ),
+        (
+          source: 'b',
+          from: DateTime.utc(2026, 10, 19, 18, 30),
+          to: DateTime.utc(2026, 10, 19, 19),
+          steps: 60,
+        ),
+      ];
+      final middle = DateTime.utc(2026, 10, 19, 18, 30);
+
+      final first = stepHoursFromSlices(
+        slices,
+        from: DateTime.utc(2026, 10, 18, 18, 30),
+        to: middle,
+      );
+      final second = stepHoursFromSlices(
+        slices,
+        from: middle,
+        to: DateTime.utc(2026, 10, 20, 18, 30),
+      );
+      final whole = stepHoursFromSlices(
+        slices,
+        from: DateTime.utc(2026, 10, 18, 18, 30),
+        to: DateTime.utc(2026, 10, 20, 18, 30),
+      );
+
+      expect(first, [_hour(19, 18, 60)]);
+      expect(second, isEmpty);
+      expect(whole, [_hour(19, 18, 60)]);
+      final sum = [...first, ...second].fold<int>(0, (s, h) => s + h.steps);
+      expect(sum, 60);
+    });
+
+    test('a tie in one range takes the first name, not the most inside', () {
+      // Equal 60 in the whole hour. `z` comes first in the input and has more
+      // steps inside [18:00Z, 18:30Z); `b` sorts first and must still win.
+      final slices = <StepSlice>[
+        (
+          source: 'z',
+          from: DateTime.utc(2026, 10, 19, 18),
+          to: DateTime.utc(2026, 10, 19, 18, 30),
+          steps: 60,
+        ),
+        (
+          source: 'b',
+          from: DateTime.utc(2026, 10, 19, 18, 30),
+          to: DateTime.utc(2026, 10, 19, 19),
+          steps: 60,
+        ),
+      ];
+
+      final before = stepHoursFromSlices(
+        slices,
+        from: DateTime.utc(2026, 10, 19, 18),
+        to: DateTime.utc(2026, 10, 19, 18, 30),
+      );
+      final after = stepHoursFromSlices(
+        slices,
+        from: DateTime.utc(2026, 10, 19, 18, 30),
+        to: DateTime.utc(2026, 10, 19, 19),
+      );
+
+      expect(before, isEmpty);
+      expect(after, [_hour(19, 18, 60)]);
+    });
+
+    test('equal totals with float noise still tie by name', () {
+      // Exactly 66.8666… each: `b` as 5 + 64 × 29/30, `a` as 68 × 59/60. As
+      // doubles `b` is one ulp larger, but `a` sorts first and must win.
+      final hours = stepHoursFromSlices(
+        [
+          (
+            source: 'b',
+            from: DateTime.utc(2026, 10, 19, 18, 1),
+            to: DateTime.utc(2026, 10, 19, 18, 31),
+            steps: 5,
+          ),
+          (
+            source: 'b',
+            from: DateTime.utc(2026, 10, 19, 18, 31),
+            to: DateTime.utc(2026, 10, 19, 19, 1),
+            steps: 64,
+          ),
+          (
+            source: 'a',
+            from: DateTime.utc(2026, 10, 19, 18, 1),
+            to: DateTime.utc(2026, 10, 19, 19, 1),
+            steps: 68,
+          ),
+        ],
+        from: DateTime.utc(2026, 10, 19, 18),
+        to: DateTime.utc(2026, 10, 19, 18, 31),
+      );
+
+      expect(hours, [_hour(19, 18, 34)]);
+    });
+
     test('adjacent days with half-hour bounds count no hour twice', () async {
       final slices = <StepSlice>[
         (
