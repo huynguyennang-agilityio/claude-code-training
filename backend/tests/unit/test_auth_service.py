@@ -68,6 +68,7 @@ def make_user(email: str = "runner@example.com") -> User:
         password_hash=PASSWORD_HASH,
         display_name="Lan Runner",
         created_at=START,
+        session_started_at=START,
     )
 
 
@@ -137,6 +138,7 @@ async def test_sign_up_creates_the_user_and_issues_tokens(
     assert user.email == "runner@example.com"
     assert user.display_name == "Lan Runner"
     assert user.created_at == START
+    assert user.session_started_at == user.created_at
     assert user.password_hash != PASSWORD
     assert verify_password(PASSWORD, user.password_hash)
     assert decode_access_token(tokens.access_token, SECRET, START) == str(user.id)
@@ -238,6 +240,87 @@ async def test_sign_in_takes_the_users_token_lock_before_issuing_tokens(
         < names.index("stored_password_hash")
         < names.index("add_refresh_token")
     )
+
+
+@pytest.mark.anyio
+async def test_sign_in_revokes_every_refresh_token_and_starts_a_new_session(
+    service: AuthService, repository: AsyncMock, clock: Clock
+) -> None:
+    user = make_user()
+    repository.get_user_by_email.return_value = user
+    clock.advance(timedelta(days=2))
+
+    await service.sign_in(sign_in_request(), IP)
+
+    repository.revoke_all_refresh_tokens.assert_awaited_once_with(user.id, clock.current)
+    repository.update_session_started_at.assert_awaited_once_with(user, clock.current)
+
+
+@pytest.mark.anyio
+async def test_sign_in_starts_the_session_at_the_time_it_holds_the_lock(
+    service: AuthService, repository: AsyncMock, clock: Clock
+) -> None:
+    user = make_user()
+    repository.get_user_by_email.return_value = user
+
+    async def wait_for_the_lock(_: uuid.UUID) -> None:
+        clock.advance(timedelta(seconds=3))
+
+    repository.lock_user_refresh_tokens.side_effect = wait_for_the_lock
+
+    await service.sign_in(sign_in_request(), IP)
+
+    locked_at = START + timedelta(seconds=3)
+    repository.revoke_all_refresh_tokens.assert_awaited_once_with(user.id, locked_at)
+    repository.update_session_started_at.assert_awaited_once_with(user, locked_at)
+
+
+@pytest.mark.anyio
+async def test_sign_in_revokes_under_the_token_lock_and_before_issuing(
+    service: AuthService, repository: AsyncMock
+) -> None:
+    repository.get_user_by_email.return_value = make_user()
+
+    await service.sign_in(sign_in_request(), IP)
+
+    names = [c[0] for c in repository.method_calls]
+    assert (
+        names.index("lock_user_refresh_tokens")
+        < names.index("revoke_all_refresh_tokens")
+        < names.index("add_refresh_token")
+    )
+    assert names.index("lock_user_refresh_tokens") < names.index("update_session_started_at")
+    assert names.count("lock_user_refresh_tokens") == 1
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("known_user", [True, False])
+async def test_a_failed_sign_in_revokes_nothing_and_keeps_the_session(
+    service: AuthService, repository: AsyncMock, known_user: bool
+) -> None:
+    user = make_user()
+    repository.get_user_by_email.return_value = user if known_user else None
+
+    with pytest.raises(InvalidCredentialsError):
+        await service.sign_in(sign_in_request("wrong-pass1"), IP)
+
+    repository.revoke_all_refresh_tokens.assert_not_awaited()
+    repository.update_session_started_at.assert_not_awaited()
+    assert user.session_started_at == START
+
+
+@pytest.mark.anyio
+async def test_sign_in_with_a_password_that_changed_revokes_nothing(
+    service: AuthService, repository: AsyncMock
+) -> None:
+    repository.get_user_by_email.return_value = make_user()
+    repository.stored_password_hash.return_value = hash_password("newrun5medals")
+
+    with pytest.raises(InvalidCredentialsError):
+        await service.sign_in(sign_in_request(), IP)
+
+    repository.revoke_all_refresh_tokens.assert_not_awaited()
+    repository.update_session_started_at.assert_not_awaited()
 
 
 @pytest.mark.anyio
@@ -546,6 +629,19 @@ async def test_change_password_rehashes_revokes_everything_and_issues_a_pair(
 
 
 @pytest.mark.anyio
+async def test_change_password_keeps_the_session_start(
+    service: AuthService, repository: AsyncMock, clock: Clock
+) -> None:
+    user = make_user()
+    clock.advance(timedelta(days=2))
+
+    await service.change_password(user, change_password_request(), IP)
+
+    repository.update_session_started_at.assert_not_awaited()
+    assert user.session_started_at == START
+
+
+@pytest.mark.anyio
 async def test_change_password_revokes_before_issuing_the_new_token(
     service: AuthService, repository: AsyncMock
 ) -> None:
@@ -666,6 +762,16 @@ async def test_refresh_rotates_the_token(
     assert tokens.refresh_token != "old-refresh-token"
     assert stored_refresh_token(repository).user_id == user_id
     session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_refresh_keeps_the_session_start(service: AuthService, repository: AsyncMock) -> None:
+    repository.consume_refresh_token.return_value = uuid.uuid4()
+
+    await service.refresh("old-refresh-token")
+
+    repository.update_session_started_at.assert_not_awaited()
+    repository.revoke_all_refresh_tokens.assert_not_awaited()
 
 
 @pytest.mark.anyio

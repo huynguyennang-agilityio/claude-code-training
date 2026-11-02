@@ -118,6 +118,10 @@ class AuthRepository:
         user.password_hash = password_hash
         await self._session.flush()
 
+    async def update_session_started_at(self, user: User, started_at: datetime) -> None:
+        user.session_started_at = started_at
+        await self._session.flush()
+
     async def add_login_attempt(self, email: str, ip: str, attempted_at: datetime) -> None:
         self._session.add(LoginAttempt(email=email, ip=ip, attempted_at=attempted_at))
         await self._session.flush()

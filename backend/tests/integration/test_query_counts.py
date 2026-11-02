@@ -30,8 +30,9 @@ from tests.integration.test_auth_api import (  # noqa: F401  (autouse fixture)
 __all__ = ["auth_settings"]
 
 MAX_QUERIES_FOR_CURRENT_USER = 1  # the user
-# attempts by email and by IP, user, token lock, stored hash, clear attempts, refresh token
-MAX_QUERIES_FOR_SIGN_IN = 7
+# attempts by email and by IP, user, token lock, stored hash, clear attempts, revoke every
+# refresh token, session start, new refresh token
+MAX_QUERIES_FOR_SIGN_IN = 9
 MAX_QUERIES_FOR_REFRESH = 3  # lock the owner's tokens, consume the old one, store the new one
 MAX_QUERIES_FOR_QUEST_WITH_NESTED_ROWS = 3  # quests, challenges, medals
 

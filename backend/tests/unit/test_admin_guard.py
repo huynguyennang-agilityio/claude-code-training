@@ -18,6 +18,7 @@ def make_user(role: str) -> User:
         display_name="Lan Runner",
         role=role,
         created_at=datetime(2026, 10, 18, tzinfo=UTC),
+        session_started_at=datetime(2026, 10, 18, tzinfo=UTC),
     )
 
 
