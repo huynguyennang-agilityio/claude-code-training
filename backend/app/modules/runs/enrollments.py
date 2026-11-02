@@ -96,6 +96,7 @@ class EnrollmentService:
         run.status = RunStatus.ACTIVE.value
         run.joined_at = now
         run.counting_from = now
+        run.hours_from = now
         run.type = challenge.type
         run.starts_at = challenge.starts_at
         run.ends_at = challenge.ends_at

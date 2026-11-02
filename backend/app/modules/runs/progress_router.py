@@ -10,6 +10,7 @@ from app.modules.runs.schemas import (
     DailyActivityResult,
     MyChallengePage,
     MyChallengeQuery,
+    StepHoursRequest,
     StepSyncRequest,
     StepSyncResult,
 )
@@ -30,6 +31,20 @@ async def sync_steps(
     body: StepSyncRequest, user: CurrentUserDep, progress: ProgressServiceDep
 ) -> StepSyncResult:
     return await progress.sync_steps(user.id, body.samples)
+
+
+@router.put(
+    "/step-hours",
+    responses={**_ERRORS, 422: {"model": ErrorResponse}},
+    summary="Sync the steps of each hour",
+    description="Stores the steps of each UTC hour for the caller's active run challenges, "
+    "replacing an hour sent before, and answers with their progress. An hour that fails a "
+    "counting rule is ignored, not an error.",
+)
+async def sync_step_hours(
+    body: StepHoursRequest, user: CurrentUserDep, progress: ProgressServiceDep
+) -> StepSyncResult:
+    return await progress.sync_step_hours(user.id, body.hours, user.session_started_at)
 
 
 @router.get(
