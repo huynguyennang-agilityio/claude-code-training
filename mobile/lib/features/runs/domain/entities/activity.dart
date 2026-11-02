@@ -55,6 +55,19 @@ class StepRecord extends Equatable {
   List<Object?> get props => [id, startTime, endTime, steps];
 }
 
+/// The steps of one UTC hour `[hourStart, hourStart + 1h)`, counted once even
+/// when several sources recorded the same walking, and without manual entries.
+class StepHour extends Equatable {
+  const StepHour({required this.hourStart, required this.steps});
+
+  /// A UTC time on the hour.
+  final DateTime hourStart;
+  final int steps;
+
+  @override
+  List<Object?> get props => [hourStart, steps];
+}
+
 /// The figures of one calendar day (the date on the device), as sent to the
 /// backend. A null figure is left out.
 class DailyFigures extends Equatable {

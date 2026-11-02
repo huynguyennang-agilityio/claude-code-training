@@ -38,4 +38,14 @@ abstract interface class HealthRepository {
 
   /// The step records that ended after [from], without the ones typed by hand.
   Future<List<StepRecord>> readStepRecords({required DateTime from});
+
+  /// The steps of each UTC hour between [from] (floored to its hour) and [to]
+  /// (the current partial hour is included), ordered by hour. An hour without
+  /// steps is left out; manual entries are not counted, and overlapping sources
+  /// give the larger source's total, not the sum. Throws [HealthFailure] when
+  /// the data cannot be read.
+  Future<List<StepHour>> readStepHours({
+    required DateTime from,
+    required DateTime to,
+  });
 }

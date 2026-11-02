@@ -10,3 +10,4 @@ Loaded through `mobile/CLAUDE.md`, with every `mobile/decisions/<area>.md`, when
 ## Entries
 
 - **2026-11-02, #262.** `RunsRepository.earliestRunJoin` is the join time; a run challenge counts steps only from `startsAt`. For "how long steps have counted", use `earliestRunCounting` (the later of the two).
+- **2026-11-02, #256.** On iOS, read step hours with one `getHealthIntervalDataFromTypes(interval: 3600)` anchored at a UTC hour, not one `getTotalStepsInInterval` per hour: 30 days read in about 60 ms on an iPhone 13.

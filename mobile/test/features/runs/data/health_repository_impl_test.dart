@@ -156,8 +156,11 @@ void main() {
 
     setUp(() {
       reader = HealthRepositoryImpl(source, prompts, clock: () => now);
+      source.hours = [
+        StepHour(hourStart: DateTime.utc(2026, 10, 19, 8), steps: 5000),
+        StepHour(hourStart: DateTime.utc(2026, 10, 19, 9), steps: 490),
+      ];
       source.totals.addAll({
-        HealthMetric.steps: 5490,
         HealthMetric.calories: 312,
         HealthMetric.distance: 3080,
         HealthMetric.sleep: 390,
@@ -173,12 +176,8 @@ void main() {
       expect(reading.readAt, now);
       expect((reading.steps, reading.distanceM), (5490, 3080));
       expect((reading.calories, reading.sleepMinutes), (null, null));
-      expect(source.totalCalls.map((c) => c.$1), [
-        HealthMetric.steps,
-        HealthMetric.distance,
-      ]);
-      expect(source.totalCalls.first.$2, DateTime(2026, 10, 19));
-      expect(source.totalCalls.first.$3, now);
+      expect(source.totalCalls.map((c) => c.$1), [HealthMetric.distance]);
+      expect(source.stepTotalCalls.single, (DateTime(2026, 10, 19), now));
     });
 
     test('sleep is the night that ends today, from 18:00 yesterday', () async {
@@ -202,12 +201,46 @@ void main() {
       ]);
       expect(days.first.steps, 5490);
       expect(days.first.calories, isNull);
-      final yesterday = source.totalCalls[0];
-      expect(
-        (yesterday.$2, yesterday.$3),
+      expect(source.stepTotalCalls, [
         (DateTime(2026, 10, 18), DateTime(2026, 10, 19)),
+        (DateTime(2026, 10, 19), now),
+      ]);
+    });
+
+    test('other figures of a day still come from total', () async {
+      final days = await reader.readDays(_all, days: 1);
+
+      expect(days.single.steps, 5490);
+      expect(days.single.calories, 312);
+      expect(days.single.distanceM, 3080);
+      expect(days.single.sleepMinutes, 390);
+      expect(source.totalCalls.map((c) => c.$1), [
+        HealthMetric.calories,
+        HealthMetric.distance,
+        HealthMetric.sleep,
+      ]);
+      expect(source.totalCalls.last.$2, DateTime(2026, 10, 18, 18));
+    });
+
+    test('step hours come from the source', () async {
+      final from = DateTime.utc(2026, 10, 19, 8);
+      final hours = await reader.readStepHours(from: from, to: now);
+
+      expect(hours, source.hours);
+      expect(source.hourCalls.single, (from, now));
+    });
+
+    test('a step hours read that throws is a HealthFailure', () async {
+      source.readError = Exception('no access');
+
+      await expectLater(
+        reader.readStepHours(from: DateTime(2026, 10, 19), to: now),
+        throwsA(isA<HealthFailure>()),
       );
-      expect(source.totalCalls[1].$3, now);
+      await expectLater(
+        reader.readDays({HealthMetric.steps}, days: 1),
+        throwsA(isA<HealthFailure>()),
+      );
     });
 
     test('step records come from the source up to now', () async {
