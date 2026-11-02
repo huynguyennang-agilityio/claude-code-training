@@ -14,3 +14,4 @@ Loaded through `mobile/CLAUDE.md`, with every `mobile/decisions/<area>.md`, when
 - **2026-11-02, #257.** In `SyncActivity`, only step hours start at the earliest run join; daily figures ignore the join and start at the later of the window start and `firstSyncAt`, so they are sent with no active run.
 - **2026-11-02, #258.** Only `HealthSyncService` runs `SyncActivity`; screens and `ActivityBloc` use the domain `HealthSync` (`state`/`stream`/`sync(force: true)`). A session change bumps a generation so an in-flight run's result is dropped.
   Tests use `HealthSyncService.withClock`; `AppLifecycleListener` resume can't be driven from a unit test.
+- **2026-11-02, #259.** The backend ignores step hours before the user's latest sign in (`session_started_at`) and the join, so an on-device catch-up test runs in two phases (setup, then sync from the stored session) with those times moved back in the local DB between them.
