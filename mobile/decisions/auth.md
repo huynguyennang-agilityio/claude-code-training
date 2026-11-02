@@ -8,3 +8,5 @@ Loaded through `mobile/CLAUDE.md`, with every `mobile/decisions/<area>.md`, when
 - A `/run-tasks` child session adds its own entries in its issue's last commit, lists them under `## Decisions added` in its PR, and keeps the entries of both branches when it merges `develop`. The parent never edits this file ([plan 037](../../docs/plans/037-decisions-per-area.md)).
 
 ## Entries
+
+- **2026-11-02, #260.** The reason a session ends (`SessionEndReason`) stays in `AuthRepositoryImpl`: `refreshTokens()` records it on a rejected refresh and `expireSession()` reads and resets it, so `core/network` (`AuthTokenHandler`, the interceptor) imports no feature types.

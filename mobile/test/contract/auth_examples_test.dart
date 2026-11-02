@@ -311,6 +311,19 @@ void main() {
       expect(failure.fieldErrors, isEmpty);
     });
 
+    test('error_session_replaced on the refresh route', () async {
+      final example = _example('error_session_replaced')['error'] as Map;
+      final dataSource = _dataSource(
+        (_) async => jsonBody(_example('error_session_replaced'), 401),
+      );
+
+      final failure = await _failureOf(dataSource.refresh('old-refresh'));
+
+      expect(failure.code, AuthFailureCode.sessionReplaced);
+      expect(failure.code.wireCode, example['code']);
+      expect(failure.message, example['message']);
+    });
+
     test('error_validation keeps the field message', () async {
       final dataSource = _dataSource(
         (_) async => jsonBody(_example('error_validation'), 422),
@@ -477,6 +490,61 @@ void main() {
       expect(failure.code.wireCode, example['code']);
       expect(failure.message, example['message']);
       expect(failure.fieldErrors, isEmpty);
+    });
+
+    test('refreshing a token a later sign-in revoked is '
+        'error_session_replaced', () async {
+      final fake = FakeAuthRemoteDataSource();
+      final example = _example('error_session_replaced')['error'] as Map;
+      final first = await fake.signUp(
+        email: 'runner@example.com',
+        password: 'run4medals',
+        displayName: 'Lan',
+      );
+      await fake.signIn(email: 'runner@example.com', password: 'run4medals');
+
+      final failure = await _failureOf(fake.refresh(first.tokens.refreshToken));
+
+      expect(failure.code.wireCode, example['code']);
+      expect(failure.message, example['message']);
+      expect(failure.fieldErrors, isEmpty);
+    });
+
+    test('a token another change revoked before a sign-in is replaced too, '
+        'a rotated one after it is not', () async {
+      final fake = FakeAuthRemoteDataSource();
+      final first = await fake.signUp(
+        email: 'runner@example.com',
+        password: 'run4medals',
+        displayName: 'Lan',
+      );
+      await fake.changePassword(
+        currentPassword: 'run4medals',
+        newPassword: 'run5medals',
+      );
+      final second = await fake.signIn(
+        email: 'runner@example.com',
+        password: 'run5medals',
+      );
+      await fake.refresh(second.tokens.refreshToken);
+
+      final beforeSignIn = await _failureOf(
+        fake.refresh(first.tokens.refreshToken),
+      );
+      final rotated = await _failureOf(
+        fake.refresh(second.tokens.refreshToken),
+      );
+
+      expect(beforeSignIn.code, AuthFailureCode.sessionReplaced);
+      expect(rotated.code, AuthFailureCode.invalidRefreshToken);
+    });
+
+    test('an unknown refresh token stays invalid_refresh_token', () async {
+      final fake = FakeAuthRemoteDataSource();
+
+      final failure = await _failureOf(fake.refresh('never-issued'));
+
+      expect(failure.code, AuthFailureCode.invalidRefreshToken);
     });
 
     test('a wrong password is error_incorrect_password', () async {

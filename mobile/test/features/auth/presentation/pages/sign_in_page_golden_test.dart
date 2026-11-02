@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:stridequest/features/auth/domain/entities/session_end_reason.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/auth/presentation/bloc/sign_in_bloc.dart';
@@ -63,6 +64,14 @@ void main() {
     _page(
       const SignInInitial(),
       session: const AuthUnauthenticated(accountDeleted: true),
+    ),
+  );
+  goldenScreen(
+    'SignInPage, session replaced',
+    'sign_in_page_session_replaced',
+    _page(
+      const SignInInitial(),
+      session: const AuthUnauthenticated(endReason: SessionEndReason.replaced),
     ),
   );
   goldenScreen(
