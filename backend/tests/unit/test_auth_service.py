@@ -792,51 +792,32 @@ async def test_refresh_takes_the_owners_token_lock_before_consuming(
     assert names.index("lock_refresh_token_owner") < names.index("consume_refresh_token")
 
 
+MINUTE = timedelta(minutes=1)
+
+
 def revoked_token(
-    *, created_before_session: bool, expired: bool = False, same_instant: bool = False
+    created_at: datetime, expires_at: datetime = START + timedelta(days=1)
 ) -> RevokedTokenSession:
-    started = START
-    created = started if same_instant else started - timedelta(minutes=1)
-    if not created_before_session and not same_instant:
-        created = started + timedelta(minutes=1)
-    expires = START - timedelta(seconds=1) if expired else START + timedelta(days=1)
-    return RevokedTokenSession(expires_at=expires, created_at=created, session_started_at=started)
+    """A revoked token of a user whose latest sign-in was at START, the service's clock."""
+    return RevokedTokenSession(
+        expires_at=expires_at, created_at=created_at, session_started_at=START
+    )
 
 
 @pytest.mark.anyio
 async def test_refresh_with_a_revoked_token_from_before_the_session_is_session_replaced(
     service: AuthService, repository: AsyncMock, session: AsyncMock
 ) -> None:
-    repository.get_revoked_token_session.return_value = revoked_token(created_before_session=True)
+    repository.get_revoked_token_session.return_value = revoked_token(START - MINUTE)
 
     with pytest.raises(SessionReplacedError) as raised:
         await service.refresh("old")
 
     assert raised.value.code == "session_replaced"
     assert raised.value.status_code == 401
-    assert str(raised.value) == "Your account was signed in on another device."
+    repository.get_revoked_token_session.assert_awaited_once_with(hash_refresh_token("old"))
     repository.add_refresh_token.assert_not_awaited()
     session.commit.assert_not_awaited()
-
-
-@pytest.mark.anyio
-@pytest.mark.parametrize(
-    "revoked",
-    [
-        None,  # unknown
-        revoked_token(created_before_session=False),  # revoked, no sign-in since
-        revoked_token(created_before_session=False, same_instant=True),
-        revoked_token(created_before_session=True, expired=True),  # expired always wins
-    ],
-    ids=["unknown", "no-sign-in-since", "same-instant", "expired-and-replaced"],
-)
-async def test_refresh_with_any_other_failure_is_invalid_refresh_token(
-    service: AuthService, repository: AsyncMock, revoked: RevokedTokenSession | None
-) -> None:
-    repository.get_revoked_token_session.return_value = revoked
-
-    with pytest.raises(InvalidRefreshTokenError):
-        await service.refresh("old")
 
 
 @pytest.mark.anyio
@@ -851,10 +832,25 @@ async def test_a_valid_token_never_reads_the_revoked_session(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "revoked",
+    [
+        pytest.param(None, id="unknown-or-expired"),
+        pytest.param(revoked_token(START + MINUTE), id="no-sign-in-since"),
+        pytest.param(revoked_token(START), id="issued-by-the-latest-sign-in"),
+        pytest.param(
+            revoked_token(START - MINUTE, expires_at=START - MINUTE), id="expired-and-replaced"
+        ),
+        pytest.param(revoked_token(START - MINUTE, expires_at=START), id="expiring-now"),
+    ],
+)
 async def test_refresh_rejects_an_unknown_expired_or_used_token(
-    service: AuthService, repository: AsyncMock, session: AsyncMock
+    service: AuthService,
+    repository: AsyncMock,
+    session: AsyncMock,
+    revoked: RevokedTokenSession | None,
 ) -> None:
-    repository.consume_refresh_token.return_value = None
+    repository.get_revoked_token_session.return_value = revoked
 
     with pytest.raises(InvalidRefreshTokenError):
         await service.refresh("anything")
@@ -971,8 +967,9 @@ async def test_every_error_the_service_raises_has_a_message(
     errors.append(await raised(service.sign_in(sign_in_request(), IP)))  # rate limited
     repository.failed_attempts_by_email.return_value = []
 
-    repository.consume_refresh_token.return_value = None
     errors.append(await raised(service.refresh("unknown")))
+    repository.get_revoked_token_session.return_value = revoked_token(START - MINUTE)
+    errors.append(await raised(service.refresh("replaced")))
 
     errors.append(await raised(service.authenticate("garbage")))
     not_a_uuid = create_access_token("not-a-uuid", SECRET, timedelta(minutes=15), clock())
@@ -999,7 +996,7 @@ async def test_every_error_the_service_raises_has_a_message(
         await raised(service.change_password(make_user(), change_password_request(PASSWORD), IP))
     )
 
-    assert len(errors) == 12
+    assert len(errors) == 13
     for error in errors:
         assert isinstance(error.message, str), type(error).__name__
         assert error.message.strip(), type(error).__name__

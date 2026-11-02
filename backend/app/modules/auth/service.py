@@ -283,12 +283,12 @@ class AuthService:
 
     async def refresh(self, refresh_token: str) -> TokenPair:
         token_hash = hash_refresh_token(refresh_token)
-        # Serialized with `change_password`, so a password change revokes this pair too.
+        # Serialized with `sign_in` and `change_password`, so a password change revokes this
+        # pair too and a sign-in can't change the answer midway.
         await self._repository.lock_refresh_token_owner(token_hash)
         now = self._now()
         user_id = await self._repository.consume_refresh_token(token_hash, now)
         if user_id is None:
-            # Read under the lock taken above, so a sign-in can't change the answer midway.
             revoked = await self._repository.get_revoked_token_session(token_hash)
             if (
                 revoked is not None

@@ -46,8 +46,9 @@ async def sign_in(body: SignInRequest, request: Request, service: AuthServiceDep
     responses={
         401: {
             "model": ErrorResponse,
-            "description": "`invalid_refresh_token`, or `session_replaced` when a newer "
-            "sign-in revoked the session.",
+            "description": "`session_replaced` for an unexpired, revoked token issued before "
+            "the account's latest sign-in, whatever revoked it; otherwise "
+            "`invalid_refresh_token`.",
         }
     },
 )

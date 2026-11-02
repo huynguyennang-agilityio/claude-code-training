@@ -95,7 +95,7 @@ class AuthRepository:
                 .where(RefreshToken.token_hash == token_hash, RefreshToken.revoked_at.is_not(None))
             )
         ).one_or_none()
-        return None if row is None else RevokedTokenSession(*row)
+        return None if row is None else RevokedTokenSession(**row._asdict())
 
     async def revoke_refresh_token(self, token_hash: str, now: datetime) -> None:
         await self._session.execute(

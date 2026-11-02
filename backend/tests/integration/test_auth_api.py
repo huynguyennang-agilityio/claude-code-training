@@ -375,24 +375,6 @@ async def test_a_second_sign_in_replaces_the_first_session(client: AsyncClient) 
 
 
 @pytest.mark.anyio
-async def test_a_used_refresh_token_with_no_newer_sign_in_is_invalid(client: AsyncClient) -> None:
-    old = (await sign_up(client))["tokens"]["refresh_token"]
-    assert (await refresh(client, old)).status_code == 200
-
-    assert_error(await refresh(client, old), 401, "invalid_refresh_token")
-
-
-@pytest.mark.anyio
-async def test_a_signed_out_refresh_token_with_no_newer_sign_in_is_invalid(
-    client: AsyncClient,
-) -> None:
-    token = (await sign_up(client))["tokens"]["refresh_token"]
-    await client.post(f"{PREFIX}/auth/signout", json={"refresh_token": token})
-
-    assert_error(await refresh(client, token), 401, "invalid_refresh_token")
-
-
-@pytest.mark.anyio
 async def test_a_used_refresh_token_followed_by_a_new_sign_in_is_session_replaced(
     client: AsyncClient,
 ) -> None:
@@ -402,16 +384,6 @@ async def test_a_used_refresh_token_followed_by_a_new_sign_in_is_session_replace
     await sign_in(client)
 
     assert_error(await refresh(client, old), 401, "session_replaced")
-
-
-@pytest.mark.anyio
-async def test_a_token_revoked_by_a_password_change_with_no_new_sign_in_is_invalid(
-    client: AsyncClient,
-) -> None:
-    first = (await sign_up(client))["tokens"]
-    assert (await change_password(client, first["access_token"])).status_code == 200
-
-    assert_error(await refresh(client, first["refresh_token"]), 401, "invalid_refresh_token")
 
 
 @pytest.mark.anyio
@@ -807,6 +779,7 @@ async def test_change_password_returns_a_token_pair_and_revokes_every_session(
     new = response.json()
     # The first token was revoked by the second sign-in, so its session was replaced.
     assert_error(await refresh(client, first["refresh_token"]), 401, "session_replaced")
+    # Revoked by the password change, with no sign-in since.
     assert_error(await refresh(client, second["refresh_token"]), 401, "invalid_refresh_token")
     me = await client.get(f"{PREFIX}/users/me", headers=bearer(new["access_token"]))
     assert me.status_code == 200
