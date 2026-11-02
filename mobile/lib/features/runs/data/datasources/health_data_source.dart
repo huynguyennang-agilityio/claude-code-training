@@ -263,11 +263,11 @@ typedef StepSlice = ({String source, DateTime from, DateTime to, double steps});
 /// Sums [slices] per UTC hour and source, then takes the largest source of each
 /// hour, so two sources that saw the same walking count once. The largest
 /// source is chosen on the whole hour (rounded to steps), and a tie goes to the
-/// source whose name sorts first. Then only its steps inside exactly `[from, to)` count: two
-/// ranges that meet inside an hour use the same source on both sides, so they
-/// add up to the whole. A record is split by time overlap and rounding happens
-/// once per hour. Give it the records of every hour the bounds touch. The
-/// result is ordered and holds the hours with steps.
+/// source whose name sorts first. Then only its steps inside exactly
+/// `[from, to)` count: two ranges that meet inside an hour use the same source
+/// on both sides, so they add up to the whole. A record is split by time
+/// overlap and rounding happens once per hour. Give it the records of every
+/// hour the bounds touch. The result is ordered and holds the hours with steps.
 List<StepHour> stepHoursFromSlices(
   Iterable<StepSlice> slices, {
   required DateTime from,
