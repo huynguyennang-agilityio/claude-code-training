@@ -8,14 +8,8 @@ import '../../../helpers/health_fixtures.dart';
 import '../../../helpers/runs_fixtures.dart';
 
 final _now = DateTime(2026, 10, 19, 21, 55);
-final _joined = DateTime.utc(2026, 10, 15, 9);
-
-StepRecord _record(String id) => StepRecord(
-  id: id,
-  startTime: DateTime.utc(2026, 10, 18, 6),
-  endTime: DateTime.utc(2026, 10, 18, 7),
-  steps: 100,
-);
+final _joined = DateTime.utc(2026, 9, 1, 9);
+const _network = RunsFailure(RunsFailureCode.network);
 
 const _all = {
   HealthMetric.steps,
@@ -24,94 +18,221 @@ const _all = {
   HealthMetric.sleep,
 };
 
+final _hour = StepHour(hourStart: DateTime.utc(2026, 10, 18, 6), steps: 100);
+
+List<DailyFigures> _days(int count) => [
+  for (var i = 0; i < count; i++)
+    DailyFigures(date: DateTime(2026, 10, 19 - count + 1 + i), steps: i),
+];
+
 void main() {
   late FakeHealthRepository health;
   late FakeRunsRepository runs;
+  late FakeSyncStateRepository state;
   late SyncActivity sync;
 
   setUp(() {
-    health = FakeHealthRepository();
-    runs = FakeRunsRepository();
-    sync = SyncActivity(health, runs);
+    health = FakeHealthRepository()..hours = [_hour];
+    runs = FakeRunsRepository()..earliest = _joined;
+    state = FakeSyncStateRepository()..first = DateTime(2026, 9);
+    sync = SyncActivity(health, runs, state);
   });
 
-  Future<ActivitySync> run(Set<HealthMetric> allowed) =>
+  Future<ActivitySync> run([Set<HealthMetric> allowed = _all]) =>
       sync(allowed, clock: () => _now);
 
-  test('reads, sends the steps since the earliest join and the days', () async {
-    runs.earliest = _joined;
-    health
-      ..records = [_record('a'), _record('b')]
-      ..days = [DailyFigures(date: DateTime(2026, 10, 19), steps: 5490)];
-
-    final result = await run(_all);
-
-    expect(result.failure, isNull);
-    expect(result.reading, health.reading);
-    expect(health.stepsFrom, _joined);
-    expect(runs.syncedRecords.single.map((r) => r.id), ['a', 'b']);
-    expect(runs.savedDays.single.single.steps, 5490);
-  });
-
-  test('no active run challenge means no steps are read or sent', () async {
-    runs.earliest = null;
-    health.records = [_record('a')];
-
-    await run(_all);
-
-    expect(health.stepsFrom, isNull);
-    expect(runs.syncedRecords, isEmpty);
-    expect(runs.savedDays, hasLength(1));
-  });
-
-  test('a join long ago is read from at most 60 days back', () async {
-    runs.earliest = DateTime(2026, 1, 1);
-    health.records = [_record('a')];
-
-    await run(_all);
-
-    expect(health.stepsFrom, _now.subtract(SyncActivity.maxStepWindow));
-  });
-
   test(
-    'without steps allowed nothing is read or sent for challenges',
+    'reads, sends the hours and the days, and moves the watermark',
     () async {
-      runs.earliest = _joined;
+      state.stored = _now.subtract(const Duration(hours: 1));
+      health.days = _days(3);
+
+      final result = await run();
+
+      expect(result.failure, isNull);
+      expect(result.reading, health.reading);
+      expect(runs.syncedHours.single, [_hour]);
+      expect(runs.savedDays.single, health.days);
+      expect(state.stored, _now);
+    },
+  );
+
+  group('window of the step hours', () {
+    test('an app left for 3 days reads from the watermark minus 48h', () async {
+      final watermark = _now.subtract(const Duration(days: 3));
+      state.stored = watermark;
+
+      await run();
+
+      expect(health.hoursRead, (
+        from: watermark.subtract(const Duration(hours: 48)),
+        to: _now,
+      ));
+    });
+
+    test('no watermark reads 30 days', () async {
+      await run();
+
+      expect(health.hoursRead, (
+        from: _now.subtract(const Duration(days: 30)),
+        to: _now,
+      ));
+    });
+
+    test('no watermark is clamped by the earliest join', () async {
+      runs.earliest = DateTime.utc(2026, 10, 15, 9);
+
+      await run();
+
+      expect(health.hoursRead?.from, DateTime.utc(2026, 10, 15, 9));
+    });
+
+    test(
+      'a watermark minus 48h earlier than the join reads from the join',
+      () async {
+        runs.earliest = DateTime.utc(2026, 10, 1, 9);
+        state.stored = DateTime.utc(2026, 10, 1, 12);
+
+        await run();
+
+        expect(health.hoursRead?.from, DateTime.utc(2026, 10, 1, 9));
+      },
+    );
+
+    test('more than 30 days since the watermark reads 30 days', () async {
+      state.stored = _now.subtract(const Duration(days: 45));
+
+      await run();
+
+      expect(health.hoursRead?.from, _now.subtract(const Duration(days: 30)));
+    });
+
+    test('a join long ago does not read beyond 30 days', () async {
+      runs.earliest = DateTime(2026, 1, 1);
+
+      await run();
+
+      expect(health.hoursRead?.from, _now.subtract(const Duration(days: 30)));
+    });
+
+    test(
+      'no active run reads and sends no hours, but sends the days',
+      () async {
+        runs.earliest = null;
+        health.days = _days(2);
+
+        await run();
+
+        expect(health.hoursRead, isNull);
+        expect(runs.syncedHours, isEmpty);
+        expect(runs.savedDays, hasLength(1));
+        expect(state.stored, _now);
+      },
+    );
+
+    test('no hours means no request', () async {
+      health.hours = const [];
+
+      await run();
+
+      expect(runs.syncedHours, isEmpty);
+    });
+
+    test('without steps allowed no hours are read or sent', () async {
+      health.days = _days(1);
 
       await run({HealthMetric.calories});
 
       expect(runs.earliestCalls, 0);
-      expect(runs.syncedRecords, isEmpty);
+      expect(health.hoursRead, isNull);
+      expect(runs.syncedHours, isEmpty);
       expect(runs.savedDays, hasLength(1));
-    },
-  );
-
-  test('no step records means no step request', () async {
-    runs.earliest = _joined;
-    health.records = const [];
-
-    await run(_all);
-
-    expect(runs.syncedRecords, isEmpty);
+    });
   });
 
-  test('a backend failure still returns what was read', () async {
-    runs.earliest = _joined;
-    runs.error = const RunsFailure(RunsFailureCode.network);
+  group('daily figures', () {
+    test(
+      'cover each day from 48h before the watermark through today',
+      () async {
+        state.stored = _now.subtract(const Duration(days: 3));
+        health.days = _days(6);
 
-    final result = await run(_all);
+        await run();
 
-    expect(result.reading, health.reading);
-    expect(result.failure, const RunsFailure(RunsFailureCode.network));
-    expect(runs.savedDays, isEmpty);
+        // The window starts on Oct 14: six calendar days up to Oct 19.
+        expect(health.lastReadDays?.days, 6);
+        expect(health.lastReadDays?.allowed, _all);
+      },
+    );
+
+    test('with no watermark cover 30 days, in requests of 7 days', () async {
+      health.days = _days(31);
+
+      await run();
+
+      expect(health.lastReadDays?.days, 31);
+      expect(runs.savedDays.map((d) => d.length), [7, 7, 7, 7, 3]);
+      expect([for (final d in runs.savedDays) ...d], health.days);
+    });
+
+    test('do not start before the first sync', () async {
+      state.first = DateTime(2026, 10, 17, 8);
+      health.days = _days(3);
+
+      await run();
+
+      expect(health.lastReadDays?.days, 3);
+    });
+
+    test('the first sync records its time', () async {
+      state.first = null;
+
+      await run();
+
+      expect(state.first, _now);
+      expect(health.lastReadDays?.days, 1);
+    });
   });
 
-  test('a health read failure is thrown, and nothing is sent', () async {
-    health.readError = const HealthFailure();
+  group('failures', () {
+    test('an error on the second request keeps the watermark', () async {
+      final watermark = _now.subtract(const Duration(days: 20));
+      state.stored = watermark;
+      health.days = _days(10);
+      runs
+        ..error = _network
+        ..failDaysCall = 2;
 
-    await expectLater(run(_all), throwsA(isA<HealthFailure>()));
+      final result = await run();
 
-    expect(runs.earliestCalls, 0);
-    expect(runs.savedDays, isEmpty);
+      expect(result.reading, health.reading);
+      expect(result.failure, _network);
+      expect(runs.syncedHours, hasLength(1));
+      expect(runs.savedDays, hasLength(1));
+      expect(state.stored, watermark);
+    });
+
+    test(
+      'a failing hours request keeps the watermark and sends no days',
+      () async {
+        runs.error = _network;
+
+        final result = await run();
+
+        expect(result.failure, _network);
+        expect(runs.savedDays, isEmpty);
+        expect(state.stored, isNull);
+      },
+    );
+
+    test('a health read failure is thrown, and nothing is sent', () async {
+      health.readError = const HealthFailure();
+
+      await expectLater(run(), throwsA(isA<HealthFailure>()));
+
+      expect(runs.earliestCalls, 0);
+      expect(runs.savedDays, isEmpty);
+      expect(state.stored, isNull);
+    });
   });
 }

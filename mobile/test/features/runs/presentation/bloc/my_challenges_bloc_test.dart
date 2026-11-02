@@ -32,6 +32,10 @@ class _Pages implements RunsRepository {
       throw UnimplementedError();
 
   @override
+  Future<StepSyncResult> syncStepHours(List<StepHour> hours) =>
+      throw UnimplementedError();
+
+  @override
   Future<void> saveDailyActivity(List<DailyFigures> days) =>
       throw UnimplementedError();
 

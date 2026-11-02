@@ -45,6 +45,7 @@ class FakeHealthRepository implements HealthRepository {
   List<StepHour> hours = const [];
   var readTodayCalls = 0;
   DateTime? stepsFrom;
+  ({DateTime from, DateTime to})? hoursRead;
 
   @override
   Future<ActivityReading> readToday(Set<HealthMetric> allowed) async {
@@ -69,6 +70,7 @@ class FakeHealthRepository implements HealthRepository {
     required DateTime from,
     required DateTime to,
   }) async {
+    hoursRead = (from: from, to: to);
     if (readError != null) throw readError!;
     return hours;
   }
@@ -205,7 +207,7 @@ void registerHealthBlocs([HealthRepository? repository]) {
   getIt
     ..registerFactory<HealthGateBloc>(() => HealthGateBloc(repo))
     ..registerFactory<ActivityBloc>(
-      () => ActivityBloc(SyncActivity(repo, runs)),
+      () => ActivityBloc(SyncActivity(repo, runs, FakeSyncStateRepository())),
     )
     ..registerFactory<MyChallengesBloc>(() => MyChallengesBloc(runs));
 }

@@ -7,6 +7,12 @@ abstract interface class RunsRepository {
   /// requests of at most 500.
   Future<StepSyncResult> syncSteps(List<StepRecord> records);
 
+  /// Counts the steps of each UTC hour toward the caller's active run
+  /// challenges (`PUT /runs/step-hours`; an hour sent again replaces the stored
+  /// one). Sent in requests of at most 744 hours, and no request for an empty
+  /// list.
+  Future<StepSyncResult> syncStepHours(List<StepHour> hours);
+
   /// Stores the figures of up to 7 days; a day replaces the one stored.
   Future<void> saveDailyActivity(List<DailyFigures> days);
 

@@ -18,6 +18,16 @@ class _FakeRemote implements RunsRemoteDataSource {
     return StepSyncResultModel(accepted: samples.length - 1, ignored: 1);
   }
 
+  final hourRequests = <List<Map<String, Object>>>[];
+
+  @override
+  Future<StepSyncResultModel> syncStepHours(
+    List<Map<String, Object>> hours,
+  ) async {
+    hourRequests.add(hours);
+    return StepSyncResultModel(accepted: hours.length - 1, ignored: 1);
+  }
+
   @override
   Future<void> saveDailyActivity(List<Map<String, Object>> days) async =>
       dayRequests.add(days);
@@ -104,6 +114,32 @@ void main() {
       await repository.syncSteps(const []);
 
       expect(remote.stepRequests, isEmpty);
+    });
+  });
+
+  group('syncStepHours', () {
+    StepHour hour(int i) => StepHour(
+      hourStart: DateTime.utc(2026, 10).add(Duration(hours: i)),
+      steps: i,
+    );
+
+    test('sends 744 hours at most per request and adds the answers', () async {
+      final result = await repository.syncStepHours([
+        for (var i = 0; i < 1500; i++) hour(i),
+      ]);
+
+      expect(remote.hourRequests.map((r) => r.length), [744, 744, 12]);
+      expect((result.accepted, result.ignored), (1497, 3));
+      expect(remote.hourRequests.first.first, {
+        'hour_start': '2026-10-01T00:00:00Z',
+        'steps': 0,
+      });
+    });
+
+    test('no hours means no request', () async {
+      await repository.syncStepHours(const []);
+
+      expect(remote.hourRequests, isEmpty);
     });
   });
 

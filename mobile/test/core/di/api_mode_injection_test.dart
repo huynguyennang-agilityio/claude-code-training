@@ -18,6 +18,7 @@ import 'package:stridequest/features/profile/data/datasources/fake_profile_remot
 import 'package:stridequest/features/profile/data/datasources/profile_remote_data_source.dart';
 import 'package:stridequest/features/profile/domain/repositories/profile_repository.dart';
 import 'package:stridequest/features/profile/presentation/bloc/profile_info_bloc.dart';
+import 'package:stridequest/features/runs/data/datasources/fake_runs_remote_data_source.dart';
 import 'package:stridequest/features/runs/data/datasources/runs_remote_data_source.dart';
 import 'package:stridequest/features/runs/domain/repositories/health_repository.dart';
 import 'package:stridequest/features/runs/domain/repositories/runs_repository.dart';
@@ -55,12 +56,11 @@ void main() {
         );
       });
 
-      test('challenges and runs use their real data sources', () {
+      test('challenges use their real data source', () {
         expect(
           getIt<ChallengeRemoteDataSource>(),
           isA<DioChallengeRemoteDataSource>(),
         );
-        expect(getIt<RunsRemoteDataSource>(), isA<DioRunsRemoteDataSource>());
       });
     });
   }
@@ -94,5 +94,19 @@ void main() {
       getIt<ProfileRemoteDataSource>(),
       isA<FakeProfileRemoteDataSource>(),
     );
+  });
+
+  test('real mode syncs runs through the API', () {
+    configureDependencies(mode: ApiMode.real);
+    addTearDown(getIt.reset);
+
+    expect(getIt<RunsRemoteDataSource>(), isA<DioRunsRemoteDataSource>());
+  });
+
+  test('mock mode syncs runs through the fake', () {
+    configureDependencies(mode: ApiMode.mock);
+    addTearDown(getIt.reset);
+
+    expect(getIt<RunsRemoteDataSource>(), isA<FakeRunsRemoteDataSource>());
   });
 }
