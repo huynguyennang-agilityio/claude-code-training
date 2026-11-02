@@ -8,3 +8,4 @@ Loaded through `mobile/CLAUDE.md`, with every `mobile/decisions/<area>.md`, when
 - A `/run-tasks` child session adds its own entries in its issue's last commit, lists them under `## Decisions added` in its PR, and keeps the entries of both branches when it merges `develop`. The parent never edits this file ([plan 037](../../docs/plans/037-decisions-per-area.md)).
 
 ## Entries
+- 2026-11-02 #270: fixtures have fixed dates, so a test that opens `ChallengeDetailPage` through the router must pass a fixed `clock`: rebuild only the detail route in `createAppRouter(routes: ...)` (see `challenges_flow_test.dart`), never rely on `DateTime.now`.
