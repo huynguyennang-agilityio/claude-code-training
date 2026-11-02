@@ -43,7 +43,6 @@ class FakeHealthRepository implements HealthRepository {
   List<StepRecord> records = const [];
   Object? readError;
   List<StepHour> hours = const [];
-  ({DateTime from, DateTime to})? lastStepHours;
   var readTodayCalls = 0;
   DateTime? stepsFrom;
 
@@ -70,7 +69,6 @@ class FakeHealthRepository implements HealthRepository {
     required DateTime from,
     required DateTime to,
   }) async {
-    lastStepHours = (from: from, to: to);
     if (readError != null) throw readError!;
     return hours;
   }
@@ -121,6 +119,7 @@ class FakeHealthDataSource implements HealthDataSource {
   List<StepRecord> records = const [];
   List<StepHour> hours = const [];
   final hourCalls = <(DateTime, DateTime)>[];
+  final stepTotalCalls = <(DateTime, DateTime)>[];
   DateTime? recordsFrom;
   DateTime? recordsTo;
   Object? readError;
@@ -161,6 +160,13 @@ class FakeHealthDataSource implements HealthDataSource {
     if (readError != null) throw readError!;
     hourCalls.add((from, to));
     return hours;
+  }
+
+  @override
+  Future<int> stepTotal(DateTime from, DateTime to) async {
+    if (readError != null) throw readError!;
+    stepTotalCalls.add((from, to));
+    return hours.fold<int>(0, (sum, hour) => sum + hour.steps);
   }
 
   @override

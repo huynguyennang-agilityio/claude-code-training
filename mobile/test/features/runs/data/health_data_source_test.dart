@@ -11,6 +11,8 @@ import '../../../helpers/health_fixtures.dart';
 
 class _MockHealth extends Mock implements Health {}
 
+/// A point as the plugin builds it on Android: `sourceId` empty and the app's
+/// package in `sourceName`.
 HealthDataPoint _point(
   String source,
   DateTime from,
@@ -26,7 +28,7 @@ HealthDataPoint _point(
   dateTo: to,
   sourcePlatform: HealthPlatformType.googleHealthConnect,
   sourceDeviceId: 'd',
-  sourceId: source,
+  sourceId: '',
   sourceName: source,
 );
 
@@ -185,6 +187,67 @@ void main() {
       expect(hours, [_hour(19, 8, 1), _hour(19, 9, 1)]);
     });
 
+    test('records are clipped to the exact bounds', () async {
+      final hours = stepHoursFromSlices(
+        [
+          (
+            source: 'a',
+            from: DateTime.utc(2026, 10, 19, 8, 0),
+            to: DateTime.utc(2026, 10, 19, 10, 0),
+            steps: 200,
+          ),
+        ],
+        from: DateTime.utc(2026, 10, 19, 8, 30),
+        to: DateTime.utc(2026, 10, 19, 9, 30),
+      );
+
+      expect(hours, [_hour(19, 8, 50), _hour(19, 9, 50)]);
+    });
+
+    test('adjacent days with half-hour bounds count no hour twice', () async {
+      final slices = <StepSlice>[
+        (
+          source: 'a',
+          from: DateTime.utc(2026, 10, 19, 10),
+          to: DateTime.utc(2026, 10, 19, 11),
+          steps: 60,
+        ),
+        // Crosses the day boundary at 18:30Z, in the middle of an hour.
+        (
+          source: 'a',
+          from: DateTime.utc(2026, 10, 19, 18),
+          to: DateTime.utc(2026, 10, 19, 19),
+          steps: 100,
+        ),
+        (
+          source: 'b',
+          from: DateTime.utc(2026, 10, 19, 18, 10),
+          to: DateTime.utc(2026, 10, 19, 18, 50),
+          steps: 80,
+        ),
+        (
+          source: 'a',
+          from: DateTime.utc(2026, 10, 20, 5),
+          to: DateTime.utc(2026, 10, 20, 6),
+          steps: 40,
+        ),
+      ];
+      int sum(List<StepHour> hours) =>
+          hours.fold<int>(0, (total, h) => total + h.steps);
+      final start = DateTime.utc(2026, 10, 18, 18, 30);
+      final middle = DateTime.utc(2026, 10, 19, 18, 30);
+      final end = DateTime.utc(2026, 10, 20, 18, 30);
+
+      final first = stepHoursFromSlices(slices, from: start, to: middle);
+      final second = stepHoursFromSlices(slices, from: middle, to: end);
+      final whole = stepHoursFromSlices(slices, from: start, to: end);
+
+      expect(first, [_hour(19, 10, 60), _hour(19, 18, 50)]);
+      expect(second, [_hour(19, 18, 50), _hour(20, 5, 40)]);
+      expect(sum(first) + sum(second), sum(whole));
+      expect(sum(whole), 200);
+    });
+
     test('from is floored to its hour and to is exclusive', () async {
       stubAndroid([
         _point(
@@ -224,22 +287,90 @@ void main() {
     });
 
     test('a local from still yields UTC hour starts', () async {
+      final from = DateTime(2026, 10, 19, 8, 30);
+      final utc = from.toUtc();
+      final hour = DateTime.utc(utc.year, utc.month, utc.day, utc.hour);
       stubAndroid([
         _point(
           'a',
-          DateTime.utc(2026, 10, 19, 8, 5),
-          DateTime.utc(2026, 10, 19, 8, 10),
+          hour.add(const Duration(minutes: 5)),
+          hour.add(const Duration(minutes: 10)),
           10,
         ),
       ]);
 
-      final hours = await android().stepHours(
-        DateTime(2026, 10, 19, 8, 30),
-        DateTime(2026, 10, 19, 23),
+      final hours = await android().stepHours(from, DateTime(2026, 10, 19, 23));
+
+      expect(hours, [StepHour(hourStart: hour, steps: 10)]);
+      expect(hours.single.hourStart.isUtc, isTrue);
+    });
+
+    test('steps are not read through total', () async {
+      await expectLater(
+        android().total(
+          HealthMetric.steps,
+          DateTime.utc(2026, 10, 19),
+          DateTime.utc(2026, 10, 20),
+        ),
+        throwsArgumentError,
+      );
+      verifyNever(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+          recordingMethodsToFilter: any(named: 'recordingMethodsToFilter'),
+        ),
+      );
+    });
+
+    test('stepTotal over whole hours equals the sum of stepHours', () async {
+      stubAndroid([
+        _point(
+          'watch',
+          DateTime.utc(2026, 10, 19, 8, 45),
+          DateTime.utc(2026, 10, 19, 9, 15),
+          100,
+        ),
+        _point(
+          'phone',
+          DateTime.utc(2026, 10, 19, 9, 0),
+          DateTime.utc(2026, 10, 19, 9, 50),
+          70,
+        ),
+        _point(
+          'phone',
+          DateTime.utc(2026, 10, 19, 12, 0),
+          DateTime.utc(2026, 10, 19, 12, 10),
+          33,
+        ),
+      ]);
+      final from = DateTime.utc(2026, 10, 19, 8);
+      final to = DateTime.utc(2026, 10, 19, 12);
+
+      final hours = await android().stepHours(from, to);
+      final total = await android().stepTotal(from, to);
+
+      expect(hours.fold<int>(0, (sum, h) => sum + h.steps), 120);
+      expect(total, 120);
+    });
+
+    test('stepTotal reads from the exact bounds', () async {
+      stubAndroid([]);
+
+      await android().stepTotal(
+        DateTime.utc(2026, 10, 19, 8, 30),
+        DateTime.utc(2026, 10, 20, 8, 30),
       );
 
-      expect(hours.every((h) => h.hourStart.isUtc), isTrue);
-      expect(hours.every((h) => h.hourStart.minute == 0), isTrue);
+      verify(
+        () => health.getHealthDataFromTypes(
+          types: [HealthDataType.STEPS],
+          startTime: DateTime.utc(2026, 10, 19, 8, 30),
+          endTime: DateTime.utc(2026, 10, 20, 8, 30),
+          recordingMethodsToFilter: [RecordingMethod.manual],
+        ),
+      ).called(1);
     });
 
     test('a failing read throws and the repository wraps it', () async {
@@ -268,33 +399,17 @@ void main() {
     test(
       'a day with a manual entry equals the sum of its hours',
       () async {
-        // The plugin drops the manual record, as the filter asks.
+        // Record times are those of the local day, so the test holds in any
+        // whole-hour time zone. The plugin drops the manual record, as the
+        // filter asks.
+        DateTime at(int hour, [int minute = 0]) =>
+            DateTime(2026, 10, 19, hour, minute).toUtc();
         final records = [
-          _point(
-            'a',
-            DateTime.utc(2026, 10, 19, 6, 10),
-            DateTime.utc(2026, 10, 19, 6, 40),
-            300,
-          ),
-          _point(
-            'b',
-            DateTime.utc(2026, 10, 19, 6, 0),
-            DateTime.utc(2026, 10, 19, 6, 50),
-            280,
-          ),
-          _point(
-            'a',
-            DateTime.utc(2026, 10, 19, 13, 0),
-            DateTime.utc(2026, 10, 19, 13, 30),
-            700,
-          ),
+          _point('a', at(6, 10), at(6, 40), 300),
+          _point('b', at(6), at(6, 50), 280),
+          _point('a', at(13), at(13, 30), 700),
         ];
-        final manual = _point(
-          'm',
-          DateTime.utc(2026, 10, 19, 7),
-          DateTime.utc(2026, 10, 19, 7, 1),
-          9999,
-        );
+        final manual = _point('m', at(7), at(7, 1), 9999);
         when(
           () => health.getHealthDataFromTypes(
             types: any(named: 'types'),
@@ -306,27 +421,57 @@ void main() {
           final filter = i.namedArguments[#recordingMethodsToFilter] as List;
           return [...records, if (filter.isEmpty) manual];
         });
-        final source = android();
-        final now = DateTime.utc(2026, 10, 19, 20);
+        final now = DateTime(2026, 10, 19, 20);
         final repository = HealthRepositoryImpl(
-          source,
+          android(),
           InMemoryHealthPromptStore(),
           clock: () => now,
         );
 
         final hours = await repository.readStepHours(
-          from: DateTime.utc(2026, 10, 19),
+          from: DateTime(2026, 10, 19),
           to: now,
         );
         final days = await repository.readDays({HealthMetric.steps}, days: 1);
 
-        expect(hours, [_hour(19, 6, 300), _hour(19, 13, 700)]);
+        expect(hours, [
+          StepHour(hourStart: at(6), steps: 300),
+          StepHour(hourStart: at(13), steps: 700),
+        ]);
+        expect(days.single.steps, hours.fold<int>(0, (s, h) => s + h.steps));
         expect(days.single.steps, 1000);
       },
       skip: DateTime.now().timeZoneOffset.inMinutes % 60 != 0
           ? 'needs a whole-hour time zone'
           : false,
     );
+
+    test('two sources are told apart by sourceName, not sourceId', () async {
+      // Health Connect leaves sourceId empty for every record.
+      final points = [
+        _point(
+          'watch',
+          DateTime.utc(2026, 10, 19, 8),
+          DateTime.utc(2026, 10, 19, 8, 30),
+          400,
+        ),
+        _point(
+          'phone',
+          DateTime.utc(2026, 10, 19, 8),
+          DateTime.utc(2026, 10, 19, 8, 30),
+          350,
+        ),
+      ];
+      expect(points.map((p) => p.sourceId), ['', '']);
+      stubAndroid(points);
+
+      final total = await android().stepTotal(
+        DateTime.utc(2026, 10, 19, 8),
+        DateTime.utc(2026, 10, 19, 9),
+      );
+
+      expect(total, 400);
+    });
   });
 
   group('iOS', () {
@@ -375,6 +520,79 @@ void main() {
         ),
       ).called(1);
       verifyNever(() => health.getTotalStepsInInterval(any(), any()));
+    });
+
+    test('a bucket starting at to is left out', () async {
+      final start = DateTime.utc(2026, 10, 19, 8);
+      when(
+        () => health.getHealthIntervalDataFromTypes(
+          startDate: any(named: 'startDate'),
+          endDate: any(named: 'endDate'),
+          types: any(named: 'types'),
+          interval: any(named: 'interval'),
+          recordingMethodsToFilter: any(named: 'recordingMethodsToFilter'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _point('hk', start, start.add(const Duration(hours: 1)), 80),
+          _point(
+            'hk',
+            start.add(const Duration(hours: 1)),
+            start.add(const Duration(hours: 2)),
+            60,
+          ),
+        ],
+      );
+      final source = PluginHealthDataSource(health: health, ios: true);
+      final to = DateTime.utc(2026, 10, 19, 9);
+
+      expect(await source.stepHours(start, to), [_hour(19, 8, 80)]);
+      expect(await source.stepTotal(start, to), 80);
+    });
+
+    test('stepTotal anchors the buckets at the exact from', () async {
+      final from = DateTime.utc(2026, 10, 19, 8, 30);
+      when(
+        () => health.getHealthIntervalDataFromTypes(
+          startDate: any(named: 'startDate'),
+          endDate: any(named: 'endDate'),
+          types: any(named: 'types'),
+          interval: any(named: 'interval'),
+          recordingMethodsToFilter: any(named: 'recordingMethodsToFilter'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _point('hk', from, from.add(const Duration(hours: 1)), 80.4),
+          _point(
+            'hk',
+            from.add(const Duration(hours: 1)),
+            from.add(const Duration(hours: 2)),
+            0.2,
+          ),
+          _point(
+            'hk',
+            from.add(const Duration(hours: 2)),
+            from.add(const Duration(hours: 3)),
+            20.6,
+          ),
+        ],
+      );
+
+      final total = await PluginHealthDataSource(
+        health: health,
+        ios: true,
+      ).stepTotal(from, DateTime.utc(2026, 10, 19, 11, 30));
+
+      expect(total, 101);
+      verify(
+        () => health.getHealthIntervalDataFromTypes(
+          startDate: from,
+          endDate: DateTime.utc(2026, 10, 19, 11, 30),
+          types: [HealthDataType.STEPS],
+          interval: 3600,
+          recordingMethodsToFilter: [RecordingMethod.manual],
+        ),
+      ).called(1);
     });
   });
 }

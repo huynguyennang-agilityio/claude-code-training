@@ -177,7 +177,7 @@ void main() {
       expect((reading.steps, reading.distanceM), (5490, 3080));
       expect((reading.calories, reading.sleepMinutes), (null, null));
       expect(source.totalCalls.map((c) => c.$1), [HealthMetric.distance]);
-      expect(source.hourCalls.single, (DateTime(2026, 10, 19), now));
+      expect(source.stepTotalCalls.single, (DateTime(2026, 10, 19), now));
     });
 
     test('sleep is the night that ends today, from 18:00 yesterday', () async {
@@ -201,7 +201,7 @@ void main() {
       ]);
       expect(days.first.steps, 5490);
       expect(days.first.calories, isNull);
-      expect(source.hourCalls, [
+      expect(source.stepTotalCalls, [
         (DateTime(2026, 10, 18), DateTime(2026, 10, 19)),
         (DateTime(2026, 10, 19), now),
       ]);

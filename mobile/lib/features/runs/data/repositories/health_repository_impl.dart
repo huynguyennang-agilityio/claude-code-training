@@ -184,12 +184,11 @@ class HealthRepositoryImpl implements HealthRepository {
     }
   }
 
-  /// Steps are the sum of the hourly read, so a day and its hours always agree
-  /// and manual entries are left out the same way.
-  Future<int> _sumSteps(DateTime from, DateTime to) async {
-    final hours = await _source.stepHours(from, to);
-    return hours.fold<int>(0, (sum, hour) => sum + hour.steps);
-  }
+  /// Steps use the hourly rules over the exact bounds, so a day agrees with its
+  /// hours, manual entries are left out the same way, and two adjacent days
+  /// never count the same hour twice.
+  Future<int> _sumSteps(DateTime from, DateTime to) =>
+      _source.stepTotal(from, to);
 
   /// A night is counted from 18:00 the evening before.
   static const _sleepLead = Duration(hours: 6);
