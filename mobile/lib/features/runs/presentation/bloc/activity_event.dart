@@ -21,3 +21,13 @@ class ActivityStarted extends ActivityEvent {
 class ActivityRefreshRequested extends ActivityEvent {
   const ActivityRefreshRequested();
 }
+
+/// The [HealthSyncService] has a new state.
+class _SyncStateChanged extends ActivityEvent {
+  const _SyncStateChanged(this.sync);
+
+  final HealthSyncState sync;
+
+  @override
+  List<Object?> get props => [sync];
+}

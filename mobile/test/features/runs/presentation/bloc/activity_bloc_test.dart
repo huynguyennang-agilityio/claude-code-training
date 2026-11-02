@@ -1,11 +1,14 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:stridequest/features/runs/data/health_sync_service.dart';
 import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 import 'package:stridequest/features/runs/domain/failures/runs_failure.dart';
 import 'package:stridequest/features/runs/domain/usecases/sync_activity.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 
+import '../../../../helpers/auth_fixtures.dart';
 import '../../../../helpers/health_fixtures.dart';
 import '../../../../helpers/runs_fixtures.dart';
 
@@ -19,20 +22,29 @@ final _reading = ActivityReading(
 void main() {
   late FakeHealthRepository health;
   late FakeRunsRepository runs;
+  late HealthSyncService service;
 
   setUp(() {
     health = FakeHealthRepository()..reading = _reading;
     runs = FakeRunsRepository();
+    final auth = MockAuthRepository();
+    when(auth.restoreSession).thenAnswer((_) async => testUser.toEntity());
+    service = HealthSyncService.withClock(
+      health,
+      auth,
+      SyncActivity(health, runs, FakeSyncStateRepository()),
+      () => DateTime(2026, 10, 19, 21, 55),
+    );
   });
 
-  ActivityBloc bloc() =>
-      ActivityBloc(SyncActivity(health, runs, FakeSyncStateRepository()));
+  ActivityBloc bloc() => ActivityBloc(service);
 
   blocTest<ActivityBloc, ActivityState>(
-    'starting reads and syncs, and remembers when it reached StrideQuest',
+    'opening with no result yet asks the service to sync and shows it',
     build: bloc,
     act: (bloc) => bloc.add(const ActivityStarted(_allowed)),
     expect: () => [
+      const ActivityState(allowed: _allowed),
       const ActivityState(allowed: _allowed, busy: true),
       ActivityState(
         allowed: _allowed,
@@ -43,16 +55,41 @@ void main() {
   );
 
   blocTest<ActivityBloc, ActivityState>(
-    'refresh keeps the old figures while it works, then replaces them',
+    'opening shows the latest result without syncing again',
     build: bloc,
-    seed: () => ActivityState(allowed: _allowed, reading: _reading),
-    setUp: () => health.reading = ActivityReading(
-      readAt: DateTime(2026, 10, 19, 22),
-      steps: 6000,
-    ),
-    act: (bloc) => bloc.add(const ActivityRefreshRequested()),
+    setUp: () async => service.sync(),
+    act: (bloc) => bloc.add(const ActivityStarted(_allowed)),
     expect: () => [
-      ActivityState(allowed: _allowed, reading: _reading, busy: true),
+      ActivityState(
+        allowed: _allowed,
+        reading: _reading,
+        syncedAt: _reading.readAt,
+      ),
+    ],
+    verify: (_) => expect(health.readTodayCalls, 1),
+  );
+
+  blocTest<ActivityBloc, ActivityState>(
+    'refresh forces a sync and shows the new figures',
+    build: bloc,
+    setUp: () async => service.sync(),
+    act: (bloc) async {
+      bloc.add(const ActivityStarted(_allowed));
+      await Future<void>.delayed(Duration.zero);
+      health.reading = ActivityReading(
+        readAt: DateTime(2026, 10, 19, 22),
+        steps: 6000,
+      );
+      bloc.add(const ActivityRefreshRequested());
+    },
+    skip: 1,
+    expect: () => [
+      ActivityState(
+        allowed: _allowed,
+        reading: _reading,
+        syncedAt: _reading.readAt,
+        busy: true,
+      ),
       ActivityState(
         allowed: _allowed,
         reading: ActivityReading(
@@ -65,15 +102,15 @@ void main() {
   );
 
   blocTest<ActivityBloc, ActivityState>(
-    'a sync that fails keeps the new reading and says so, and is not "synced"',
+    'a sync that fails to reach the backend shows the reading and the error',
     build: bloc,
     setUp: () {
       runs.earliest = DateTime.utc(2026, 10, 15);
       runs.error = const RunsFailure(RunsFailureCode.network);
     },
     act: (bloc) => bloc.add(const ActivityStarted(_allowed)),
+    skip: 2,
     expect: () => [
-      const ActivityState(allowed: _allowed, busy: true),
       ActivityState(
         allowed: _allowed,
         reading: _reading,
@@ -85,20 +122,17 @@ void main() {
   blocTest<ActivityBloc, ActivityState>(
     'a health read that fails keeps what was on screen',
     build: bloc,
-    seed: () => ActivityState(
-      allowed: _allowed,
-      reading: _reading,
-      syncedAt: _reading.readAt,
-    ),
-    setUp: () => health.readError = const HealthFailure(),
-    act: (bloc) => bloc.add(const ActivityRefreshRequested()),
+    setUp: () async {
+      await service.sync();
+      health.readError = const HealthFailure();
+    },
+    act: (bloc) async {
+      bloc.add(const ActivityStarted(_allowed));
+      await Future<void>.delayed(Duration.zero);
+      bloc.add(const ActivityRefreshRequested());
+    },
+    skip: 2,
     expect: () => [
-      ActivityState(
-        allowed: _allowed,
-        reading: _reading,
-        syncedAt: _reading.readAt,
-        busy: true,
-      ),
       ActivityState(
         allowed: _allowed,
         reading: _reading,
@@ -115,20 +149,5 @@ void main() {
     act: (bloc) => bloc.add(const ActivityRefreshRequested()),
     expect: () => <ActivityState>[],
     verify: (_) => expect(health.readTodayCalls, 0),
-  );
-
-  blocTest<ActivityBloc, ActivityState>(
-    'a new refresh clears the error',
-    build: bloc,
-    seed: () => const ActivityState(allowed: _allowed, error: 'Nope'),
-    act: (bloc) => bloc.add(const ActivityRefreshRequested()),
-    expect: () => [
-      const ActivityState(allowed: _allowed, busy: true),
-      ActivityState(
-        allowed: _allowed,
-        reading: _reading,
-        syncedAt: _reading.readAt,
-      ),
-    ],
   );
 }
