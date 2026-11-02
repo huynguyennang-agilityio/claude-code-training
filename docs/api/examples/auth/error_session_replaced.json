@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "session_replaced",
+    "message": "Your account was signed in on another device.",
+    "fields": []
+  }
+}
