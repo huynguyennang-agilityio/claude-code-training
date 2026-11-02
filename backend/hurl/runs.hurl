@@ -7,8 +7,8 @@
 # run.sh passes: base, admin_token, user_token, other_token (a second normal user), title
 # (unique per run), day_yesterday, day_today and day_after_tomorrow (dates for the daily activity
 # sync), and sample_start and sample_end, the window of one step sample. The sample
-# starts shortly after now (the user joins first, and steps count only from joining) and ends
-# less than 5 minutes ahead (a sample from further in the future is ignored). It also passes
+# starts shortly after now, so after the join and `hours_from`: it is ignored. It ends
+# less than 5 minutes ahead (only that rule would not reject it). It also passes
 # hour_now (the start of the current UTC hour, taken before the user joins) and hour_half (the
 # same hour plus 30 minutes).
 
@@ -82,27 +82,9 @@ jsonpath "$.items[?(@.challenge.id == {{challenge_id}})].progress.current_value"
 jsonpath "$.items[?(@.challenge.id == {{challenge_id}})].progress.tracked" == true
 jsonpath "$.items[?(@.challenge.id == {{challenge_id}})].challenge.enrollment.status" == "active"
 
-# A sample is counted
-POST {{base}}/runs/steps
-Authorization: Bearer {{user_token}}
-{
-  "samples": [
-    {
-      "health_record_id": "hurl-{{title}}",
-      "start_time": "{{sample_start}}",
-      "end_time": "{{sample_end}}",
-      "steps": 1200
-    }
-  ]
-}
-HTTP 200
-[Asserts]
-jsonpath "$.accepted" == 1
-jsonpath "$.ignored" == 0
-jsonpath "$.enrollments[?(@.challenge_id == {{challenge_id}})].progress.current_value" == 1200
-jsonpath "$.enrollments[?(@.challenge_id == {{challenge_id}})].progress.percent" == 2
-
-# The same record again counts once
+# A sample that starts after the join is ignored: a fresh enrollment counts hourly steps from
+# the join time (`hours_from`), and the step sync counts only what starts before it. The sample
+# that does count is in step_hours.hurl.
 POST {{base}}/runs/steps
 Authorization: Bearer {{user_token}}
 {
@@ -119,7 +101,7 @@ HTTP 200
 [Asserts]
 jsonpath "$.accepted" == 0
 jsonpath "$.ignored" == 1
-jsonpath "$.enrollments[?(@.challenge_id == {{challenge_id}})].progress.current_value" == 1200
+jsonpath "$.enrollments[?(@.challenge_id == {{challenge_id}})].progress.current_value" == 0
 
 # A sample from the future is ignored, not an error
 POST {{base}}/runs/steps
@@ -147,14 +129,14 @@ HTTP 200
 [Asserts]
 jsonpath "$.accepted" == 0
 jsonpath "$.ignored" == 1
-jsonpath "$.enrollments[?(@.challenge_id == {{challenge_id}})].progress.current_value" == 1200
+jsonpath "$.enrollments[?(@.challenge_id == {{challenge_id}})].progress.current_value" == 0
 
 # The list shows the progress
 GET {{base}}/runs?limit=50
 Authorization: Bearer {{user_token}}
 HTTP 200
 [Asserts]
-jsonpath "$.items[?(@.challenge.id == {{challenge_id}})].progress.current_value" == 1200
+jsonpath "$.items[?(@.challenge.id == {{challenge_id}})].progress.current_value" == 0
 jsonpath "$.items[?(@.challenge.id == {{challenge_id}})].progress.started" == true
 
 # Another user sees none of it

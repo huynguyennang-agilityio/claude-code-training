@@ -84,7 +84,7 @@ async def main() -> None:
         await connection.execute(
             text(
                 "UPDATE runs SET hours_from = now() - interval '3 days', "
-                "counting_from = now() - interval '3 days' "
+                "counting_from = now() - interval '4 days' "
                 "WHERE user_id = (SELECT id FROM users WHERE email = :email)"
             ),
             {"email": email},
@@ -104,6 +104,7 @@ PY
 )
 hurl --test --variable "base=$base" --variable "admin_token=$admin_token" \
   --variable "hours_token=$hours_token" --variable "challenge_id=$hours_challenge" \
+  --variable "sample_old_start=$(hour -75 0)" --variable "sample_old_end=$(hour -74 0)" \
   --variable "hour_3=$(hour -3 0)" --variable "hour_2=$(hour -2 0)" \
   --variable "hour_1=$(hour -1 0)" --variable "hour_next=$(hour 2 0)" "$dir/step_hours.hurl"
 hurl --test --variable "base=$base" --variable "user_token=$user_token" \

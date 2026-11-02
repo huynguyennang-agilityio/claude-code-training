@@ -56,6 +56,29 @@ def test_already_stored_record_is_rejected() -> None:
     assert result.rejected[0].reason is RejectionReason.DUPLICATE
 
 
+def test_a_sample_starting_before_hours_from_counts() -> None:
+    rule = RULE.model_copy(update={"hours_from": START + timedelta(minutes=30)})
+
+    result = validate_run([sample("a", 600, offset_minutes=29)], rule)
+
+    assert result.counted_steps == 600
+
+
+@pytest.mark.parametrize("offset_minutes", [30, 31])
+def test_a_sample_starting_at_or_after_hours_from_is_ignored(offset_minutes: int) -> None:
+    rule = RULE.model_copy(update={"hours_from": START + timedelta(minutes=30)})
+
+    result = validate_run([sample("a", 600, offset_minutes=offset_minutes)], rule)
+
+    assert result.counted_steps == 0
+    assert [r.reason for r in result.rejected] == [RejectionReason.OUTSIDE_WINDOW]
+
+
+def test_no_hours_from_means_no_cutoff() -> None:
+    assert RULE.hours_from is None
+    assert validate_run([sample("a", 600, offset_minutes=100)], RULE).counted_steps == 600
+
+
 @pytest.mark.parametrize("offset_minutes", [-5, 115])
 def test_samples_outside_window_are_rejected(offset_minutes: int) -> None:
     result = validate_run([sample("a", 2_000, offset_minutes=offset_minutes)], RULE)

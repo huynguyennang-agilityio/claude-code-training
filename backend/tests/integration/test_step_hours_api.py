@@ -202,8 +202,9 @@ async def test_an_hour_in_another_timezone_is_the_same_hour(
 async def test_total_steps_is_the_sum_of_the_hours_plus_the_samples_before(
     client: AsyncClient, admin: dict[str, str], user: dict[str, str], session: AsyncSession
 ) -> None:
-    await join_hourly(client, admin, user, session)
-    await sync(client, user, sample("before-hours", 2500))
+    await join_hourly(client, admin, user, session, hours_from=ago(7))
+    before = sample("before-hours", 2500, ended_ago=8 * HOUR)  # starts before `hours_from`
+    assert (await sync(client, user, before)).json()["accepted"] == 1
     requests = [
         [(ago(5), 100), (ago(4), 200)],
         [(ago(4), 50), (ago(3), 20_000), (ago(6), 7)],
