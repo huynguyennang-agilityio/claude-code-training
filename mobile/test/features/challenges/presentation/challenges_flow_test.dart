@@ -26,24 +26,31 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 final _now = DateTime.utc(2026, 10, 17, 12, 46, 53);
 
 /// The app's routes, with the detail page reading [_now] instead of the real
-/// clock. Everything else is the real route table.
+/// clock. Everything else is the real route table. The detail builder is a
+/// copy of the one in `app_router.dart` plus `clock`: keep the two in sync.
 final _routes = [
   for (final route in appRoutes)
-    if (route is GoRoute && route.path == ChallengeDetailPage.path)
+    if (_isDetailRoute(route))
       GoRoute(
-        path: route.path,
+        path: ChallengeDetailPage.path,
         builder: (context, state) {
-          final id = int.parse(state.pathParameters['id']!);
+          final id = int.tryParse(state.pathParameters['id'] ?? '');
           return BlocProvider(
-            create: (_) =>
-                getIt<ChallengeDetailBloc>()..add(ChallengeDetailStarted(id)),
-            child: ChallengeDetailPage(challengeId: id, clock: () => _now),
+            create: (_) {
+              final bloc = getIt<ChallengeDetailBloc>();
+              if (id != null) bloc.add(ChallengeDetailStarted(id));
+              return bloc;
+            },
+            child: ChallengeDetailPage(challengeId: id ?? 0, clock: () => _now),
           );
         },
       )
     else
       route,
 ];
+
+bool _isDetailRoute(RouteBase route) =>
+    route is GoRoute && route.path == ChallengeDetailPage.path;
 
 /// Browse, search, filter and open a challenge through the real routes and
 /// blocs, with an in-memory repository.
@@ -52,6 +59,10 @@ void main() {
   late AuthBloc authBloc;
   late GoRouterRefreshStream refresh;
   late GoRouter router;
+
+  // If the detail route moves (for example under the shell), nothing would be
+  // replaced and the tests would fall back to the real clock.
+  setUpAll(() => expect(appRoutes.where(_isDetailRoute), hasLength(1)));
 
   Future<void> pumpApp(WidgetTester tester) async {
     repository = FakeChallengeRepository(
