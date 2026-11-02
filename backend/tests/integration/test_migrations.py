@@ -30,11 +30,14 @@ async def test_test_database_is_at_the_latest_revision(engine: AsyncEngine) -> N
     assert version == head
 
 
+BEFORE_SESSION_STARTED_AT = "6fa1bc92a72b"  # the revision before session_started_at
+
+
 def test_session_started_at_is_backfilled_from_created_at_and_can_be_dropped(
     database_url: str,
 ) -> None:
-    """Down one step, add a user the old schema accepts, up again: the new column holds the
-    user's `created_at`, and the schema is back at head afterwards."""
+    """Down to the revision before the column, add a user the old schema accepts, up again:
+    the new column holds the user's `created_at`, and the schema is back at head afterwards."""
     config = Config(str(ALEMBIC_INI))
     user_id = uuid.uuid4()
     created_at = datetime(2026, 10, 1, 8, 0, tzinfo=UTC)
@@ -48,7 +51,7 @@ def test_session_started_at_is_backfilled_from_created_at_and_can_be_dropped(
         finally:
             await engine.dispose()
 
-    command.downgrade(config, "-1")
+    command.downgrade(config, BEFORE_SESSION_STARTED_AT)
     try:
         columns = asyncio.run(
             run("SELECT column_name FROM information_schema.columns WHERE table_name = 'users'")

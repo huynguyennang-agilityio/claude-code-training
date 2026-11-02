@@ -179,9 +179,12 @@ class AuthService:
             raise InvalidCredentialsError("Email or password is incorrect.")
         await self._repository.clear_login_attempts(data.email)
         # One session per account: this sign-in replaces every other one. It runs under the
-        # refresh-token lock taken above, so a refresh in flight can't keep a token alive.
-        await self._repository.revoke_all_refresh_tokens(user.id, now)
-        await self._repository.update_session_started_at(user, now)
+        # refresh-token lock taken above, so a refresh in flight can't keep a token alive. The
+        # clock is read again under the lock: a token a refresh committed while this request
+        # waited was created before the new session started.
+        started_at = self._now()
+        await self._repository.revoke_all_refresh_tokens(user.id, started_at)
+        await self._repository.update_session_started_at(user, started_at)
         tokens = await self._issue_tokens(user.id)
         await self._session.commit()
         return user, tokens

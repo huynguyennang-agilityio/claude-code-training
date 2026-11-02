@@ -199,3 +199,43 @@ async def test_a_second_password_change_with_the_old_password_waits_and_then_fai
             SignInRequest(email=user.email, password=OTHER_PASSWORD), IP
         )
     assert pair.refresh_token
+
+
+@pytest.mark.anyio
+async def test_a_sign_in_that_waits_for_a_refresh_revokes_the_refreshed_token(
+    engine: AsyncEngine, signed_up: tuple[User, TokenPair]
+) -> None:
+    """A refresh on the old device holds the lock while a sign-in on a new device waits: once
+    the refresh commits, the sign-in revokes the token it issued and starts the session after
+    that token was created."""
+    user, tokens = signed_up
+
+    async def sign_in() -> TokenPair:
+        async with AsyncSession(engine, expire_on_commit=False) as session:
+            _, pair = await _service(session).sign_in(
+                SignInRequest(email=user.email, password=PASSWORD), IP
+            )
+            return pair
+
+    async with AsyncSession(engine, expire_on_commit=False) as holder:
+        await AuthRepository(holder).lock_user_refresh_tokens(user.id)
+        task = asyncio.ensure_future(sign_in())
+        await _wait_until_a_session_waits_for_an_advisory_lock(engine, task)
+        refreshed = await _service(holder).refresh(tokens.refresh_token)  # commits
+
+    new_session = await asyncio.wait_for(task, timeout=10)
+    assert await _refresh(engine, refreshed.refresh_token) == "refused"
+    live = await _live_tokens(engine, user.id)
+    assert len(live) == 1
+    async with AsyncSession(engine) as session:
+        started_at = await session.scalar(select(User.session_started_at).where(User.id == user.id))
+        refreshed_created_at = await session.scalar(
+            select(RefreshToken.created_at)
+            .where(RefreshToken.revoked_at.is_not(None))
+            .where(RefreshToken.user_id == user.id)
+            .order_by(RefreshToken.created_at.desc())
+            .limit(1)
+        )
+    assert started_at is not None and refreshed_created_at is not None
+    assert refreshed_created_at <= started_at
+    assert await _refresh(engine, new_session.refresh_token) == "refreshed"

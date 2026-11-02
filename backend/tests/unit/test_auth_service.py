@@ -257,6 +257,25 @@ async def test_sign_in_revokes_every_refresh_token_and_starts_a_new_session(
 
 
 @pytest.mark.anyio
+async def test_sign_in_starts_the_session_at_the_time_it_holds_the_lock(
+    service: AuthService, repository: AsyncMock, clock: Clock
+) -> None:
+    user = make_user()
+    repository.get_user_by_email.return_value = user
+
+    async def wait_for_the_lock(_: uuid.UUID) -> None:
+        clock.advance(timedelta(seconds=3))
+
+    repository.lock_user_refresh_tokens.side_effect = wait_for_the_lock
+
+    await service.sign_in(sign_in_request(), IP)
+
+    locked_at = START + timedelta(seconds=3)
+    repository.revoke_all_refresh_tokens.assert_awaited_once_with(user.id, locked_at)
+    repository.update_session_started_at.assert_awaited_once_with(user, locked_at)
+
+
+@pytest.mark.anyio
 async def test_sign_in_revokes_under_the_token_lock_and_before_issuing(
     service: AuthService, repository: AsyncMock
 ) -> None:

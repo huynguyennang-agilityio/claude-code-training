@@ -8,4 +8,4 @@ Loaded through `backend/CLAUDE.md`, with every `backend/decisions/<area>.md`, wh
 - A `/run-tasks` child session adds its own entries in its issue's last commit, lists them under `## Decisions added` in its PR, and keeps the entries of both branches when it merges `develop`. The parent never edits this file ([plan 037](../../docs/plans/037-decisions-per-area.md)).
 
 ## Entries
-- 2026-11-02 (#252) Sign in revokes every refresh token of the user and moves `users.session_started_at`, under the refresh-token lock it already holds. A test or hurl flow that signs in again must refresh with the latest sign-in's token: earlier ones return `401`.
+- 2026-11-02 (#252) Sign in revokes every refresh token of the user and moves `users.session_started_at` under the refresh-token lock, with the clock read after the lock (a token a waiting refresh issued is older). A test or hurl flow that signs in again must refresh with the latest sign-in's token.

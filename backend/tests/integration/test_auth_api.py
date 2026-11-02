@@ -407,8 +407,8 @@ async def test_sign_in_moves_the_session_start_but_refresh_and_password_change_d
 async def test_a_failed_sign_in_keeps_the_session_start_and_the_tokens(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    tokens = (await sign_up(client))["tokens"]
-    email = SIGNUP["email"].lower()
+    signed_up = await sign_up(client)
+    tokens, email = signed_up["tokens"], signed_up["user"]["email"]
     before = await session_started_at(session, email)
 
     assert_error(await sign_in(client, password="wrong-pass1"), 401, "invalid_credentials")
