@@ -15,7 +15,11 @@ import '../datasources/health_prompt_store.dart';
 ///   twice, when Health Connect stops asking.
 /// - **iOS** never says whether a read was refused. The dialog is shown once;
 ///   after it was shown the app can only treat access as granted, and a refused
-///   read shows as 0 steps. Before it was shown the status is denied.
+///   read shows as 0 steps. Before it was shown the status is denied. That
+///   granted is a guess, so it is not `confirmed`.
+///
+/// It also remembers when the health explainer was last shown, so it comes
+/// back after [explainerInterval].
 @LazySingleton(as: HealthRepository)
 class HealthRepositoryImpl implements HealthRepository {
   HealthRepositoryImpl(
@@ -26,6 +30,9 @@ class HealthRepositoryImpl implements HealthRepository {
 
   /// How many times Health Connect shows its dialog before it stops asking.
   static const androidDialogLimit = 2;
+
+  /// How long the health explainer stays away once shown.
+  static const explainerInterval = Duration(days: 7);
 
   final HealthDataSource _source;
   final HealthPromptStore _prompts;
@@ -42,6 +49,7 @@ class HealthRepositoryImpl implements HealthRepository {
           ? HealthAccess(
               HealthAccessStatus.granted,
               allowed: HealthMetric.values.toSet(),
+              confirmed: false,
             )
           : const HealthAccess.denied();
     }
@@ -63,6 +71,21 @@ class HealthRepositoryImpl implements HealthRepository {
     // that would read as "asked once", so it must not count.
     return shown || access.isGranted ? access : const HealthAccess.denied();
   }
+
+  @override
+  Future<bool> explainerDue() async {
+    final last = await _prompts.explainerShownAt();
+    final now = _clock();
+    // A time in the future means the clock was moved back: due, so it cannot
+    // be stuck.
+    return last == null ||
+        last.isAfter(now) ||
+        now.difference(last) >= explainerInterval;
+  }
+
+  @override
+  Future<void> recordExplainerShown() =>
+      _prompts.recordExplainerShown(_clock());
 
   @override
   Future<void> openSettings() => _source.openSettings();

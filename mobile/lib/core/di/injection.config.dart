@@ -71,6 +71,8 @@ import 'package:stridequest/features/runs/domain/repositories/health_repository.
     as _i203;
 import 'package:stridequest/features/runs/domain/repositories/runs_repository.dart'
     as _i137;
+import 'package:stridequest/features/runs/domain/usecases/get_health_notice.dart'
+    as _i1054;
 import 'package:stridequest/features/runs/domain/usecases/sync_activity.dart'
     as _i1029;
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart'
@@ -205,6 +207,12 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.factory<_i909.ChallengesBloc>(
       () => _i909.ChallengesBloc(gh<_i756.ChallengeRepository>()),
+    );
+    gh.factory<_i1054.GetHealthNotice>(
+      () => _i1054.GetHealthNotice(
+        gh<_i203.HealthRepository>(),
+        gh<_i137.RunsRepository>(),
+      ),
     );
     gh.factory<_i1029.SyncActivity>(
       () => _i1029.SyncActivity(

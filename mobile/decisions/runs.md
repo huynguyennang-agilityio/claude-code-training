@@ -8,3 +8,5 @@ Loaded through `mobile/CLAUDE.md`, with every `mobile/decisions/<area>.md`, when
 - A `/run-tasks` child session adds its own entries in its issue's last commit, lists them under `## Decisions added` in its PR, and keeps the entries of both branches when it merges `develop`. The parent never edits this file ([plan 037](../../docs/plans/037-decisions-per-area.md)).
 
 ## Entries
+
+- **2026-11-02, #262.** `RunsRepository.earliestRunJoin` is the join time; a run challenge counts steps only from `startsAt`. For "how long steps have counted", use `earliestRunCounting` (the later of the two).

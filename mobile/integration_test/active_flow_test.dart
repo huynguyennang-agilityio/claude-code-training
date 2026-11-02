@@ -62,6 +62,12 @@ class _FakeHealth implements HealthRepository {
   }
 
   @override
+  Future<bool> explainerDue() async => false;
+
+  @override
+  Future<void> recordExplainerShown() async {}
+
+  @override
   Future<void> openSettings() async {}
 
   @override

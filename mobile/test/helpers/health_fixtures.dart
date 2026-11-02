@@ -30,6 +30,11 @@ class FakeHealthRepository implements HealthRepository {
   var requests = 0;
   var settingsOpened = 0;
   var installs = 0;
+  bool due = true;
+  var explainerShown = 0;
+  Object? readDaysError;
+  var readDaysCalls = 0;
+  ({Set<HealthMetric> allowed, int days})? lastReadDays;
 
   ActivityReading reading = ActivityReading(
     readAt: DateTime(2026, 10, 19, 21, 55),
@@ -51,7 +56,18 @@ class FakeHealthRepository implements HealthRepository {
   Future<List<DailyFigures>> readDays(
     Set<HealthMetric> allowed, {
     required int days,
-  }) async => this.days;
+  }) async {
+    readDaysCalls++;
+    lastReadDays = (allowed: allowed, days: days);
+    if (readDaysError != null) throw readDaysError!;
+    return this.days;
+  }
+
+  @override
+  Future<bool> explainerDue() async => due;
+
+  @override
+  Future<void> recordExplainerShown() async => explainerShown++;
 
   @override
   Future<List<StepRecord>> readStepRecords({required DateTime from}) async {
@@ -139,12 +155,19 @@ class InMemoryHealthPromptStore implements HealthPromptStore {
   InMemoryHealthPromptStore([this.count = 0]);
 
   int count;
+  DateTime? shownAt;
 
   @override
   Future<int> askedCount() async => count;
 
   @override
   Future<void> recordAsked() async => count++;
+
+  @override
+  Future<DateTime?> explainerShownAt() async => shownAt;
+
+  @override
+  Future<void> recordExplainerShown(DateTime at) async => shownAt = at;
 }
 
 /// Registers the blocs the Active route asks `getIt` for, built on [repository]

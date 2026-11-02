@@ -28,6 +28,14 @@ abstract interface class HealthRepository {
     required int days,
   });
 
+  /// True when the health explainer has never been shown on this device, or was
+  /// last shown at least 7 days ago.
+  Future<bool> explainerDue();
+
+  /// Remembers now as the time the explainer was last shown (per device, kept
+  /// across restarts).
+  Future<void> recordExplainerShown();
+
   /// The step records that ended after [from], without the ones typed by hand.
   Future<List<StepRecord>> readStepRecords({required DateTime from});
 }

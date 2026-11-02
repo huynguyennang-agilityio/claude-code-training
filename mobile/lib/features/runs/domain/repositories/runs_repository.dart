@@ -16,4 +16,9 @@ abstract interface class RunsRepository {
   /// When the earliest active run challenge was joined, or null when there is
   /// none: steps before that time can never count.
   Future<DateTime?> earliestRunJoin();
+
+  /// When steps began to count for the active run challenge that has counted
+  /// longest: the later of its join and its start, which may still be ahead.
+  /// Null when there is none.
+  Future<DateTime?> earliestRunCounting();
 }

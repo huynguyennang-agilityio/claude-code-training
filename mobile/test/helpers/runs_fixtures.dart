@@ -15,10 +15,12 @@ class MockMyChallengesBloc
 /// A [RunsRepository] that answers from memory and records what it was sent.
 class FakeRunsRepository implements RunsRepository {
   DateTime? earliest;
+  DateTime? counting;
   Object? error;
   final syncedRecords = <List<StepRecord>>[];
   final savedDays = <List<DailyFigures>>[];
   var earliestCalls = 0;
+  var countingCalls = 0;
   MyChallengePage page = const MyChallengePage(items: []);
 
   @override
@@ -45,6 +47,13 @@ class FakeRunsRepository implements RunsRepository {
     earliestCalls++;
     if (error != null) throw error!;
     return earliest;
+  }
+
+  @override
+  Future<DateTime?> earliestRunCounting() async {
+    countingCalls++;
+    if (error != null) throw error!;
+    return counting;
   }
 }
 

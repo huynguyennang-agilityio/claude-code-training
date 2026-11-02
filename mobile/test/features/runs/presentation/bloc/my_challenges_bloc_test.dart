@@ -37,6 +37,9 @@ class _Pages implements RunsRepository {
 
   @override
   Future<DateTime?> earliestRunJoin() => throw UnimplementedError();
+
+  @override
+  Future<DateTime?> earliestRunCounting() => throw UnimplementedError();
 }
 
 MyChallengePage _page(List<MyChallenge> items, [String? next]) =>

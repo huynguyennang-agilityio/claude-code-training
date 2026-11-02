@@ -62,7 +62,20 @@ class RunsRepositoryImpl implements RunsRepository {
       (await _remote.myChallenges(cursor: cursor, limit: limit)).toEntity();
 
   @override
-  Future<DateTime?> earliestRunJoin() async {
+  Future<DateTime?> earliestRunJoin() =>
+      _earliestActiveRun((challenge, joined) => joined);
+
+  @override
+  Future<DateTime?> earliestRunCounting() => _earliestActiveRun(
+    (challenge, joined) =>
+        joined.isAfter(challenge.startsAt) ? joined : challenge.startsAt,
+  );
+
+  /// The earliest [at] among the caller's active run challenges, over every
+  /// page, or null when there is none.
+  Future<DateTime?> _earliestActiveRun(
+    DateTime Function(ChallengeSummary challenge, DateTime joined) at,
+  ) async {
     DateTime? earliest;
     String? cursor;
     do {
@@ -74,8 +87,8 @@ class RunsRepositoryImpl implements RunsRepository {
             enrollment?.status != EnrollmentStatus.active) {
           continue;
         }
-        final joined = enrollment!.joinedAt;
-        if (earliest == null || joined.isBefore(earliest)) earliest = joined;
+        final time = at(challenge, enrollment!.joinedAt);
+        if (earliest == null || time.isBefore(earliest)) earliest = time;
       }
       cursor = page.nextCursor;
     } while (cursor != null);
