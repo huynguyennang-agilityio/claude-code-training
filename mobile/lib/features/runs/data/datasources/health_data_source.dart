@@ -38,7 +38,8 @@ abstract interface class HealthDataSource {
 
   /// The steps between exactly [from] and [to], by the rules of [stepHours]:
   /// no manual entries, no double counting. Two days that meet at a moment add
-  /// up to the whole, even when that moment is inside a UTC hour.
+  /// up to the whole, even when that moment is inside a UTC hour: each hour
+  /// takes the same source on both sides.
   Future<int> stepTotal(DateTime from, DateTime to);
 
   /// The step records between [from] and [to], without the ones typed by hand.
@@ -152,7 +153,7 @@ class PluginHealthDataSource implements HealthDataSource {
       return hours;
     }
     return stepHoursFromSlices(
-      await _androidSlices(start, to),
+      await _androidSlices(start, _hourCeil(to)),
       from: start,
       to: to,
     );
@@ -165,7 +166,7 @@ class PluginHealthDataSource implements HealthDataSource {
       return buckets.fold<int>(0, (sum, bucket) => sum + bucket.steps);
     }
     final hours = stepHoursFromSlices(
-      await _androidSlices(from, to),
+      await _androidSlices(_hourFloor(from), _hourCeil(to)),
       from: from,
       to: to,
     );
@@ -250,14 +251,21 @@ DateTime _hourFloor(DateTime moment) {
   return DateTime.utc(utc.year, utc.month, utc.day, utc.hour);
 }
 
+DateTime _hourCeil(DateTime moment) {
+  final floor = _hourFloor(moment);
+  return floor.isBefore(moment) ? floor.add(const Duration(hours: 1)) : floor;
+}
+
 /// A step record reduced to what the hourly sum needs.
 typedef StepSlice = ({String source, DateTime from, DateTime to, double steps});
 
 /// Sums [slices] per UTC hour and source, then takes the largest source of each
-/// hour, so two sources that saw the same walking count once. A record is
-/// clipped to exactly `[from, to)` and split by time overlap, so the bounds
-/// need not sit on an hour; rounding happens once per hour. The result is
-/// ordered and holds the hours with steps.
+/// hour, so two sources that saw the same walking count once. The largest
+/// source is chosen on the whole hour, then only its steps inside exactly
+/// `[from, to)` count: two ranges that meet inside an hour use the same source
+/// on both sides, so they add up to the whole. A record is split by time
+/// overlap and rounding happens once per hour. Give it the records of every
+/// hour the bounds touch. The result is ordered and holds the hours with steps.
 List<StepHour> stepHoursFromSlices(
   Iterable<StepSlice> slices, {
   required DateTime from,
@@ -266,36 +274,56 @@ List<StepHour> stepHoursFromSlices(
   const hourMs = Duration.millisecondsPerHour;
   final lo = from.toUtc().millisecondsSinceEpoch;
   final hi = to.toUtc().millisecondsSinceEpoch;
-  final sums = <int, Map<String, double>>{};
+  // Per hour and source: the steps of the whole hour, and those inside.
+  final sums = <int, Map<String, ({double whole, double inside})>>{};
 
-  void add(int hour, String source, double steps) {
+  void add(int hour, String source, double whole, double inside) {
     final bySource = sums.putIfAbsent(hour, () => {});
-    bySource[source] = (bySource[source] ?? 0) + steps;
+    final sum = bySource[source] ?? (whole: 0.0, inside: 0.0);
+    bySource[source] = (whole: sum.whole + whole, inside: sum.inside + inside);
+  }
+
+  int overlap(int start, int stop, int lower, int upper) {
+    final a = start > lower ? start : lower;
+    final b = stop < upper ? stop : upper;
+    return b > a ? b - a : 0;
   }
 
   for (final slice in slices) {
     final start = slice.from.toUtc().millisecondsSinceEpoch;
     final stop = slice.to.toUtc().millisecondsSinceEpoch;
     if (stop <= start) {
-      if (start >= lo && start < hi) {
-        add(start - start % hourMs, slice.source, slice.steps);
-      }
+      final inside = start >= lo && start < hi ? slice.steps : 0.0;
+      add(start - start % hourMs, slice.source, slice.steps, inside);
       continue;
     }
     final total = stop - start;
-    final first = start > lo ? start : lo;
-    final last = stop < hi ? stop : hi;
-    for (var hour = first - first % hourMs; hour < last; hour += hourMs) {
-      final overlap =
-          (last < hour + hourMs ? last : hour + hourMs) -
-          (first > hour ? first : hour);
-      add(hour, slice.source, slice.steps * overlap / total);
+    for (var hour = start - start % hourMs; hour < stop; hour += hourMs) {
+      final end = hour + hourMs;
+      final whole = overlap(start, stop, hour, end);
+      final inside = overlap(
+        start,
+        stop,
+        hour > lo ? hour : lo,
+        end < hi ? end : hi,
+      );
+      add(
+        hour,
+        slice.source,
+        slice.steps * whole / total,
+        slice.steps * inside / total,
+      );
     }
   }
 
   final hours = <StepHour>[];
   for (final MapEntry(key: hour, value: bySource) in sums.entries) {
-    final steps = bySource.values.reduce((a, b) => a > b ? a : b).round();
+    final best = bySource.values.reduce(
+      (a, b) => b.whole > a.whole || (b.whole == a.whole && b.inside > a.inside)
+          ? b
+          : a,
+    );
+    final steps = best.inside.round();
     if (steps > 0) {
       hours.add(
         StepHour(

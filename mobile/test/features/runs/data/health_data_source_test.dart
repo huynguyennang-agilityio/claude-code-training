@@ -204,6 +204,40 @@ void main() {
       expect(hours, [_hour(19, 8, 50), _hour(19, 9, 50)]);
     });
 
+    test('a split hour takes the same source on both sides', () async {
+      // Source a walks before 18:30Z and source b after it: the whole hour
+      // has 60 from either, so the two days must add up to 60, not 120.
+      final slices = <StepSlice>[
+        (
+          source: 'a',
+          from: DateTime.utc(2026, 10, 19, 18),
+          to: DateTime.utc(2026, 10, 19, 18, 30),
+          steps: 60,
+        ),
+        (
+          source: 'b',
+          from: DateTime.utc(2026, 10, 19, 18, 30),
+          to: DateTime.utc(2026, 10, 19, 19),
+          steps: 50,
+        ),
+      ];
+      final middle = DateTime.utc(2026, 10, 19, 18, 30);
+
+      final first = stepHoursFromSlices(
+        slices,
+        from: DateTime.utc(2026, 10, 18, 18, 30),
+        to: middle,
+      );
+      final second = stepHoursFromSlices(
+        slices,
+        from: middle,
+        to: DateTime.utc(2026, 10, 20, 18, 30),
+      );
+
+      expect(first, [_hour(19, 18, 60)]);
+      expect(second, isEmpty);
+    });
+
     test('adjacent days with half-hour bounds count no hour twice', () async {
       final slices = <StepSlice>[
         (
@@ -355,7 +389,7 @@ void main() {
       expect(total, 120);
     });
 
-    test('stepTotal reads from the exact bounds', () async {
+    test('stepTotal reads the whole hours its bounds touch', () async {
       stubAndroid([]);
 
       await android().stepTotal(
@@ -366,8 +400,8 @@ void main() {
       verify(
         () => health.getHealthDataFromTypes(
           types: [HealthDataType.STEPS],
-          startTime: DateTime.utc(2026, 10, 19, 8, 30),
-          endTime: DateTime.utc(2026, 10, 20, 8, 30),
+          startTime: DateTime.utc(2026, 10, 19, 8),
+          endTime: DateTime.utc(2026, 10, 20, 9),
           recordingMethodsToFilter: [RecordingMethod.manual],
         ),
       ).called(1);

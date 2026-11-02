@@ -109,7 +109,7 @@ class HealthRepositoryImpl implements HealthRepository {
 
       Future<int?> steps() async {
         if (!allowed.contains(HealthMetric.steps)) return null;
-        return _sumSteps(midnight, now);
+        return _source.stepTotal(midnight, now);
       }
 
       return ActivityReading(
@@ -140,7 +140,7 @@ class HealthRepositoryImpl implements HealthRepository {
         final end = next.isAfter(now) ? now : next;
         Future<int?> figure(HealthMetric metric) async {
           if (!allowed.contains(metric)) return null;
-          if (metric == HealthMetric.steps) return _sumSteps(day, end);
+          if (metric == HealthMetric.steps) return _source.stepTotal(day, end);
           final from = metric == HealthMetric.sleep
               ? day.subtract(_sleepLead)
               : day;
@@ -183,12 +183,6 @@ class HealthRepositoryImpl implements HealthRepository {
       throw const HealthFailure();
     }
   }
-
-  /// Steps use the hourly rules over the exact bounds, so a day agrees with its
-  /// hours, manual entries are left out the same way, and two adjacent days
-  /// never count the same hour twice.
-  Future<int> _sumSteps(DateTime from, DateTime to) =>
-      _source.stepTotal(from, to);
 
   /// A night is counted from 18:00 the evening before.
   static const _sleepLead = Duration(hours: 6);
