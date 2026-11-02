@@ -10,4 +10,4 @@ Loaded through `mobile/CLAUDE.md`, with every `mobile/decisions/<area>.md`, when
 ## Entries
 
 - **2026-11-02, #260.** The reason a session ends (`SessionEndReason`) stays in `AuthRepositoryImpl`: `refreshTokens()` records it on a rejected refresh and `expireSession()` reads and resets it, so `core/network` (`AuthTokenHandler`, the interceptor) imports no feature types.
-- **2026-11-03, #261.** The app has no refresh timer: a replaced or expired session ends only when a protected request gets a `401` after the access token expires. To see it on a device, run the backend with `ACCESS_TOKEN_TTL_MINUTES=1`, wait a minute, then make a request.
+- **2026-11-03, #261.** The app has no refresh timer: a replaced or expired session ends only when a protected request gets a `401` after the access token expires. `ACCESS_TOKEN_TTL_MINUTES=1` on the backend shortens that wait.
