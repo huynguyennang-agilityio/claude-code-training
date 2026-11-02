@@ -10,3 +10,4 @@ Loaded through `backend/CLAUDE.md`, with every `backend/decisions/<area>.md`, wh
 ## Entries
 
 - **2026-11-02, #252.** Sign in revokes every refresh token of the user and moves `users.session_started_at` under the refresh-token lock, with the clock read after the lock (a token a waiting refresh issued is older). A test or hurl flow that signs in again must refresh with the latest sign-in's token.
+- **2026-11-02, #271.** `refresh` reads the revoked token with `session_started_at` in a statement after `lock_refresh_token_owner`, never in the lock query: under READ COMMITTED that query's snapshot predates its lock wait, so it would miss the sign-in it waited for and answer `invalid_refresh_token` instead of `session_replaced`.
