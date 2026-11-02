@@ -26,9 +26,15 @@ abstract interface class HealthDataSource {
 
   Future<void> openSettings();
 
-  /// The total of [metric] between [from] and [to]: steps, kilocalories, metres,
-  /// or minutes asleep. 0 when there is no data. Throws on a read error.
+  /// The total of [metric] between [from] and [to]: kilocalories, metres or
+  /// minutes asleep. Steps come from [stepHours] instead. 0 when there is no
+  /// data. Throws on a read error.
   Future<int> total(HealthMetric metric, DateTime from, DateTime to);
+
+  /// The steps of each UTC hour between [from] (floored to its hour) and [to],
+  /// ordered, without manual entries and without double counting: an hour with
+  /// steps only.
+  Future<List<StepHour>> stepHours(DateTime from, DateTime to);
 
   /// The step records between [from] and [to], without the ones typed by hand.
   Future<List<StepRecord>> stepRecords(DateTime from, DateTime to);
@@ -40,19 +46,22 @@ class PluginHealthDataSource implements HealthDataSource {
   PluginHealthDataSource({
     @ignoreParam Health? health,
     @ignoreParam MethodChannel? settings,
+    @ignoreParam bool? ios,
   }) : _health = health ?? Health(),
+       _ios = ios ?? Platform.isIOS,
        _settings = settings ?? const MethodChannel(_settingsChannel);
 
   static const _settingsChannel = 'stridequest/settings';
 
   final Health _health;
   final MethodChannel _settings;
+  final bool _ios;
 
   HealthDataType _type(HealthMetric metric) => switch (metric) {
     HealthMetric.steps => HealthDataType.STEPS,
     HealthMetric.calories => HealthDataType.ACTIVE_ENERGY_BURNED,
     HealthMetric.distance =>
-      Platform.isIOS
+      _ios
           ? HealthDataType.DISTANCE_WALKING_RUNNING
           : HealthDataType.DISTANCE_DELTA,
     HealthMetric.sleep => HealthDataType.SLEEP_ASLEEP,
@@ -105,9 +114,6 @@ class PluginHealthDataSource implements HealthDataSource {
 
   @override
   Future<int> total(HealthMetric metric, DateTime from, DateTime to) async {
-    if (metric == HealthMetric.steps) {
-      return await _health.getTotalStepsInInterval(from, to) ?? 0;
-    }
     final points = await _points(metric, from, to);
     if (metric == HealthMetric.sleep) {
       return points.fold<int>(
@@ -120,6 +126,52 @@ class PluginHealthDataSource implements HealthDataSource {
       return total + (value is NumericHealthValue ? value.numericValue : 0);
     });
     return sum.round();
+  }
+
+  @override
+  Future<List<StepHour>> stepHours(DateTime from, DateTime to) async {
+    final start = _hourFloor(from);
+    if (_ios) {
+      // One statistics query with HealthKit's own merged total (sources by
+      // priority), in hourly buckets anchored at the hour-aligned start. The
+      // plugin's removeDuplicates compares dates too, so two hours with equal
+      // values stay apart.
+      final buckets = await _health.getHealthIntervalDataFromTypes(
+        startDate: start,
+        endDate: to,
+        types: [HealthDataType.STEPS],
+        interval: Duration.secondsPerHour,
+        recordingMethodsToFilter: [RecordingMethod.manual],
+      );
+      final hours = <StepHour>[];
+      for (final bucket in buckets) {
+        final value = bucket.value;
+        if (value is! NumericHealthValue) continue;
+        final steps = value.numericValue.round();
+        if (steps > 0) {
+          hours.add(
+            StepHour(hourStart: _hourFloor(bucket.dateFrom), steps: steps),
+          );
+        }
+      }
+      hours.sort((a, b) => a.hourStart.compareTo(b.hourStart));
+      return hours;
+    }
+    final points = await _points(HealthMetric.steps, start, to, manual: false);
+    return stepHoursFromSlices(
+      [
+        for (final point in points)
+          if (point.value case NumericHealthValue(:final numericValue))
+            (
+              source: point.sourceId,
+              from: point.dateFrom,
+              to: point.dateTo,
+              steps: numericValue.toDouble(),
+            ),
+      ],
+      from: start,
+      to: to,
+    );
   }
 
   @override
@@ -153,4 +205,60 @@ class PluginHealthDataSource implements HealthDataSource {
     );
     return _health.removeDuplicates(points);
   }
+}
+
+DateTime _hourFloor(DateTime moment) {
+  final utc = moment.toUtc();
+  return DateTime.utc(utc.year, utc.month, utc.day, utc.hour);
+}
+
+/// A step record reduced to what the hourly sum needs.
+typedef StepSlice = ({String source, DateTime from, DateTime to, double steps});
+
+/// Sums [slices] per UTC hour and source, then takes the largest source of each
+/// hour, so two sources that saw the same walking count once. A record that
+/// crosses an hour is split by time overlap; rounding happens once per hour.
+/// Only hours in `[floor(from), to)` are kept, ordered, and those with steps.
+List<StepHour> stepHoursFromSlices(
+  Iterable<StepSlice> slices, {
+  required DateTime from,
+  required DateTime to,
+}) {
+  const hourMs = Duration.millisecondsPerHour;
+  final first = _hourFloor(from).millisecondsSinceEpoch;
+  final end = to.toUtc().millisecondsSinceEpoch;
+  final sums = <int, Map<String, double>>{};
+
+  void add(int hour, String source, double steps) {
+    if (hour < first || hour >= end) return;
+    final bySource = sums.putIfAbsent(hour, () => {});
+    bySource[source] = (bySource[source] ?? 0) + steps;
+  }
+
+  for (final slice in slices) {
+    final start = slice.from.toUtc().millisecondsSinceEpoch;
+    final stop = slice.to.toUtc().millisecondsSinceEpoch;
+    if (stop <= start) {
+      add(start - start % hourMs, slice.source, slice.steps);
+      continue;
+    }
+    final total = stop - start;
+    for (var hour = start - start % hourMs; hour < stop; hour += hourMs) {
+      final overlap =
+          (stop < hour + hourMs ? stop : hour + hourMs) -
+          (start > hour ? start : hour);
+      add(hour, slice.source, slice.steps * overlap / total);
+    }
+  }
+
+  final hours = <StepHour>[
+    for (final MapEntry(key: hour, value: bySource) in sums.entries)
+      if (bySource.values.reduce((a, b) => a > b ? a : b).round() > 0)
+        StepHour(
+          hourStart: DateTime.fromMillisecondsSinceEpoch(hour, isUtc: true),
+          steps: bySource.values.reduce((a, b) => a > b ? a : b).round(),
+        ),
+  ];
+  hours.sort((a, b) => a.hourStart.compareTo(b.hourStart));
+  return hours;
 }

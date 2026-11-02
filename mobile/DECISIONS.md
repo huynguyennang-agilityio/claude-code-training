@@ -23,3 +23,4 @@ Loaded through `mobile/CLAUDE.md`, with every `mobile/decisions/<area>.md`, when
 - **2026-10-29, #190.** A test that builds a real `AuthBloc` over a mocktail `AuthRepository` stubs every repository stream, `accountDeleted` included, or the `AuthBloc` constructor throws.
 - **2026-10-29, #191.** `colorScheme.onError` is dark, not white: white on the error red is 3.8:1 and fails `expectAccessible`. Use `onError` for text on an error-filled button.
 - **2026-10-29, #192.** The simulator panel's typing drops characters sent before a Flutter text field has focus: tap the field, wait about 2 seconds, then type.
+- **2026-11-02, #256.** `flutter test integration_test/...` cannot start on a wirelessly paired iPhone; run the file with `flutter run -t integration_test/<file> -d <id>` and read its `print` lines.

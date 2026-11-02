@@ -107,9 +107,14 @@ class HealthRepositoryImpl implements HealthRepository {
         return _source.total(metric, from, now);
       }
 
+      Future<int?> steps() async {
+        if (!allowed.contains(HealthMetric.steps)) return null;
+        return _sumSteps(midnight, now);
+      }
+
       return ActivityReading(
         readAt: now,
-        steps: await figure(HealthMetric.steps),
+        steps: await steps(),
         calories: await figure(HealthMetric.calories),
         distanceM: await figure(HealthMetric.distance),
         sleepMinutes: await figure(HealthMetric.sleep),
@@ -135,6 +140,7 @@ class HealthRepositoryImpl implements HealthRepository {
         final end = next.isAfter(now) ? now : next;
         Future<int?> figure(HealthMetric metric) async {
           if (!allowed.contains(metric)) return null;
+          if (metric == HealthMetric.steps) return _sumSteps(day, end);
           final from = metric == HealthMetric.sleep
               ? day.subtract(_sleepLead)
               : day;
@@ -164,6 +170,25 @@ class HealthRepositoryImpl implements HealthRepository {
     } on Exception {
       throw const HealthFailure();
     }
+  }
+
+  @override
+  Future<List<StepHour>> readStepHours({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    try {
+      return await _source.stepHours(from, to);
+    } on Exception {
+      throw const HealthFailure();
+    }
+  }
+
+  /// Steps are the sum of the hourly read, so a day and its hours always agree
+  /// and manual entries are left out the same way.
+  Future<int> _sumSteps(DateTime from, DateTime to) async {
+    final hours = await _source.stepHours(from, to);
+    return hours.fold<int>(0, (sum, hour) => sum + hour.steps);
   }
 
   /// A night is counted from 18:00 the evening before.
