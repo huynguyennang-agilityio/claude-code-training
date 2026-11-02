@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -370,6 +371,21 @@ void main() {
       final failure = await _failureOf(repository.refresh('revoked'));
 
       expect(failure.code, AuthFailureCode.invalidRefreshToken);
+    });
+
+    test('maps the session_replaced contract example', () async {
+      final example =
+          jsonDecode(
+                File(
+                  '../docs/api/examples/auth/error_session_replaced.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final repository = _repository((_) async => jsonBody(example, 401));
+
+      final failure = await _failureOf(repository.refresh('replaced'));
+
+      expect(failure.code, AuthFailureCode.sessionReplaced);
     });
 
     test('maps 422 validation_error', () async {
