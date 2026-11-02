@@ -88,6 +88,15 @@ const stepSyncResultFixture = <String, dynamic>{
   ],
 };
 
+/// `step_hours_request.json`
+const stepHoursRequestFixture = <String, dynamic>{
+  'hours': [
+    {'hour_start': '2026-11-02T06:00:00Z', 'steps': 4120},
+    {'hour_start': '2026-11-02T07:00:00Z', 'steps': 980},
+    {'hour_start': '2026-11-02T08:00:00Z', 'steps': 18250},
+  ],
+};
+
 /// `step_hours_result.json`
 const stepHoursResultFixture = <String, dynamic>{
   'accepted': 2,

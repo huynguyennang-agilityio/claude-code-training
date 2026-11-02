@@ -12,27 +12,37 @@ class SyncStateRepositoryImpl implements SyncStateRepository {
   final AuthLocalDataSource _session;
   final SyncWatermarkStore _store;
 
-  Future<String?> _userId() async => (await _session.readSession())?.user.id;
+  @override
+  Future<SyncState> load(DateTime now) async {
+    final id = (await _session.readSession())?.user.id;
+    if (id == null) return _UserSyncState(_store, null, null, now);
+    final stored = await _store.firstSyncAt(id);
+    if (stored == null) await _store.saveFirstSyncAt(id, now);
+    return _UserSyncState(
+      _store,
+      id,
+      await _store.watermark(id),
+      stored ?? now,
+    );
+  }
+}
+
+/// The state of the user [_userId], fixed when it was loaded.
+class _UserSyncState implements SyncState {
+  _UserSyncState(this._store, this._userId, this.watermark, this.firstSyncAt);
+
+  final SyncWatermarkStore _store;
+  final String? _userId;
 
   @override
-  Future<DateTime?> watermark() async {
-    final id = await _userId();
-    return id == null ? null : _store.watermark(id);
-  }
+  final DateTime? watermark;
+
+  @override
+  final DateTime firstSyncAt;
 
   @override
   Future<void> saveWatermark(DateTime at) async {
-    final id = await _userId();
+    final id = _userId;
     if (id != null) await _store.saveWatermark(id, at);
-  }
-
-  @override
-  Future<DateTime> firstSyncAt(DateTime now) async {
-    final id = await _userId();
-    if (id == null) return now;
-    final stored = await _store.firstSyncAt(id);
-    if (stored != null) return stored;
-    await _store.saveFirstSyncAt(id, now);
-    return now;
   }
 }

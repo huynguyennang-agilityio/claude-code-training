@@ -13,7 +13,8 @@ abstract interface class RunsRepository {
   /// list.
   Future<StepSyncResult> syncStepHours(List<StepHour> hours);
 
-  /// Stores the figures of up to 7 days; a day replaces the one stored.
+  /// Stores the figures of the days; a day replaces the one stored. Sent in
+  /// requests of at most 7 days, and no request for an empty list.
   Future<void> saveDailyActivity(List<DailyFigures> days);
 
   /// The challenges the caller is in (active or paused), with progress.

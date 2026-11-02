@@ -123,6 +123,10 @@ void main() {
       expect(stepSyncResultFixture, _example('step_sync_result'));
     });
 
+    test('step_hours_request.json', () {
+      expect(stepHoursRequestFixture, _example('step_hours_request'));
+    });
+
     test('step_hours_result.json', () {
       expect(stepHoursResultFixture, _example('step_hours_result'));
     });

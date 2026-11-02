@@ -148,6 +148,29 @@ void main() {
       expect(runs.syncedHours, isEmpty);
       expect(runs.savedDays, hasLength(1));
     });
+
+    test('without steps allowed the watermark does not move', () async {
+      final watermark = _now.subtract(const Duration(days: 40));
+      state.stored = watermark;
+
+      final result = await run({HealthMetric.calories});
+
+      expect(result.failure, isNull);
+      expect(state.stored, watermark);
+    });
+
+    test('turning steps on later catches up 30 days', () async {
+      await run({HealthMetric.calories});
+      expect(state.stored, isNull);
+
+      await run();
+
+      expect(health.hoursRead, (
+        from: _now.subtract(const Duration(days: 30)),
+        to: _now,
+      ));
+      expect(state.stored, _now);
+    });
   });
 
   group('daily figures', () {
@@ -165,14 +188,13 @@ void main() {
       },
     );
 
-    test('with no watermark cover 30 days, in requests of 7 days', () async {
+    test('with no watermark cover 30 days, in one call', () async {
       health.days = _days(31);
 
       await run();
 
       expect(health.lastReadDays?.days, 31);
-      expect(runs.savedDays.map((d) => d.length), [7, 7, 7, 7, 3]);
-      expect([for (final d in runs.savedDays) ...d], health.days);
+      expect(runs.savedDays.single, health.days);
     });
 
     test('do not start before the first sync', () async {
@@ -201,14 +223,14 @@ void main() {
       health.days = _days(10);
       runs
         ..error = _network
-        ..failDaysCall = 2;
+        ..failDaysCall = 1;
 
       final result = await run();
 
       expect(result.reading, health.reading);
       expect(result.failure, _network);
       expect(runs.syncedHours, hasLength(1));
-      expect(runs.savedDays, hasLength(1));
+      expect(runs.savedDays, isEmpty);
       expect(state.stored, watermark);
     });
 

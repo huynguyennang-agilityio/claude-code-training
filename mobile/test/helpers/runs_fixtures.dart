@@ -78,19 +78,28 @@ class FakeRunsRepository implements RunsRepository {
 class FakeSyncStateRepository implements SyncStateRepository {
   DateTime? stored;
   DateTime? first;
-  var firstCalls = 0;
+  var loads = 0;
 
   @override
-  Future<DateTime?> watermark() async => stored;
-
-  @override
-  Future<void> saveWatermark(DateTime at) async => stored = at;
-
-  @override
-  Future<DateTime> firstSyncAt(DateTime now) async {
-    firstCalls++;
-    return first ??= now;
+  Future<SyncState> load(DateTime now) async {
+    loads++;
+    return _FakeSyncState(this, stored, first ??= now);
   }
+}
+
+class _FakeSyncState implements SyncState {
+  _FakeSyncState(this._repository, this.watermark, this.firstSyncAt);
+
+  final FakeSyncStateRepository _repository;
+
+  @override
+  final DateTime? watermark;
+
+  @override
+  final DateTime firstSyncAt;
+
+  @override
+  Future<void> saveWatermark(DateTime at) async => _repository.stored = at;
 }
 
 /// A challenge the caller is in, with progress. By default a run challenge that

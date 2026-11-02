@@ -3,10 +3,12 @@ import 'package:stridequest/features/runs/data/datasources/runs_remote_data_sour
 import 'package:stridequest/features/runs/data/models/runs_models.dart';
 import 'package:stridequest/features/runs/data/repositories/runs_repository_impl.dart';
 import 'package:stridequest/features/runs/domain/entities/activity.dart';
+import 'package:stridequest/features/runs/domain/failures/runs_failure.dart';
 
 class _FakeRemote implements RunsRemoteDataSource {
   final stepRequests = <List<Map<String, Object>>>[];
   final dayRequests = <List<Map<String, Object>>>[];
+  int? failDayRequest;
   final pages = <MyChallengePageModel>[];
   final cursors = <String?>[];
 
@@ -29,8 +31,12 @@ class _FakeRemote implements RunsRemoteDataSource {
   }
 
   @override
-  Future<void> saveDailyActivity(List<Map<String, Object>> days) async =>
-      dayRequests.add(days);
+  Future<void> saveDailyActivity(List<Map<String, Object>> days) async {
+    if (failDayRequest == dayRequests.length + 1) {
+      throw const RunsFailure(RunsFailureCode.network);
+    }
+    dayRequests.add(days);
+  }
 
   @override
   Future<MyChallengePageModel> myChallenges({
@@ -166,6 +172,34 @@ void main() {
       ]);
 
       expect(remote.dayRequests.map((r) => r.length), [7, 2]);
+    });
+
+    test('31 days go out in requests of 7, 7, 7, 7 and 3', () async {
+      await repository.saveDailyActivity([
+        for (var i = 0; i < 31; i++)
+          DailyFigures(date: DateTime(2026, 10, 1 + i)),
+      ]);
+
+      expect(remote.dayRequests.map((r) => r.length), [7, 7, 7, 7, 3]);
+    });
+
+    test('a failing later request throws', () async {
+      remote.failDayRequest = 2;
+
+      await expectLater(
+        repository.saveDailyActivity([
+          for (var i = 1; i <= 9; i++)
+            DailyFigures(date: DateTime(2026, 11, i)),
+        ]),
+        throwsA(isA<RunsFailure>()),
+      );
+      expect(remote.dayRequests, hasLength(1));
+    });
+
+    test('no days means no request', () async {
+      await repository.saveDailyActivity(const []);
+
+      expect(remote.dayRequests, isEmpty);
     });
   });
 

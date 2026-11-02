@@ -101,27 +101,36 @@ void main() {
     });
 
     test('keeps the watermark of the signed-in user', () async {
-      await repository.saveWatermark(t0);
+      await (await repository.load(t0)).saveWatermark(t0);
 
-      expect(values.keys, ['sync.watermark.u1']);
-      expect((await repository.watermark())?.toUtc(), t0);
+      expect(values.keys, contains('sync.watermark.u1'));
+      expect((await repository.load(t0)).watermark?.toUtc(), t0);
     });
 
     test('stores the first sync once and returns it afterwards', () async {
-      expect((await repository.firstSyncAt(t0)).toUtc(), t0);
-      expect(
-        (await repository.firstSyncAt(t0.add(const Duration(days: 1)))).toUtc(),
-        t0,
-      );
+      expect((await repository.load(t0)).firstSyncAt.toUtc(), t0);
+      final later = t0.add(const Duration(days: 1));
+      expect((await repository.load(later)).firstSyncAt.toUtc(), t0);
+    });
+
+    test('a user change after load does not write to the new user', () async {
+      final state = await repository.load(t0);
+      when(session.readSession).thenAnswer((_) async => _session('u2'));
+
+      await state.saveWatermark(t0);
+
+      expect(values.keys, ['sync.first_sync_at.u1', 'sync.watermark.u1']);
+      expect(await store.watermark('u2'), isNull);
     });
 
     test('with no signed-in user nothing is stored', () async {
       when(session.readSession).thenAnswer((_) async => null);
 
-      await repository.saveWatermark(t0);
+      final state = await repository.load(t0);
+      await state.saveWatermark(t0);
 
-      expect(await repository.watermark(), isNull);
-      expect(await repository.firstSyncAt(t0), t0);
+      expect(state.watermark, isNull);
+      expect(state.firstSyncAt, t0);
       expect(values, isEmpty);
     });
   });
