@@ -15,7 +15,7 @@ Errors use the `ErrorResponse` of [`auth.md`](auth.md), and the codes of that fi
 | `GET` | `/api/v1/runs` | access token | The challenges the caller is in, with progress |
 | `PUT` | `/api/v1/runs/daily-activity` | access token | Sync the daily health figures (steps, calories, distance, sleep) |
 
-A caller without a token gets `401 not_authenticated`. Every route reads and changes only the caller's own enrollments; another user's are never visible.
+A caller without a token gets `401 not_authenticated`. Every route reads and changes only the caller's own data; another user's is never visible.
 
 ## Sync step samples
 
@@ -35,7 +35,7 @@ A sample counts for an enrollment when **all** of these hold:
 - `start_time` is not before the challenge's `starts_at`, nor before the enrollment's counting time (the moment of joining or of the last resume), so steps taken while paused never count;
 - `end_time` is not after the challenge's `ends_at`, nor after the server's now plus 5 minutes, so a device with a wrong clock cannot count the future;
 - the same `health_record_id` was not counted before for that enrollment. A sample sent twice counts once;
-- `start_time` is before the enrollment's `hours_from`, the moment from which the enrollment counts [hourly steps](#sync-the-steps-of-each-hour) instead. Every active and paused enrollment has one: every join, a rejoin too, sets it to the join time, and the migration set it for the enrollments that were active or paused then. A sample starting at or after it is ignored, so older app versions that still send samples never count an hour twice.
+- `start_time` is before the enrollment's `hours_from`, the moment from which the enrollment counts [hourly steps](#sync-the-steps-of-each-hour) instead. Every active and paused enrollment has one: every join, a rejoin too, sets it to the join time, and the migration set it to the next whole hour for the enrollments that were active or paused then. A sample starting at or after it is ignored, so a sample that starts in an hour the enrollment counts by the hour is never counted again.
 
 A sample that fails a rule is **ignored**, not an error: the request still answers `200`.
 
@@ -95,15 +95,13 @@ The answer lists `accepted` (samples counted) and `ignored`, and the progress of
 
 `PUT /api/v1/runs/step-hours` counts the total steps of each hour toward the caller's **active run challenges**. The app reads each total from Apple Health or Health Connect, which have already merged the phone's and the watch's records, so two sources of the same steps never count twice. It replaces [step sync](#sync-step-samples) from the enrollment's `hours_from` on ([plan 030](../plans/030-health-sync-single-session.md)).
 
-A request has 1 to 744 hours (31 days). The app sends a longer catch-up in several requests.
-
 | Field | Rule |
 | --- | --- |
-| `hours` | 1 to 744 hours. Each `hour_start` appears once in a request, compared in UTC: `06:00:00Z` and `13:00:00+07:00` are the same hour. |
+| `hours` | 1 to 744 hours (31 days); the app sends a longer catch-up in several requests. Each `hour_start` appears once in a request, compared in UTC: `06:00:00Z` and `13:00:00+07:00` are the same hour. |
 | `hour_start` | ISO 8601 with a timezone (a number is refused), on the start of a UTC hour: minutes, seconds and fractions are zero once converted to UTC. The hour covers `[hour_start, hour_start + 1h)`. |
 | `steps` | A whole number from 0 to 2,147,483,647: all the steps of that hour. A value above 15,000 is ignored by the rules below, not refused, so one implausible hour never fails the other hours of the request. |
 
-The server **upserts** each hour per enrollment: a new hour is stored, and an hour sent again replaces the stored value, higher or lower. The enrollment's progress changes by the new value minus the old one, so the call can be repeated and an hour sent twice counts once. An hour that passes the rules is `accepted` even when it repeats the stored value. An ignored hour leaves a value already stored for it unchanged.
+The server **upserts** each hour per enrollment: a new hour is stored, and an hour sent again replaces the stored value, higher or lower. The enrollment's progress changes by the new value minus the old one, so the call can be repeated and an hour sent twice counts once. An hour that passes the rules is `accepted` even when it repeats the stored value. An ignored hour leaves a value already stored for it unchanged: an hour stored before a pause keeps its value, since after the resume it is before the counting time.
 
 An hour counts for an enrollment when **all** of these hold:
 
@@ -316,4 +314,4 @@ The answer is `200` with the stored days, oldest first, each with `updated_at`. 
 | HTTP | `code` | When |
 | --- | --- | --- |
 | 422 | `invalid_cursor` | The `cursor` of the list is not one the server gave. |
-| 422 | `validation_error` | The body or the query breaks a field rule, a day is in the future, or an `hour_start` is not the start of a UTC hour. `fields` names each problem. |
+| 422 | `validation_error` | The body or the query breaks a field rule, a day is in the future, or an hourly sync has an `hour_start` that is not the start of a UTC hour, the same hour twice, or not 1 to 744 hours. `fields` names each problem. |
