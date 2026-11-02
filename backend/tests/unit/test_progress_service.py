@@ -28,6 +28,9 @@ from app.modules.runs.service import RunService
 NOW = datetime(2026, 11, 10, 12, 0, tzinfo=UTC)
 USER = uuid.UUID("00000000-0000-0000-0000-000000000001")
 HOUR = timedelta(hours=1)
+# Step samples count only before `hours_from`, so by default it is past every sample the tests
+# send, and each step-sync test fails only on the rule it names. Hour tests set it themselves.
+SAMPLES_OPEN = NOW + HOUR
 
 
 def make_run(**changes: Any) -> Run:
@@ -51,7 +54,7 @@ def make_run(**changes: Any) -> Run:
         "type": "run",
         "joined_at": NOW - 5 * 24 * HOUR,
         "counting_from": NOW - 5 * 24 * HOUR,
-        "hours_from": NOW - 5 * 24 * HOUR,
+        "hours_from": SAMPLES_OPEN,
         "starts_at": NOW - 9 * 24 * HOUR,
         "ends_at": NOW + 20 * 24 * HOUR,
         "total_steps": 0,
@@ -125,6 +128,43 @@ async def test_steps_before_the_enrollment_counts_from_are_ignored() -> None:
 
     assert (result.accepted, result.ignored) == (1, 1)
     assert run.total_steps == 300
+
+
+@pytest.mark.anyio
+async def test_steps_starting_at_or_after_hours_from_are_ignored() -> None:
+    hours_from = NOW - 2 * HOUR
+    run = make_run(hours_from=hours_from)
+    progress, add_samples = service([run])
+    before = StepSampleIn(
+        health_record_id="before",
+        start_time=hours_from - timedelta(minutes=1),
+        end_time=hours_from + timedelta(minutes=29),
+        steps=300,
+    )
+    at = StepSampleIn(
+        health_record_id="at",
+        start_time=hours_from,
+        end_time=hours_from + HOUR,
+        steps=700,
+    )
+
+    result = await progress.sync_steps(
+        USER, [before, at, sample("after", 50, ended=-HOUR + timedelta(minutes=30))]
+    )
+
+    assert (result.accepted, result.ignored) == (1, 2)
+    assert run.total_steps == 300
+    assert [row.health_record_id for row in add_samples.await_args.args[0]] == ["before"]
+
+
+@pytest.mark.anyio
+async def test_a_null_hours_from_has_no_cutoff() -> None:
+    run = make_run(hours_from=None)
+    progress, _ = service([run])
+
+    result = await progress.sync_steps(USER, [sample("a", 400, ended=-HOUR)])
+
+    assert (result.accepted, result.ignored) == (1, 0)
 
 
 @pytest.mark.anyio

@@ -41,8 +41,8 @@ other_token=$(signup "hurl-other-$stamp@example.com")
 (cd "$dir/.." && python -m app.scripts.create_admin "hurl-admin-$stamp@example.com")
 hurl --test --variable "base=$base" --variable "admin_token=$admin_token" \
   --variable "user_token=$user_token" --variable "title=Hurl $stamp" "$dir/challenges.hurl"
-# runs.hurl needs one step sample that the server will count: it starts after the user joins
-# and ends less than 5 minutes ahead.
+# runs.hurl needs one step sample that the server ignores: it starts after the user joins, so
+# after `hours_from`, and ends less than 5 minutes ahead, so the future rule is not the reason.
 sample_start=$(python3 -c 'from datetime import UTC, datetime, timedelta; print((datetime.now(UTC) + timedelta(seconds=40)).strftime("%Y-%m-%dT%H:%M:%SZ"))')
 sample_end=$(python3 -c 'from datetime import UTC, datetime, timedelta; print((datetime.now(UTC) + timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M:%SZ"))')
 day() { python3 -c "from datetime import UTC, datetime, timedelta; print((datetime.now(UTC) + timedelta(days=$1)).date())"; }
@@ -56,7 +56,8 @@ hurl --test --variable "base=$base" --variable "admin_token=$admin_token" \
   --variable "sample_end=$sample_end" "$dir/runs.hurl"
 
 # step_hours.hurl needs an enrollment whose hours count: an hour counts only from the join time,
-# so a fresh user joins a run challenge and its counting times are moved three days back. That
+# so a fresh user joins a run challenge; its `hours_from` and `session_started_at` are moved three
+# days back and its `counting_from` four, so a step sample before `hours_from` still counts. That
 # step writes to the database of the local backend settings (`.env`), so it needs the API at
 # base_url and that database on this machine, like create_admin above.
 hours_email="hurl-hours-$stamp@example.com"
@@ -84,7 +85,7 @@ async def main() -> None:
         await connection.execute(
             text(
                 "UPDATE runs SET hours_from = now() - interval '3 days', "
-                "counting_from = now() - interval '3 days' "
+                "counting_from = now() - interval '4 days' "
                 "WHERE user_id = (SELECT id FROM users WHERE email = :email)"
             ),
             {"email": email},
@@ -104,6 +105,7 @@ PY
 )
 hurl --test --variable "base=$base" --variable "admin_token=$admin_token" \
   --variable "hours_token=$hours_token" --variable "challenge_id=$hours_challenge" \
+  --variable "sample_old_start=$(hour -75 0)" --variable "sample_old_end=$(hour -74 0)" \
   --variable "hour_3=$(hour -3 0)" --variable "hour_2=$(hour -2 0)" \
   --variable "hour_1=$(hour -1 0)" --variable "hour_next=$(hour 2 0)" "$dir/step_hours.hurl"
 hurl --test --variable "base=$base" --variable "user_token=$user_token" \

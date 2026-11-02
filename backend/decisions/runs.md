@@ -9,4 +9,5 @@ Loaded through `backend/CLAUDE.md`, with every `backend/decisions/<area>.md`, wh
 
 ## Entries
 
-- **2026-11-02, #254.** An hour counts only from the join time, so a live replay never reaches an accepted hour. `hurl/run.sh` joins a fresh user and moves `runs.hours_from`, `runs.counting_from` and `users.session_started_at` back three days before `step_hours.hurl`; integration tests do the same (`set_bounds` in `tests/integration/test_step_hours_api.py`).
+- **2026-11-02, #254.** An hour counts only from the join time, so a live replay never reaches an accepted hour. `hurl/run.sh` joins a fresh user and moves `runs.hours_from` and `users.session_started_at` back three days and `runs.counting_from` four (so a step sample before `hours_from` counts) before `step_hours.hurl`; integration tests do the same (`set_bounds` in `tests/integration/test_step_hours_api.py`).
+- **2026-11-02, #255.** A join sets `hours_from` to the join time, so `POST /runs/steps` counts nothing for a fresh enrollment. A step-sync test must first move `runs.hours_from` past its samples (`count_from_long_ago` in `tests/integration/test_runs_progress_api.py`), or every sample comes back `ignored`.
