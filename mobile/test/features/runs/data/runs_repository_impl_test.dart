@@ -39,7 +39,12 @@ StepRecord _record(int number) => StepRecord(
   steps: number + 1,
 );
 
-Map<String, dynamic> _item(String type, String status, String joined) => {
+Map<String, dynamic> _item(
+  String type,
+  String status,
+  String joined, {
+  String startsAt = '2026-10-01T00:00:00Z',
+}) => {
   'challenge': {
     'id': 1,
     'title': 'T',
@@ -50,7 +55,7 @@ Map<String, dynamic> _item(String type, String status, String joined) => {
     'city': null,
     'landmark': null,
     'status': 'published',
-    'starts_at': '2026-10-01T00:00:00Z',
+    'starts_at': startsAt,
     'ends_at': '2026-12-01T00:00:00Z',
     'participant_count': 1,
     'enrollment': {'status': status, 'joined_at': joined},
@@ -157,6 +162,58 @@ void main() {
       );
 
       expect(await repository.earliestRunJoin(), isNull);
+    });
+  });
+
+  group('earliestRunCounting', () {
+    test(
+      'is the later of join and start, earliest among active runs',
+      () async {
+        remote.pages.add(
+          _page([
+            _item(
+              'run',
+              'active',
+              '2026-10-02T08:00:00Z',
+              startsAt: '2026-10-20T00:00:00Z',
+            ),
+            _item('run', 'active', '2026-10-10T08:00:00Z'),
+            _item('run', 'paused', '2026-09-01T08:00:00Z'),
+            _item('swim', 'active', '2026-08-01T08:00:00Z'),
+          ]),
+        );
+
+        expect(
+          await repository.earliestRunCounting(),
+          DateTime.utc(2026, 10, 10, 8),
+        );
+      },
+    );
+
+    test('is the start of a challenge joined before it began', () async {
+      remote.pages.add(
+        _page([
+          _item(
+            'run',
+            'active',
+            '2026-10-02T08:00:00Z',
+            startsAt: '2026-10-20T00:00:00Z',
+          ),
+        ]),
+      );
+
+      expect(
+        await repository.earliestRunCounting(),
+        DateTime.utc(2026, 10, 20),
+      );
+    });
+
+    test('is null with no active run challenge', () async {
+      remote.pages.add(
+        _page([_item('swim', 'active', '2026-10-20T08:00:00Z')]),
+      );
+
+      expect(await repository.earliestRunCounting(), isNull);
     });
   });
 

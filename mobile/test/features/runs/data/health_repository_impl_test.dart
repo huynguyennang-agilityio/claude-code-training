@@ -238,4 +238,68 @@ void main() {
 
     expect((source.settingsOpened, source.installs), (1, 1));
   });
+
+  group('confirmed', () {
+    test('iOS after asking is granted but not confirmed', () async {
+      prompts.count = 1;
+
+      final access = await repository.checkAccess();
+
+      expect(access.status, HealthAccessStatus.granted);
+      expect(access.confirmed, isFalse);
+    });
+
+    test('Android granted is confirmed', () async {
+      source.allowed = {HealthMetric.steps};
+
+      expect((await repository.checkAccess()).confirmed, isTrue);
+    });
+  });
+
+  group('explainer', () {
+    final start = DateTime(2026, 10, 19, 9);
+    var now = start;
+
+    HealthRepositoryImpl at(InMemoryHealthPromptStore store) =>
+        HealthRepositoryImpl(source, store, clock: () => now);
+
+    setUp(() {
+      now = start;
+      repository = at(prompts);
+    });
+
+    test('is due with nothing stored', () async {
+      expect(await repository.explainerDue(), isTrue);
+    });
+
+    test('is not due right after it was shown', () async {
+      await repository.recordExplainerShown();
+
+      expect(await repository.explainerDue(), isFalse);
+    });
+
+    test('is not due at 7 days minus a second, due at 7 days', () async {
+      await repository.recordExplainerShown();
+
+      now = start
+          .add(HealthRepositoryImpl.explainerInterval)
+          .subtract(const Duration(seconds: 1));
+      expect(await repository.explainerDue(), isFalse);
+
+      now = start.add(HealthRepositoryImpl.explainerInterval);
+      expect(await repository.explainerDue(), isTrue);
+    });
+
+    test('is due when the stored time is in the future', () async {
+      prompts.shownAt = start.add(const Duration(days: 1));
+
+      expect(await repository.explainerDue(), isTrue);
+    });
+
+    test('stays not due after an app restart', () async {
+      await repository.recordExplainerShown();
+
+      expect(await at(prompts).explainerDue(), isFalse);
+    });
+  });
 }
