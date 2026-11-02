@@ -1,5 +1,6 @@
-# The step sync and the "my challenges" routes of docs/api/runs.md, replayed against a running
-# server.
+# The step sync, the hourly step sync (what a fresh enrollment ignores; the hours that count are
+# in step_hours.hurl), the daily activity and the "my challenges" routes of docs/api/runs.md,
+# replayed against a running server.
 #
 #   backend/hurl/run.sh [base_url]
 #
@@ -7,7 +8,9 @@
 # (unique per run), day_yesterday, day_today and day_after_tomorrow (dates for the daily activity
 # sync), and sample_start and sample_end, the window of one step sample. The sample
 # starts shortly after now (the user joins first, and steps count only from joining) and ends
-# less than 5 minutes ahead (a sample from further in the future is ignored).
+# less than 5 minutes ahead (a sample from further in the future is ignored). It also passes
+# hour_now (the start of the current UTC hour, taken before the user joins) and hour_half (the
+# same hour plus 30 minutes).
 
 # Not signed in
 GET {{base}}/runs
@@ -17,6 +20,12 @@ jsonpath "$.error.code" == "not_authenticated"
 
 POST {{base}}/runs/steps
 { "samples": [] }
+HTTP 401
+[Asserts]
+jsonpath "$.error.code" == "not_authenticated"
+
+PUT {{base}}/runs/step-hours
+{ "hours": [{ "hour_start": "{{hour_now}}", "steps": 10 }] }
 HTTP 401
 [Asserts]
 jsonpath "$.error.code" == "not_authenticated"
@@ -130,6 +139,16 @@ HTTP 200
 jsonpath "$.accepted" == 0
 jsonpath "$.ignored" == 1
 
+# The hour the user joined in does not count: hourly steps count from the next whole hour
+PUT {{base}}/runs/step-hours
+Authorization: Bearer {{user_token}}
+{ "hours": [{ "hour_start": "{{hour_now}}", "steps": 300 }] }
+HTTP 200
+[Asserts]
+jsonpath "$.accepted" == 0
+jsonpath "$.ignored" == 1
+jsonpath "$.enrollments[?(@.challenge_id == {{challenge_id}})].progress.current_value" == 1200
+
 # The list shows the progress
 GET {{base}}/runs?limit=50
 Authorization: Bearer {{user_token}}
@@ -173,6 +192,34 @@ jsonpath "$.error.fields" count >= 2
 
 GET {{base}}/runs?limit=0
 Authorization: Bearer {{user_token}}
+HTTP 422
+[Asserts]
+jsonpath "$.error.code" == "validation_error"
+
+# validation_error on the hourly sync: not on the hour, the same hour twice, no hours
+PUT {{base}}/runs/step-hours
+Authorization: Bearer {{user_token}}
+{ "hours": [{ "hour_start": "{{hour_half}}", "steps": 10 }] }
+HTTP 422
+[Asserts]
+jsonpath "$.error.code" == "validation_error"
+jsonpath "$.error.fields[0].field" == "hours.0.hour_start"
+
+PUT {{base}}/runs/step-hours
+Authorization: Bearer {{user_token}}
+{
+  "hours": [
+    { "hour_start": "{{hour_now}}", "steps": 10 },
+    { "hour_start": "{{hour_now}}", "steps": 20 }
+  ]
+}
+HTTP 422
+[Asserts]
+jsonpath "$.error.code" == "validation_error"
+
+PUT {{base}}/runs/step-hours
+Authorization: Bearer {{user_token}}
+{ "hours": [] }
 HTTP 422
 [Asserts]
 jsonpath "$.error.code" == "validation_error"

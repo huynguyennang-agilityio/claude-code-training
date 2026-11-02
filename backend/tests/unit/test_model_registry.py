@@ -32,6 +32,7 @@ def test_app_import_registers_and_configures_every_model() -> None:
         "Quest",
         "RefreshToken",
         "Run",
+        "StepHour",
         "StepSample",
         "User",
         "UserProfile",

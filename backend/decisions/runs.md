@@ -8,3 +8,5 @@ Loaded through `backend/CLAUDE.md`, with every `backend/decisions/<area>.md`, wh
 - A `/run-tasks` child session adds its own entries in its issue's last commit, lists them under `## Decisions added` in its PR, and keeps the entries of both branches when it merges `develop`. The parent never edits this file ([plan 037](../../docs/plans/037-decisions-per-area.md)).
 
 ## Entries
+
+- **2026-11-02, #254.** An hour counts only from the join time, so a live replay never reaches an accepted hour. `hurl/run.sh` joins a fresh user and moves `runs.hours_from`, `runs.counting_from` and `users.session_started_at` back three days before `step_hours.hurl`; integration tests do the same (`set_bounds` in `tests/integration/test_step_hours_api.py`).

@@ -23,11 +23,12 @@ from app.modules.runs.schemas import (
     MyChallengeItem,
     MyChallengePage,
     ProgressRead,
+    StepHourIn,
     StepSampleIn,
     StepSyncResult,
 )
 from app.modules.runs.service import RunService
-from app.modules.runs.validation import ChallengeRule, validate_run
+from app.modules.runs.validation import ChallengeRule, HourRule, hour_counts, validate_run
 
 # A device clock may be a little ahead; a sample that ends later than this is from the future.
 CLOCK_MARGIN = timedelta(minutes=5)
@@ -135,6 +136,55 @@ class ProgressService:
         return StepSyncResult(
             accepted=len(accepted),
             ignored=len({sample.health_record_id for sample in samples}) - len(accepted),
+            enrollments=[
+                EnrollmentProgress(challenge_id=run.challenge_id, progress=progress_of(run, now))
+                for run in enrollments
+            ],
+        )
+
+    async def sync_step_hours(
+        self,
+        user_id: uuid.UUID,
+        hours: Sequence[StepHourIn],
+        session_started_at: datetime,
+    ) -> StepSyncResult:
+        """Store the steps of each hour for each active run enrollment where the hour counts,
+        replacing an hour stored before. `total_steps` changes by the new value minus the old
+        one, so repeating a request changes nothing. An hour that fails a rule leaves the stored
+        value alone. `session_started_at` is the user's, read by the router."""
+        now = self._now()
+        # The same lock order as join and resume: the user's lock, then the row locks.
+        await self._repository.lock_user_enrollments(user_id)
+        enrollments = await self._repository.active_with_challenge(user_id)
+        accepted: set[datetime] = set()
+        for run in enrollments:
+            # Every active enrollment has `hours_from` (the join, or the migration); without
+            # one, step sync still counts it, so counting hours too could count steps twice.
+            if run.type not in TRACKED_TYPES or run.hours_from is None:
+                continue
+            rule = HourRule(
+                starts_at=run.starts_at,
+                ends_at=run.ends_at,
+                counting_from=run.counting_from or run.joined_at,
+                hours_from=run.hours_from,
+                session_started_at=session_started_at,
+                now=now,
+            )
+            counted = [hour for hour in hours if hour_counts(hour, rule)]
+            if not counted:
+                continue
+            stored = await self._repository.stored_step_hours(
+                run.id, [hour.hour_start for hour in counted]
+            )
+            await self._repository.upsert_step_hours(
+                run.id, [(hour.hour_start, hour.steps) for hour in counted], now=now
+            )
+            run.total_steps += sum(hour.steps - stored.get(hour.hour_start, 0) for hour in counted)
+            accepted.update(hour.hour_start for hour in counted)
+        await self._session.commit()
+        return StepSyncResult(
+            accepted=len(accepted),
+            ignored=len(hours) - len(accepted),
             enrollments=[
                 EnrollmentProgress(challenge_id=run.challenge_id, progress=progress_of(run, now))
                 for run in enrollments
