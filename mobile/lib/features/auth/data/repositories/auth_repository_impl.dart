@@ -4,6 +4,7 @@ import 'package:injectable/injectable.dart';
 
 import '../../../../core/network/auth_token_handler.dart';
 import '../../domain/entities/auth_user.dart';
+import '../../domain/entities/session_end_reason.dart';
 import '../../domain/failures/auth_failure.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_local_data_source.dart';
@@ -26,16 +27,21 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   /// Refresh failures that mean the refresh token itself is no good.
   static const _rejectedRefreshCodes = {
     AuthFailureCode.invalidRefreshToken,
+    AuthFailureCode.sessionReplaced,
     AuthFailureCode.validation,
   };
 
   final AuthRemoteDataSource _remote;
   final AuthLocalDataSource _local;
   final _sessionStarted = StreamController<AuthUser>.broadcast();
-  final _sessionExpired = StreamController<void>.broadcast();
+  final _sessionEnded = StreamController<SessionEndReason>.broadcast();
   final _userUpdated = StreamController<AuthUser>.broadcast();
   final _accountDeleted = StreamController<void>.broadcast();
   Future<void> _lastChange = Future.value();
+
+  /// Why the last refresh was rejected, read and reset by [expireSession].
+  /// Keeps the reason here so `core/network` needs no feature types.
+  var _rejectionReason = SessionEndReason.expired;
 
   @override
   Stream<AuthUser> get sessionStarted => _sessionStarted.stream;
@@ -44,7 +50,7 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   Stream<AuthUser> get userUpdated => _userUpdated.stream;
 
   @override
-  Stream<void> get sessionExpired => _sessionExpired.stream;
+  Stream<SessionEndReason> get sessionEnded => _sessionEnded.stream;
 
   @override
   Stream<void> get accountDeleted => _accountDeleted.stream;
@@ -137,7 +143,7 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
         } on Object {
           // Nothing more to do: the stored tokens are unusable either way.
         }
-        _sessionExpired.add(null);
+        _sessionEnded.add(SessionEndReason.expired);
         throw AuthFailure(AuthFailureCode.passwordChangedSignInAgain);
       }
     });
@@ -200,9 +206,13 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
         await _local.saveSession(session.copyWith(tokens: tokens));
         return TokenRefreshResult.refreshed;
       } on AuthFailure catch (failure) {
-        return _rejectedRefreshCodes.contains(failure.code)
-            ? TokenRefreshResult.rejected
-            : TokenRefreshResult.notRefreshed;
+        if (!_rejectedRefreshCodes.contains(failure.code)) {
+          return TokenRefreshResult.notRefreshed;
+        }
+        _rejectionReason = failure.code == AuthFailureCode.sessionReplaced
+            ? SessionEndReason.replaced
+            : SessionEndReason.expired;
+        return TokenRefreshResult.rejected;
       }
     });
   }
@@ -210,8 +220,10 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   @override
   Future<void> expireSession() {
     return _serialized(() async {
+      final reason = _rejectionReason;
+      _rejectionReason = SessionEndReason.expired;
       await _local.clear();
-      _sessionExpired.add(null);
+      _sessionEnded.add(reason);
     });
   }
 
@@ -233,7 +245,7 @@ class AuthRepositoryImpl implements AuthRepository, AuthTokenHandler {
   @disposeMethod
   Future<void> dispose() async {
     await _sessionStarted.close();
-    await _sessionExpired.close();
+    await _sessionEnded.close();
     await _userUpdated.close();
     await _accountDeleted.close();
   }

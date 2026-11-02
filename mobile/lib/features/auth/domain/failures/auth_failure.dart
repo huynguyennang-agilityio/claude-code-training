@@ -14,6 +14,10 @@ enum AuthFailureCode {
     'invalid_refresh_token',
     'Your session has expired. Sign in again.',
   ),
+  sessionReplaced(
+    'session_replaced',
+    'Your account was signed in on another device.',
+  ),
   incorrectPassword('incorrect_password', 'The current password is incorrect.'),
   lastAdmin(
     'last_admin',
