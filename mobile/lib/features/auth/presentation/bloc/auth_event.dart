@@ -37,8 +37,13 @@ final class _AuthUserUpdated extends AuthEvent {
 }
 
 /// The repository ended the session, for example after a failed refresh.
-final class _AuthSessionExpired extends AuthEvent {
-  const _AuthSessionExpired();
+final class _AuthSessionEnded extends AuthEvent {
+  const _AuthSessionEnded(this.reason);
+
+  final SessionEndReason reason;
+
+  @override
+  List<Object?> get props => [reason];
 }
 
 /// The repository deleted the account and cleared the local session.

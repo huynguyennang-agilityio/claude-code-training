@@ -1,4 +1,5 @@
 import '../entities/auth_user.dart';
+import '../entities/session_end_reason.dart';
 import '../failures/auth_failure.dart';
 
 /// Signs users in and out and keeps their session.
@@ -61,9 +62,11 @@ abstract interface class AuthRepository {
   /// the `AuthBloc` shows it without the form that made the change telling it.
   Stream<AuthUser> get userUpdated;
 
-  /// Emits when the session ends without the user signing out, for example
-  /// when a token refresh fails.
-  Stream<void> get sessionExpired;
+  /// Emits when the session ends without the user signing out, with the
+  /// reason: [SessionEndReason.replaced] when a refresh was answered with
+  /// `session_replaced` (the account signed in on another device), otherwise
+  /// [SessionEndReason.expired], for example when a token refresh fails.
+  Stream<SessionEndReason> get sessionEnded;
 
   /// Emits after [deleteAccount] succeeded and the local session is cleared,
   /// so the `AuthBloc` can send the user to sign in with a "deleted" notice.

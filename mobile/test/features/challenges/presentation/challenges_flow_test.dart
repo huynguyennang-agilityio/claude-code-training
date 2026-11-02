@@ -80,7 +80,7 @@ void main() {
     when(() => auth.sessionStarted).thenAnswer((_) => const Stream.empty());
     when(() => auth.userUpdated).thenAnswer((_) => const Stream.empty());
     when(() => auth.accountDeleted).thenAnswer((_) => const Stream.empty());
-    when(() => auth.sessionExpired).thenAnswer((_) => const Stream.empty());
+    when(() => auth.sessionEnded).thenAnswer((_) => const Stream.empty());
     when(() => auth.restoreSession()).thenAnswer(
       (_) async => AuthUser(
         id: 'user-1',

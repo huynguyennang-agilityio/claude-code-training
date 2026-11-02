@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:stridequest/features/auth/domain/entities/session_end_reason.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/auth/presentation/bloc/sign_in_bloc.dart';
@@ -201,12 +202,32 @@ void main() {
     testWidgets('explains why the user is here', (tester) async {
       await pumpPage(
         tester,
-        session: const AuthUnauthenticated(sessionExpired: true),
+        session: const AuthUnauthenticated(endReason: SessionEndReason.expired),
       );
 
       expect(
         find.text('Your session has expired. Sign in again.'),
         findsOneWidget,
+      );
+    });
+  });
+
+  group('session replaced', () {
+    testWidgets('says the account signed in on another device', (tester) async {
+      await pumpPage(
+        tester,
+        session: const AuthUnauthenticated(
+          endReason: SessionEndReason.replaced,
+        ),
+      );
+
+      expect(
+        find.text('Your account was signed in on another device.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Your session has expired. Sign in again.'),
+        findsNothing,
       );
     });
   });

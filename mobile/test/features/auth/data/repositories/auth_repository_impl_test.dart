@@ -7,6 +7,7 @@ import 'package:stridequest/features/auth/data/datasources/auth_remote_data_sour
 import 'package:stridequest/features/auth/data/models/auth_session_model.dart';
 import 'package:stridequest/features/auth/data/models/token_pair_model.dart';
 import 'package:stridequest/features/auth/data/repositories/auth_repository_impl.dart';
+import 'package:stridequest/features/auth/domain/entities/session_end_reason.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 
 import '../../../../helpers/auth_fixtures.dart';
@@ -152,6 +153,7 @@ void main() {
 
   for (final code in [
     AuthFailureCode.invalidRefreshToken,
+    AuthFailureCode.sessionReplaced,
     AuthFailureCode.validation,
   ]) {
     test('refreshTokens reports ${code.wireCode} as rejected', () async {
@@ -214,12 +216,65 @@ void main() {
 
   test('expireSession clears the session and notifies listeners', () async {
     local.session = testSession();
-    final expired = expectLater(repository.sessionExpired, emits(null));
+    final ended = expectLater(
+      repository.sessionEnded,
+      emits(SessionEndReason.expired),
+    );
 
     await repository.expireSession();
 
-    await expired;
+    await ended;
     expect(local.session, isNull);
+  });
+
+  test('a session_replaced refresh ends the session as replaced', () async {
+    local.session = testSession();
+    when(
+      () => remote.refresh(any()),
+    ).thenThrow(AuthFailure(AuthFailureCode.sessionReplaced));
+    final ended = expectLater(
+      repository.sessionEnded,
+      emits(SessionEndReason.replaced),
+    );
+
+    expect(await repository.refreshTokens(), TokenRefreshResult.rejected);
+    await repository.expireSession();
+
+    await ended;
+    expect(local.session, isNull);
+  });
+
+  test('the replaced reason is used once', () async {
+    local.session = testSession();
+    when(
+      () => remote.refresh(any()),
+    ).thenThrow(AuthFailure(AuthFailureCode.sessionReplaced));
+    final reasons = <SessionEndReason>[];
+    final subscription = repository.sessionEnded.listen(reasons.add);
+    addTearDown(subscription.cancel);
+
+    await repository.refreshTokens();
+    await repository.expireSession();
+    await repository.expireSession();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(reasons, [SessionEndReason.replaced, SessionEndReason.expired]);
+  });
+
+  test('another rejected refresh ends the session as expired', () async {
+    local.session = testSession();
+    when(
+      () => remote.refresh(any()),
+    ).thenThrow(AuthFailure(AuthFailureCode.invalidRefreshToken));
+    final ended = expectLater(
+      repository.sessionEnded,
+      emits(SessionEndReason.expired),
+    );
+
+    await repository.refreshTokens();
+    await repository.expireSession();
+
+    await ended;
   });
 
   group('changeEmail', () {
@@ -518,8 +573,8 @@ void main() {
       final failing = _ThrowingLocal()..session = testSession();
       final repo = AuthRepositoryImpl(remote, failing);
       addTearDown(repo.dispose);
-      var expired = 0;
-      final subscription = repo.sessionExpired.listen((_) => expired++);
+      final reasons = <SessionEndReason>[];
+      final subscription = repo.sessionEnded.listen(reasons.add);
       addTearDown(subscription.cancel);
 
       await expectLater(
@@ -538,7 +593,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(failing.session, isNull);
-      expect(expired, 1);
+      expect(reasons, [SessionEndReason.expired]);
     });
 
     test('a sign-out during the request stores nothing', () async {

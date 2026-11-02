@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_tokens.dart';
+import '../../domain/entities/session_end_reason.dart';
 import '../../domain/failures/auth_failure.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/sign_in_bloc.dart';
@@ -64,10 +65,10 @@ class _SignInPageState extends State<SignInPage> {
   @override
   Widget build(BuildContext context) {
     // The session notice comes from the session bloc, not from this form.
-    final sessionExpired = context.select<AuthBloc, bool>(
+    final endReason = context.select<AuthBloc, SessionEndReason?>(
       (bloc) => switch (bloc.state) {
-        AuthUnauthenticated(:final sessionExpired) => sessionExpired,
-        _ => false,
+        AuthUnauthenticated(:final endReason) => endReason,
+        _ => null,
       },
     );
     final accountDeleted = context.select<AuthBloc, bool>(
@@ -115,9 +116,14 @@ class _SignInPageState extends State<SignInPage> {
                   message: 'Your account has been deleted.',
                   isError: false,
                 )
-              else if (sessionExpired)
-                const AuthBanner(
-                  message: 'Your session has expired. Sign in again.',
+              else if (endReason != null)
+                AuthBanner(
+                  message: switch (endReason) {
+                    SessionEndReason.replaced =>
+                      'Your account was signed in on another device.',
+                    SessionEndReason.expired =>
+                      'Your session has expired. Sign in again.',
+                  },
                   isError: false,
                 ),
               AuthTextField(

@@ -40,6 +40,11 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
   final _users = <String, ({AuthUserModel user, String password})>{};
   final _failedSignIns = <String, List<DateTime>>{};
   final _refreshTokens = <String, AuthUserModel>{};
+  // Every refresh token issued, and the token counter of each user's latest
+  // sign-in: a revoked token issued before that sign-in, whatever revoked it,
+  // is `session_replaced`, not `invalid_refresh_token`.
+  final _issuedRefreshTokens = <String, ({String userId, int counter})>{};
+  final _latestSignIn = <String, int>{};
   // The user of the latest session: the fake has no access token to look up.
   AuthUserModel? _currentUser;
   var _nextId = 1;
@@ -98,10 +103,11 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
       throw AuthFailure(AuthFailureCode.invalidCredentials);
     }
     _failedSignIns.remove(key);
-    return AuthSessionModel(
-      user: account.user,
-      tokens: _issueTokens(account.user),
-    );
+    // One session per account: this sign-in revokes the earlier tokens.
+    _refreshTokens.removeWhere((_, user) => user.id == account.user.id);
+    final tokens = _issueTokens(account.user);
+    _latestSignIn[account.user.id] = _tokenCounter;
+    return AuthSessionModel(user: account.user, tokens: tokens);
   }
 
   @override
@@ -109,7 +115,15 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
     await Future<void>.delayed(latency);
     final user = _refreshTokens.remove(refreshToken);
     if (user == null) {
-      throw AuthFailure(AuthFailureCode.invalidRefreshToken);
+      final issued = _issuedRefreshTokens[refreshToken];
+      final replaced =
+          issued != null &&
+          issued.counter < (_latestSignIn[issued.userId] ?? 0);
+      throw AuthFailure(
+        replaced
+            ? AuthFailureCode.sessionReplaced
+            : AuthFailureCode.invalidRefreshToken,
+      );
     }
     return _issueTokens(user);
   }
@@ -305,6 +319,10 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
     _tokenCounter++;
     final refreshToken = 'fake-refresh-${user.id}-$_tokenCounter';
     _refreshTokens[refreshToken] = user;
+    _issuedRefreshTokens[refreshToken] = (
+      userId: user.id,
+      counter: _tokenCounter,
+    );
     _currentUser = user;
     return TokenPairModel(
       accessToken: 'fake-access-${user.id}-$_tokenCounter',
