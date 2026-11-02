@@ -15,13 +15,16 @@ from app.modules.runs.schemas import StepHourIn, StepSampleIn
 
 class ChallengeRule(BaseModel):
     """What a sample must fit to count: the challenge window, the time the enrollment counts
-    from (after a pause), and the latest end a sample may have (the server's now plus a margin)."""
+    from (after a pause), the latest end a sample may have (the server's now plus a margin) and
+    `hours_from`, the moment from which the enrollment counts hourly steps instead, so a sample
+    starting at or after it is ignored. None means no cutoff."""
 
     target_steps: int
     starts_at: datetime
     ends_at: datetime
     counting_from: datetime | None = None
     latest_end: datetime | None = None
+    hours_from: datetime | None = None
 
     @property
     def earliest_start(self) -> datetime:
@@ -54,7 +57,7 @@ def validate_run(
     rule: ChallengeRule,
     known_record_ids: Iterable[str] = (),
 ) -> ValidationResult:
-    """Count the steps that are new and inside the challenge window and the counting period."""
+    """Count the new steps inside the challenge window and counting period, before `hours_from`."""
     seen = set(known_record_ids)
     accepted: list[StepSampleIn] = []
     rejected: list[RejectedSample] = []
@@ -62,7 +65,11 @@ def validate_run(
     for sample in samples:
         if sample.health_record_id in seen:
             reason = RejectionReason.DUPLICATE
-        elif sample.start_time < rule.earliest_start or sample.end_time > rule.last_end:
+        elif (
+            sample.start_time < rule.earliest_start
+            or sample.end_time > rule.last_end
+            or (rule.hours_from is not None and sample.start_time >= rule.hours_from)
+        ):
             reason = RejectionReason.OUTSIDE_WINDOW
         else:
             seen.add(sample.health_record_id)

@@ -113,6 +113,7 @@ class ProgressService:
                 ends_at=run.ends_at,
                 counting_from=run.counting_from or run.joined_at,
                 latest_end=now + CLOCK_MARGIN,
+                hours_from=run.hours_from,
             )
             known = await self._repository.known_record_ids(
                 run.id, [sample.health_record_id for sample in samples]
