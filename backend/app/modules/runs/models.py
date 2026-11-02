@@ -68,6 +68,10 @@ class Run(Base):
     # Steps count toward the challenge only from here: set on join and on resume, so what was
     # walked while the enrollment was paused never counts. Null only for rows that predate it.
     counting_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Hourly steps (`step_hours`) count only from here: the join time, or for an enrollment that
+    # predates hourly sync the next whole hour after the migration. Null only for an enrollment
+    # that had already left before hourly sync; leaving keeps it, and joining again resets it.
+    hours_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     total_steps: Mapped[int] = mapped_column(default=0)
     completed: Mapped[bool] = mapped_column(default=False)
 
@@ -100,6 +104,24 @@ class StepSample(Base):
     steps: Mapped[int]
 
     run: Mapped[Run] = relationship(back_populates="samples")
+
+
+class StepHour(Base):
+    """The steps of one hour (`[hour_start, hour_start + 1h)`, a UTC hour) of an enrollment, as
+    Apple Health or Health Connect last reported them. An hour sent again replaces the row, and
+    `Run.total_steps` changes by the difference. The rows are deleted with the enrollment."""
+
+    __tablename__ = "step_hours"
+    __table_args__ = (
+        CheckConstraint("steps >= 0", name="ck_step_hours_steps_non_negative"),
+        UniqueConstraint("run_id", "hour_start", name="uq_step_hours_run_hour"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"))
+    hour_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    steps: Mapped[int]
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class DailyActivity(Base):

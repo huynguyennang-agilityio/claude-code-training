@@ -5,12 +5,12 @@ already stored and the challenge rule, and get a typed result back.
 """
 
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 
 from pydantic import BaseModel
 
-from app.modules.runs.schemas import StepSampleIn
+from app.modules.runs.schemas import StepHourIn, StepSampleIn
 
 
 class ChallengeRule(BaseModel):
@@ -76,4 +76,44 @@ def validate_run(
         counted_steps=counted_steps,
         accepted=accepted,
         rejected=rejected,
+    )
+
+
+HOUR = timedelta(hours=1)
+MAX_STEPS_PER_HOUR = 15_000
+
+
+class HourRule(BaseModel):
+    """What an hour of steps must fit to count for an enrollment: it starts at or after every
+    `*_from` bound, ends within the challenge (rounded up to a whole hour) and not in the
+    future, and holds a plausible number of steps."""
+
+    starts_at: datetime
+    ends_at: datetime
+    counting_from: datetime
+    hours_from: datetime
+    session_started_at: datetime
+    now: datetime
+
+    @property
+    def earliest_hour(self) -> datetime:
+        return max(self.starts_at, self.counting_from, self.hours_from, self.session_started_at)
+
+    @property
+    def last_hour_end(self) -> datetime:
+        """The challenge's end rounded up to a whole UTC hour (unchanged when it is one)."""
+        end = self.ends_at.astimezone(UTC)
+        floor = end.replace(minute=0, second=0, microsecond=0)
+        return floor if floor == end else floor + HOUR
+
+
+def hour_counts(hour: StepHourIn, rule: HourRule) -> bool:
+    """Whether the hour counts for an enrollment that is active and tracks steps. The caller
+    checks those two; an hour that fails any rule here is ignored, never an error."""
+    return (
+        # The future check comes first: `hour_start + HOUR` overflows for the last hour of 9999.
+        hour.hour_start <= rule.now
+        and hour.hour_start >= rule.earliest_hour
+        and hour.hour_start + HOUR <= rule.last_hour_end
+        and hour.steps <= MAX_STEPS_PER_HOUR
     )
