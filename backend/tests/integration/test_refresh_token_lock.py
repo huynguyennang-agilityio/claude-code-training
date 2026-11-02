@@ -25,6 +25,7 @@ from app.modules.auth.service import (
     IncorrectPasswordError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
+    SessionReplacedError,
 )
 from app.modules.runs.repository import RunRepository
 from app.modules.runs.service import RunService
@@ -96,10 +97,11 @@ async def _wait_until_a_session_waits_for_an_advisory_lock(
 
 
 async def _change_password_while_holding_the_lock(
-    engine: AsyncEngine, user: User, waiting: "asyncio.Future[str]"
+    engine: AsyncEngine, user: User, waiting: "asyncio.Future[str]", refused: str = "refused"
 ) -> None:
     """Hold the user's lock, check `waiting` is blocked, then change the password, revoke
-    every refresh token and commit, as `change_password` does."""
+    every refresh token and commit, as `change_password` does. `waiting` must then end with
+    `refused`."""
     async with AsyncSession(engine, expire_on_commit=False) as holder:
         repository = AuthRepository(holder)
         stored = await holder.get(User, user.id)
@@ -112,7 +114,7 @@ async def _change_password_while_holding_the_lock(
         await repository.revoke_all_refresh_tokens(user.id, user.created_at)
         await holder.commit()
     waiting_result = await asyncio.wait_for(task, timeout=10)
-    assert waiting_result == "refused"
+    assert waiting_result == refused
 
 
 async def _live_tokens(engine: AsyncEngine, user_id: uuid.UUID) -> list[RefreshToken]:
@@ -126,11 +128,12 @@ async def _live_tokens(engine: AsyncEngine, user_id: uuid.UUID) -> list[RefreshT
 
 
 async def _refresh(engine: AsyncEngine, refresh_token: str) -> str:
+    """Return "refreshed", or the code of the error that refused the refresh."""
     async with AsyncSession(engine, expire_on_commit=False) as session:
         try:
             await _service(session).refresh(refresh_token)
-        except InvalidRefreshTokenError:
-            return "refused"
+        except (InvalidRefreshTokenError, SessionReplacedError) as error:
+            return error.code
         return "refreshed"
 
 
@@ -164,11 +167,32 @@ async def test_a_refresh_waits_for_a_password_change_and_then_fails(
 ) -> None:
     user, tokens = signed_up
 
+    # A password change is not a sign-in, so the session was not replaced.
     await _change_password_while_holding_the_lock(
-        engine, user, _refresh(engine, tokens.refresh_token)
+        engine, user, _refresh(engine, tokens.refresh_token), refused="invalid_refresh_token"
     )
 
     assert await _live_tokens(engine, user.id) == []
+
+
+@pytest.mark.anyio
+async def test_a_refresh_that_waits_for_a_sign_in_is_session_replaced(
+    engine: AsyncEngine, signed_up: tuple[User, TokenPair]
+) -> None:
+    """A sign-in on a new device holds the lock while the old device refreshes: once the
+    sign-in commits, the refresh reads the revoked token and the new session start in a
+    statement after the lock, so it answers session_replaced."""
+    user, tokens = signed_up
+
+    async with AsyncSession(engine, expire_on_commit=False) as holder:
+        await AuthRepository(holder).lock_user_refresh_tokens(user.id)
+        task = asyncio.ensure_future(_refresh(engine, tokens.refresh_token))
+        await _wait_until_a_session_waits_for_an_advisory_lock(engine, task)
+        # The real sign-in, in the holder's transaction: it takes the same lock again and
+        # its commit releases both.
+        await _service(holder).sign_in(SignInRequest(email=user.email, password=PASSWORD), IP)
+
+    assert await asyncio.wait_for(task, timeout=10) == "session_replaced"
 
 
 @pytest.mark.anyio
@@ -224,7 +248,7 @@ async def test_a_sign_in_that_waits_for_a_refresh_revokes_the_refreshed_token(
         refreshed = await _service(holder).refresh(tokens.refresh_token)  # commits
 
     new_session = await asyncio.wait_for(task, timeout=10)
-    assert await _refresh(engine, refreshed.refresh_token) == "refused"
+    assert await _refresh(engine, refreshed.refresh_token) == "session_replaced"
     live = await _live_tokens(engine, user.id)
     assert len(live) == 1
     async with AsyncSession(engine) as session:
@@ -237,5 +261,5 @@ async def test_a_sign_in_that_waits_for_a_refresh_revokes_the_refreshed_token(
             .limit(1)
         )
     assert started_at is not None and refreshed_created_at is not None
-    assert refreshed_created_at <= started_at
+    assert refreshed_created_at < started_at
     assert await _refresh(engine, new_session.refresh_token) == "refreshed"

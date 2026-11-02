@@ -1861,7 +1861,7 @@
                 }
               }
             },
-            "description": "Unauthorized"
+            "description": "`session_replaced` for an unexpired, revoked token issued before the account's latest sign-in, whatever revoked it; otherwise `invalid_refresh_token`."
           },
           "422": {
             "content": {

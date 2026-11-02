@@ -156,7 +156,8 @@ HTTP 401
 [Asserts]
 jsonpath "$.error.code" == "invalid_refresh_token"
 
-# One session per account: a second sign-in revokes the refresh token of the first
+# One session per account: a second sign-in revokes the refresh token of the first, and
+# refreshing with it returns session_replaced (not invalid_refresh_token)
 POST {{base}}/auth/signin
 {
   "email": "{{email}}",
@@ -181,7 +182,9 @@ POST {{base}}/auth/refresh
 }
 HTTP 401
 [Asserts]
-jsonpath "$.error.code" == "invalid_refresh_token"
+jsonpath "$.error.code" == "session_replaced"
+jsonpath "$.error.message" == "Your account was signed in on another device."
+jsonpath "$.error.fields" count == 0
 
 POST {{base}}/auth/refresh
 {

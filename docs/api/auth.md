@@ -38,7 +38,7 @@ python -m app.scripts.create_admin someone@example.com --revoke   # make a norma
 
 - **Access token:** a JWT, valid for 15 minutes. Send it on protected routes as `Authorization: Bearer <access_token>`. The app must treat it as opaque and must not read its claims.
 - **Refresh token:** an opaque random string, valid for 30 days. Send it only to `/api/v1/auth/refresh` and `/api/v1/auth/signout`.
-- **Rotation:** every successful refresh returns a new refresh token and revokes the old one. Store the new pair and discard the old one. Using a revoked refresh token returns `401 invalid_refresh_token`, or `401 session_replaced` when the token was issued before the account's latest sign-in (see `POST /api/v1/auth/refresh`).
+- **Rotation:** every successful refresh returns a new refresh token and revokes the old one. Store the new pair and discard the old one. Using a revoked refresh token returns `401 invalid_refresh_token`, or `401 session_replaced` when the token is unexpired and was issued before the account's latest sign-in (see `POST /api/v1/auth/refresh`).
 - **One session per account:** signing in on a device signs every other device out (see `POST /api/v1/auth/signin`).
 - Store both tokens in secure storage (Keychain or Keystore), never in plain preferences.
 - When a protected route returns `401` with `token_expired` or `invalid_token`, call `/api/v1/auth/refresh` once and retry the request. If the refresh fails, clear the tokens and go to Sign in.
@@ -144,7 +144,8 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 | 422 | `validation_error` | The body is missing a field or breaks a field rule. See `fields`. |
 | 409 | `email_taken` | Sign up, or change the email, with an email that already has an account. |
 | 401 | `invalid_credentials` | Sign in with a wrong email or a wrong password. Both cases return the same code on purpose. |
-| 401 | `invalid_refresh_token` | Refresh with a token that is unknown, expired or already revoked. |
+| 401 | `invalid_refresh_token` | Refresh with a token that is unknown, expired, or revoked with no sign-in since it was issued (used by a refresh, signed out, or revoked by a password change). |
+| 401 | `session_replaced` | Refresh with an unexpired, revoked token that was issued before the account's latest sign-in, whatever revoked it: another device signed in. |
 | 401 | `not_authenticated` | A protected route was called without an `Authorization` header, whatever dependency guards it. |
 | 401 | `invalid_token` | The access token is malformed, has a bad signature, or its user no longer exists. |
 | 401 | `token_expired` | The access token has expired. Refresh and retry. |

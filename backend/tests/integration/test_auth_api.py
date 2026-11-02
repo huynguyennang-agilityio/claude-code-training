@@ -369,8 +369,36 @@ async def test_a_second_sign_in_replaces_the_first_session(client: AsyncClient) 
     first = (await sign_in(client)).json()["tokens"]
     second = (await sign_in(client)).json()["tokens"]
 
-    assert_error(await refresh(client, first["refresh_token"]), 401, "invalid_refresh_token")
+    body = assert_error(await refresh(client, first["refresh_token"]), 401, "session_replaced")
+    assert body == load_example("auth/error_session_replaced.json")
     assert (await refresh(client, second["refresh_token"])).status_code == 200
+
+
+@pytest.mark.anyio
+async def test_a_used_refresh_token_followed_by_a_new_sign_in_is_session_replaced(
+    client: AsyncClient,
+) -> None:
+    await sign_up(client)
+    old = (await sign_in(client)).json()["tokens"]["refresh_token"]
+    assert (await refresh(client, old)).status_code == 200
+    await sign_in(client)
+
+    assert_error(await refresh(client, old), 401, "session_replaced")
+
+
+@pytest.mark.anyio
+async def test_an_expired_token_revoked_by_a_new_sign_in_is_invalid(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    await sign_up(client)
+    first = (await sign_in(client)).json()["tokens"]["refresh_token"]
+    await sign_in(client)
+    await session.execute(
+        text("UPDATE refresh_tokens SET expires_at = :at"),
+        {"at": datetime.now(UTC) - timedelta(seconds=1)},
+    )
+
+    assert_error(await refresh(client, first), 401, "invalid_refresh_token")
 
 
 @pytest.mark.anyio
@@ -749,7 +777,9 @@ async def test_change_password_returns_a_token_pair_and_revokes_every_session(
     assert response.status_code == 200, response.text
     assert_same_shape(response.json(), load_example("auth/token_pair.json"))
     new = response.json()
-    assert_error(await refresh(client, first["refresh_token"]), 401, "invalid_refresh_token")
+    # The first token was revoked by the second sign-in, so its session was replaced.
+    assert_error(await refresh(client, first["refresh_token"]), 401, "session_replaced")
+    # Revoked by the password change, with no sign-in since.
     assert_error(await refresh(client, second["refresh_token"]), 401, "invalid_refresh_token")
     me = await client.get(f"{PREFIX}/users/me", headers=bearer(new["access_token"]))
     assert me.status_code == 200
@@ -1283,6 +1313,7 @@ def test_the_error_codes_this_file_produces_are_the_documented_ones() -> None:
         "invalid_credentials",  # test_sign_in_with_a_wrong_password_matches_the_documented_example
         "invalid_refresh_token",  # test_refresh_with_an_unknown_token_is_rejected
         "invalid_token",  # test_users_me_with_a_garbage_token_returns_invalid_token
+        "session_replaced",  # test_a_second_sign_in_replaces_the_first_session
         "token_expired",  # test_users_me_with_an_expired_token_returns_token_expired
         "rate_limited",  # test_sign_in_is_blocked_after_five_failures_for_the_email
         "last_admin",  # test_the_only_admin_cannot_delete_the_account
