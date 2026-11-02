@@ -7,7 +7,8 @@ sealed class ActivityEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-/// The tab opened with access to [allowed] metrics: read and sync.
+/// The tab opened with access to [allowed] metrics: show the service's latest
+/// result and ask it for a (throttled) sync.
 class ActivityStarted extends ActivityEvent {
   const ActivityStarted(this.allowed);
 

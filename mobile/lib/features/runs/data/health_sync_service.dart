@@ -21,8 +21,9 @@ import '../domain/usecases/sync_activity.dart';
 /// the allowed metrics changed since. A forced trigger, or one after the session
 /// changed, queues one follow-up run behind the one in flight; the in-flight
 /// run's result is dropped when the session changed under it.
-/// A run that threw a `HealthFailure` or returned a `RunsFailure` does not
-/// start the throttle, so the next trigger retries.
+/// A run that fails (a `HealthFailure`, a `RunsFailure` or an unexpected
+/// error) clears the throttle, even one from an earlier success, so the next
+/// trigger retries.
 @LazySingleton(as: HealthSync)
 class HealthSyncService implements HealthSync {
   HealthSyncService(
@@ -141,6 +142,8 @@ class HealthSyncService implements HealthSync {
         if (failure == null) {
           _lastSuccessAt = _clock();
           _lastAllowed = access.allowed;
+        } else {
+          _clearThrottle();
         }
         _emit(
           HealthSyncState(
@@ -151,6 +154,7 @@ class HealthSyncService implements HealthSync {
         );
       } on HealthFailure catch (failure) {
         if (stale()) return;
+        _clearThrottle();
         // Keep the figures on screen; say why they could not be updated.
         _emit(
           HealthSyncState(
@@ -166,6 +170,7 @@ class HealthSyncService implements HealthSync {
         FlutterErrorDetails(exception: error, stack: stack),
       );
       if (stale()) return;
+      _clearThrottle();
       _emit(
         HealthSyncState(
           reading: _state.reading,
@@ -178,9 +183,13 @@ class HealthSyncService implements HealthSync {
 
   void _reset() {
     _generation++;
+    _clearThrottle();
+    _emit(const HealthSyncState());
+  }
+
+  void _clearThrottle() {
     _lastSuccessAt = null;
     _lastAllowed = null;
-    _emit(const HealthSyncState());
   }
 
   void _emit(HealthSyncState state) {

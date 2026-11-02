@@ -166,6 +166,21 @@ void main() {
     expect(service.state.error, isNull);
   });
 
+  test('a failure after an earlier success reopens the throttle', () async {
+    await service.sync();
+    now = now.add(const Duration(minutes: 1));
+    runs.earliest = DateTime.utc(2026, 10, 15);
+    runs.error = const RunsFailure(RunsFailureCode.network);
+    await service.sync(force: true);
+    expect(service.state.error, isNotNull);
+
+    runs.error = null;
+    now = now.add(const Duration(minutes: 1));
+    await service.sync();
+    expect(health.readTodayCalls, 3);
+    expect(service.state.error, isNull);
+  });
+
   test('force skips the throttle', () async {
     await service.sync();
     await service.sync(force: true);
