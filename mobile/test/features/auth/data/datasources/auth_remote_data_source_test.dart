@@ -372,6 +372,16 @@ void main() {
       expect(failure.code, AuthFailureCode.invalidRefreshToken);
     });
 
+    test('maps 401 session_replaced', () async {
+      final repository = _repository(
+        (_) async => _error('session_replaced', 401),
+      );
+
+      final failure = await _failureOf(repository.refresh('replaced'));
+
+      expect(failure.code, AuthFailureCode.sessionReplaced);
+    });
+
     test('maps 422 validation_error', () async {
       final repository = _repository(
         (_) async => _error(
