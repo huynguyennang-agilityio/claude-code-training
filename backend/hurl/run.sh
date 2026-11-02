@@ -41,8 +41,8 @@ other_token=$(signup "hurl-other-$stamp@example.com")
 (cd "$dir/.." && python -m app.scripts.create_admin "hurl-admin-$stamp@example.com")
 hurl --test --variable "base=$base" --variable "admin_token=$admin_token" \
   --variable "user_token=$user_token" --variable "title=Hurl $stamp" "$dir/challenges.hurl"
-# runs.hurl needs one step sample that the server will count: it starts after the user joins
-# and ends less than 5 minutes ahead.
+# runs.hurl needs one step sample that the server ignores: it starts after the user joins, so
+# after `hours_from`, and ends less than 5 minutes ahead, so the future rule is not the reason.
 sample_start=$(python3 -c 'from datetime import UTC, datetime, timedelta; print((datetime.now(UTC) + timedelta(seconds=40)).strftime("%Y-%m-%dT%H:%M:%SZ"))')
 sample_end=$(python3 -c 'from datetime import UTC, datetime, timedelta; print((datetime.now(UTC) + timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M:%SZ"))')
 day() { python3 -c "from datetime import UTC, datetime, timedelta; print((datetime.now(UTC) + timedelta(days=$1)).date())"; }

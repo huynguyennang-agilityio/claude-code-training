@@ -28,7 +28,8 @@ from app.modules.runs.service import RunService
 NOW = datetime(2026, 11, 10, 12, 0, tzinfo=UTC)
 USER = uuid.UUID("00000000-0000-0000-0000-000000000001")
 HOUR = timedelta(hours=1)
-# Step samples count only before `hours_from`; these tests open it past every sample they send.
+# Step samples count only before `hours_from`, so by default it is past every sample the tests
+# send, and each step-sync test fails only on the rule it names. Hour tests set it themselves.
 SAMPLES_OPEN = NOW + HOUR
 
 
@@ -53,7 +54,7 @@ def make_run(**changes: Any) -> Run:
         "type": "run",
         "joined_at": NOW - 5 * 24 * HOUR,
         "counting_from": NOW - 5 * 24 * HOUR,
-        "hours_from": NOW - 5 * 24 * HOUR,
+        "hours_from": SAMPLES_OPEN,
         "starts_at": NOW - 9 * 24 * HOUR,
         "ends_at": NOW + 20 * 24 * HOUR,
         "total_steps": 0,
@@ -83,7 +84,7 @@ def service(runs: list[Run], known: set[str] | None = None) -> tuple[ProgressSer
 
 @pytest.mark.anyio
 async def test_new_samples_in_the_window_are_counted_and_stored() -> None:
-    run = make_run(hours_from=SAMPLES_OPEN)
+    run = make_run()
     progress, add_samples = service([run])
 
     result = await progress.sync_steps(USER, [sample("a", 4000), sample("b", 5000)])
@@ -96,7 +97,7 @@ async def test_new_samples_in_the_window_are_counted_and_stored() -> None:
 
 @pytest.mark.anyio
 async def test_a_record_already_stored_counts_once() -> None:
-    run = make_run(total_steps=4000, hours_from=SAMPLES_OPEN)
+    run = make_run(total_steps=4000)
     progress, _ = service([run], known={"a"})
 
     result = await progress.sync_steps(USER, [sample("a", 4000), sample("b", 1000)])
@@ -107,7 +108,7 @@ async def test_a_record_already_stored_counts_once() -> None:
 
 @pytest.mark.anyio
 async def test_the_same_record_twice_in_one_request_counts_once() -> None:
-    run = make_run(hours_from=SAMPLES_OPEN)
+    run = make_run()
     progress, _ = service([run])
 
     result = await progress.sync_steps(USER, [sample("a", 100), sample("a", 100)])
@@ -118,7 +119,7 @@ async def test_the_same_record_twice_in_one_request_counts_once() -> None:
 
 @pytest.mark.anyio
 async def test_steps_before_the_enrollment_counts_from_are_ignored() -> None:
-    run = make_run(counting_from=NOW - 3 * HOUR, hours_from=SAMPLES_OPEN)
+    run = make_run(counting_from=NOW - 3 * HOUR)
     progress, _ = service([run])
 
     result = await progress.sync_steps(
@@ -147,7 +148,9 @@ async def test_steps_starting_at_or_after_hours_from_are_ignored() -> None:
         steps=700,
     )
 
-    result = await progress.sync_steps(USER, [before, at, sample("after", 50, ended=-HOUR)])
+    result = await progress.sync_steps(
+        USER, [before, at, sample("after", 50, ended=-HOUR + timedelta(minutes=30))]
+    )
 
     assert (result.accepted, result.ignored) == (1, 2)
     assert run.total_steps == 300
@@ -186,7 +189,7 @@ async def test_steps_before_the_challenge_starts_are_ignored() -> None:
 
 @pytest.mark.anyio
 async def test_steps_from_the_future_are_ignored_but_a_small_clock_skew_is_not() -> None:
-    run = make_run(hours_from=SAMPLES_OPEN)
+    run = make_run()
     progress, _ = service([run])
 
     result = await progress.sync_steps(

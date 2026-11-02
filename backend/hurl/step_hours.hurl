@@ -97,6 +97,25 @@ jsonpath "$.accepted" == 1
 jsonpath "$.ignored" == 1
 jsonpath "$.enrollments[?(@.challenge_id == {{challenge_id}})].progress.current_value" == 2280
 
+# The same record again counts once
+POST {{base}}/runs/steps
+Authorization: Bearer {{hours_token}}
+{
+  "samples": [
+    {
+      "health_record_id": "hurl-old-{{challenge_id}}",
+      "start_time": "{{sample_old_start}}",
+      "end_time": "{{sample_old_end}}",
+      "steps": 1200
+    }
+  ]
+}
+HTTP 200
+[Asserts]
+jsonpath "$.accepted" == 0
+jsonpath "$.ignored" == 1
+jsonpath "$.enrollments[?(@.challenge_id == {{challenge_id}})].progress.current_value" == 2280
+
 # The list shows the same progress
 GET {{base}}/runs?limit=50
 Authorization: Bearer {{hours_token}}

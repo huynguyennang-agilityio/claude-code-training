@@ -7,8 +7,9 @@
 # run.sh passes: base, admin_token, user_token, other_token (a second normal user), title
 # (unique per run), day_yesterday, day_today and day_after_tomorrow (dates for the daily activity
 # sync), and sample_start and sample_end, the window of one step sample. The sample
-# starts shortly after now, so after the join and `hours_from`: it is ignored. It ends
-# less than 5 minutes ahead (only that rule would not reject it). It also passes
+# starts shortly after now, so after the join and `hours_from`, and step sync ignores it (the
+# counted sample is in step_hours.hurl). It ends less than 5 minutes ahead, so the future rule
+# is not what ignores it. It also passes
 # hour_now (the start of the current UTC hour, taken before the user joins) and hour_half (the
 # same hour plus 30 minutes).
 
