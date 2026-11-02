@@ -80,9 +80,13 @@ class FakeSyncStateRepository implements SyncStateRepository {
   DateTime? first;
   var loads = 0;
 
+  /// The `now` of the latest [load].
+  DateTime? loadedAt;
+
   @override
   Future<SyncState> load(DateTime now) async {
     loads++;
+    loadedAt = now;
     return _FakeSyncState(this, stored, first ??= now);
   }
 }

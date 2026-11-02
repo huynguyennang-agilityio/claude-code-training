@@ -206,12 +206,12 @@ void main() {
       expect(health.lastReadDays?.days, 3);
     });
 
-    test('the first sync records its time', () async {
+    test('the first sync loads the state at its time', () async {
       state.first = null;
 
       await run();
 
-      expect(state.first, _now);
+      expect(state.loadedAt, _now);
       expect(health.lastReadDays?.days, 1);
     });
   });
