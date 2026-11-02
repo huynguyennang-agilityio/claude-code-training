@@ -13,6 +13,9 @@ class RunsRepositoryImpl implements RunsRepository {
   /// The most samples one request carries (`docs/api/runs.md`).
   static const maxSamplesPerRequest = 500;
 
+  /// The most hours one request carries (`docs/api/runs.md`).
+  static const maxHoursPerRequest = 744;
+
   /// The most days one request carries.
   static const maxDaysPerRequest = 7;
 
@@ -33,6 +36,25 @@ class RunsRepositoryImpl implements RunsRepository {
       );
       final result = await _remote.syncSteps([
         for (final record in chunk) stepRecordJson(record),
+      ]);
+      accepted += result.accepted;
+      ignored += result.ignored;
+    }
+    return StepSyncResult(accepted: accepted, ignored: ignored);
+  }
+
+  @override
+  Future<StepSyncResult> syncStepHours(List<StepHour> hours) async {
+    var accepted = 0;
+    var ignored = 0;
+    for (var start = 0; start < hours.length; start += maxHoursPerRequest) {
+      final end = start + maxHoursPerRequest;
+      final result = await _remote.syncStepHours([
+        for (final hour in hours.sublist(
+          start,
+          end > hours.length ? hours.length : end,
+        ))
+          stepHourJson(hour),
       ]);
       accepted += result.accepted;
       ignored += result.ignored;

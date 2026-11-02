@@ -63,14 +63,20 @@ import 'package:stridequest/features/runs/data/datasources/health_prompt_store.d
     as _i306;
 import 'package:stridequest/features/runs/data/datasources/runs_remote_data_source.dart'
     as _i860;
+import 'package:stridequest/features/runs/data/datasources/sync_watermark_store.dart'
+    as _i793;
 import 'package:stridequest/features/runs/data/repositories/health_repository_impl.dart'
     as _i21;
 import 'package:stridequest/features/runs/data/repositories/runs_repository_impl.dart'
     as _i1002;
+import 'package:stridequest/features/runs/data/repositories/sync_state_repository_impl.dart'
+    as _i903;
 import 'package:stridequest/features/runs/domain/repositories/health_repository.dart'
     as _i203;
 import 'package:stridequest/features/runs/domain/repositories/runs_repository.dart'
     as _i137;
+import 'package:stridequest/features/runs/domain/repositories/sync_state_repository.dart'
+    as _i824;
 import 'package:stridequest/features/runs/domain/usecases/get_health_notice.dart'
     as _i1054;
 import 'package:stridequest/features/runs/domain/usecases/sync_activity.dart'
@@ -116,8 +122,21 @@ extension GetItInjectableX on _i174.GetIt {
       () => mockApiModule.fakeProfileRemoteDataSource,
       registerFor: {_mock},
     );
+    gh.lazySingleton<_i860.RunsRemoteDataSource>(
+      () => mockApiModule.fakeRunsRemoteDataSource,
+      registerFor: {_mock},
+    );
     gh.lazySingleton<_i851.AuthLocalDataSource>(
       () => _i851.SecureAuthLocalDataSource(gh<_i558.FlutterSecureStorage>()),
+    );
+    gh.lazySingleton<_i793.SyncWatermarkStore>(
+      () => _i793.SecureSyncWatermarkStore(gh<_i558.FlutterSecureStorage>()),
+    );
+    gh.lazySingleton<_i824.SyncStateRepository>(
+      () => _i903.SyncStateRepositoryImpl(
+        gh<_i851.AuthLocalDataSource>(),
+        gh<_i793.SyncWatermarkStore>(),
+      ),
     );
     gh.lazySingleton<_i306.HealthPromptStore>(
       () => _i306.SecureHealthPromptStore(gh<_i558.FlutterSecureStorage>()),
@@ -173,16 +192,17 @@ extension GetItInjectableX on _i174.GetIt {
       () => networkModule.authenticatedDio(gh<_i713.AuthTokenHandler>()),
       instanceName: 'authenticatedDio',
     );
+    gh.lazySingleton<_i860.RunsRemoteDataSource>(
+      () => _i860.DioRunsRemoteDataSource(
+        gh<_i361.Dio>(instanceName: 'authenticatedDio'),
+      ),
+      registerFor: {_real},
+    );
     gh.lazySingleton<_i286.ProfileRemoteDataSource>(
       () => _i286.DioProfileRemoteDataSource(
         gh<_i361.Dio>(instanceName: 'authenticatedDio'),
       ),
       registerFor: {_real},
-    );
-    gh.lazySingleton<_i860.RunsRemoteDataSource>(
-      () => _i860.DioRunsRemoteDataSource(
-        gh<_i361.Dio>(instanceName: 'authenticatedDio'),
-      ),
     );
     gh.lazySingleton<_i137.RunsRepository>(
       () => _i1002.RunsRepositoryImpl(gh<_i860.RunsRemoteDataSource>()),
@@ -190,6 +210,13 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i216.ChallengeRemoteDataSource>(
       () => _i216.DioChallengeRemoteDataSource(
         gh<_i361.Dio>(instanceName: 'authenticatedDio'),
+      ),
+    );
+    gh.factory<_i1029.SyncActivity>(
+      () => _i1029.SyncActivity(
+        gh<_i203.HealthRepository>(),
+        gh<_i137.RunsRepository>(),
+        gh<_i824.SyncStateRepository>(),
       ),
     );
     gh.lazySingleton<_i166.ProfileRepository>(
@@ -208,23 +235,17 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i909.ChallengesBloc>(
       () => _i909.ChallengesBloc(gh<_i756.ChallengeRepository>()),
     );
+    gh.factory<_i951.ActivityBloc>(
+      () => _i951.ActivityBloc(gh<_i1029.SyncActivity>()),
+    );
     gh.factory<_i1054.GetHealthNotice>(
       () => _i1054.GetHealthNotice(
         gh<_i203.HealthRepository>(),
         gh<_i137.RunsRepository>(),
       ),
     );
-    gh.factory<_i1029.SyncActivity>(
-      () => _i1029.SyncActivity(
-        gh<_i203.HealthRepository>(),
-        gh<_i137.RunsRepository>(),
-      ),
-    );
     gh.factory<_i376.ProfileInfoBloc>(
       () => _i376.ProfileInfoBloc(gh<_i166.ProfileRepository>()),
-    );
-    gh.factory<_i951.ActivityBloc>(
-      () => _i951.ActivityBloc(gh<_i1029.SyncActivity>()),
     );
     return this;
   }

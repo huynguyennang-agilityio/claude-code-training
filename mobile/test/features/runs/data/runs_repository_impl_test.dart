@@ -3,10 +3,12 @@ import 'package:stridequest/features/runs/data/datasources/runs_remote_data_sour
 import 'package:stridequest/features/runs/data/models/runs_models.dart';
 import 'package:stridequest/features/runs/data/repositories/runs_repository_impl.dart';
 import 'package:stridequest/features/runs/domain/entities/activity.dart';
+import 'package:stridequest/features/runs/domain/failures/runs_failure.dart';
 
 class _FakeRemote implements RunsRemoteDataSource {
   final stepRequests = <List<Map<String, Object>>>[];
   final dayRequests = <List<Map<String, Object>>>[];
+  int? failDayRequest;
   final pages = <MyChallengePageModel>[];
   final cursors = <String?>[];
 
@@ -18,9 +20,23 @@ class _FakeRemote implements RunsRemoteDataSource {
     return StepSyncResultModel(accepted: samples.length - 1, ignored: 1);
   }
 
+  final hourRequests = <List<Map<String, Object>>>[];
+
   @override
-  Future<void> saveDailyActivity(List<Map<String, Object>> days) async =>
-      dayRequests.add(days);
+  Future<StepSyncResultModel> syncStepHours(
+    List<Map<String, Object>> hours,
+  ) async {
+    hourRequests.add(hours);
+    return StepSyncResultModel(accepted: hours.length - 1, ignored: 1);
+  }
+
+  @override
+  Future<void> saveDailyActivity(List<Map<String, Object>> days) async {
+    if (failDayRequest == dayRequests.length + 1) {
+      throw const RunsFailure(RunsFailureCode.network);
+    }
+    dayRequests.add(days);
+  }
 
   @override
   Future<MyChallengePageModel> myChallenges({
@@ -107,6 +123,32 @@ void main() {
     });
   });
 
+  group('syncStepHours', () {
+    StepHour hour(int i) => StepHour(
+      hourStart: DateTime.utc(2026, 10).add(Duration(hours: i)),
+      steps: i,
+    );
+
+    test('sends 744 hours at most per request and adds the answers', () async {
+      final result = await repository.syncStepHours([
+        for (var i = 0; i < 1500; i++) hour(i),
+      ]);
+
+      expect(remote.hourRequests.map((r) => r.length), [744, 744, 12]);
+      expect((result.accepted, result.ignored), (1497, 3));
+      expect(remote.hourRequests.first.first, {
+        'hour_start': '2026-10-01T00:00:00Z',
+        'steps': 0,
+      });
+    });
+
+    test('no hours means no request', () async {
+      await repository.syncStepHours(const []);
+
+      expect(remote.hourRequests, isEmpty);
+    });
+  });
+
   group('saveDailyActivity', () {
     test('a day carries only the figures that exist', () async {
       await repository.saveDailyActivity([
@@ -130,6 +172,34 @@ void main() {
       ]);
 
       expect(remote.dayRequests.map((r) => r.length), [7, 2]);
+    });
+
+    test('31 days go out in requests of 7, 7, 7, 7 and 3', () async {
+      await repository.saveDailyActivity([
+        for (var i = 0; i < 31; i++)
+          DailyFigures(date: DateTime(2026, 10, 1 + i)),
+      ]);
+
+      expect(remote.dayRequests.map((r) => r.length), [7, 7, 7, 7, 3]);
+    });
+
+    test('a failing later request throws', () async {
+      remote.failDayRequest = 2;
+
+      await expectLater(
+        repository.saveDailyActivity([
+          for (var i = 1; i <= 9; i++)
+            DailyFigures(date: DateTime(2026, 11, i)),
+        ]),
+        throwsA(isA<RunsFailure>()),
+      );
+      expect(remote.dayRequests, hasLength(1));
+    });
+
+    test('no days means no request', () async {
+      await repository.saveDailyActivity(const []);
+
+      expect(remote.dayRequests, isEmpty);
     });
   });
 

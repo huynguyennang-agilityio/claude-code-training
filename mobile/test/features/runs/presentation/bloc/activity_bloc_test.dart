@@ -25,7 +25,8 @@ void main() {
     runs = FakeRunsRepository();
   });
 
-  ActivityBloc bloc() => ActivityBloc(SyncActivity(health, runs));
+  ActivityBloc bloc() =>
+      ActivityBloc(SyncActivity(health, runs, FakeSyncStateRepository()));
 
   blocTest<ActivityBloc, ActivityState>(
     'starting reads and syncs, and remembers when it reached StrideQuest',

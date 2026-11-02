@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 
+import '../../../../core/di/api_environments.dart';
 import '../../domain/failures/runs_failure.dart';
 import '../models/runs_models.dart';
 
@@ -13,6 +14,9 @@ import '../models/runs_models.dart';
 abstract interface class RunsRemoteDataSource {
   Future<StepSyncResultModel> syncSteps(List<Map<String, Object>> samples);
 
+  /// `PUT runs/step-hours`: at most 744 hours.
+  Future<StepSyncResultModel> syncStepHours(List<Map<String, Object>> hours);
+
   Future<void> saveDailyActivity(List<Map<String, Object>> days);
 
   Future<MyChallengePageModel> myChallenges({String? cursor, int limit});
@@ -21,6 +25,7 @@ abstract interface class RunsRemoteDataSource {
 /// [RunsRemoteDataSource] over the authenticated [Dio]: it adds the access token
 /// and refreshes it once when it has expired. A non-2xx answer reaches here as a
 /// [DioException], after the auth interceptor has had its turn.
+@realApi
 @LazySingleton(as: RunsRemoteDataSource)
 class DioRunsRemoteDataSource implements RunsRemoteDataSource {
   DioRunsRemoteDataSource(
@@ -36,6 +41,14 @@ class DioRunsRemoteDataSource implements RunsRemoteDataSource {
     List<Map<String, Object>> samples,
   ) async {
     final json = await _request('POST', 'runs/steps', {'samples': samples});
+    return _parse(json, StepSyncResultModel.fromJson);
+  }
+
+  @override
+  Future<StepSyncResultModel> syncStepHours(
+    List<Map<String, Object>> hours,
+  ) async {
+    final json = await _request('PUT', 'runs/step-hours', {'hours': hours});
     return _parse(json, StepSyncResultModel.fromJson);
   }
 

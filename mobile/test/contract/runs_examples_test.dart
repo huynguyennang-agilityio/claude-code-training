@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stridequest/features/challenges/domain/entities/challenge.dart';
+import 'package:stridequest/features/runs/data/datasources/fake_runs_remote_data_source.dart';
+import 'package:stridequest/features/runs/data/datasources/runs_fixtures.dart';
 import 'package:stridequest/features/runs/data/models/runs_models.dart';
 import 'package:stridequest/features/runs/domain/entities/activity.dart';
 
@@ -87,5 +89,53 @@ void main() {
       dailyFiguresJson(DailyFigures(date: DateTime(2026, 11, 3), steps: 5490)),
       days.last,
     );
+  });
+
+  test('step_hours_result parses its counts', () {
+    final result = StepSyncResultModel.fromJson(
+      _example('step_hours_result'),
+    ).toEntity();
+
+    expect((result.accepted, result.ignored), (2, 1));
+  });
+
+  test('an hour is sent as the step hours example shows', () {
+    final hours = (_example('step_hours_request')['hours'] as List)
+        .cast<Map<String, dynamic>>();
+
+    expect([
+      for (final hour in hours)
+        stepHourJson(
+          StepHour(
+            hourStart: DateTime.parse(hour['hour_start'] as String),
+            steps: hour['steps'] as int,
+          ),
+        ),
+    ], hours);
+  });
+
+  group('FakeRunsRemoteDataSource fixtures equal the examples', () {
+    test('my_challenge_page.json', () {
+      expect(myChallengePageFixture, _example('my_challenge_page'));
+    });
+
+    test('step_sync_result.json', () {
+      expect(stepSyncResultFixture, _example('step_sync_result'));
+    });
+
+    test('step_hours_request.json', () {
+      expect(stepHoursRequestFixture, _example('step_hours_request'));
+    });
+
+    test('step_hours_result.json', () {
+      expect(stepHoursResultFixture, _example('step_hours_result'));
+    });
+
+    test('the fake answers from them', () async {
+      const fake = FakeRunsRemoteDataSource();
+
+      expect((await fake.syncStepHours([])).accepted, 2);
+      expect((await fake.myChallenges()).items, hasLength(2));
+    });
   });
 }
