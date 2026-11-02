@@ -176,6 +176,26 @@ async def test_a_refresh_waits_for_a_password_change_and_then_fails(
 
 
 @pytest.mark.anyio
+async def test_a_refresh_that_waits_for_a_sign_in_is_session_replaced(
+    engine: AsyncEngine, signed_up: tuple[User, TokenPair]
+) -> None:
+    """A sign-in on a new device holds the lock while the old device refreshes: once the
+    sign-in commits, the refresh reads the revoked token and the new session start in a
+    statement after the lock, so it answers session_replaced."""
+    user, tokens = signed_up
+
+    async with AsyncSession(engine, expire_on_commit=False) as holder:
+        await AuthRepository(holder).lock_user_refresh_tokens(user.id)
+        task = asyncio.ensure_future(_refresh(engine, tokens.refresh_token))
+        await _wait_until_a_session_waits_for_an_advisory_lock(engine, task)
+        # The real sign-in, in the holder's transaction: it takes the same lock again and
+        # its commit releases both.
+        await _service(holder).sign_in(SignInRequest(email=user.email, password=PASSWORD), IP)
+
+    assert await asyncio.wait_for(task, timeout=10) == "session_replaced"
+
+
+@pytest.mark.anyio
 async def test_a_sign_in_with_the_old_password_waits_for_a_password_change_and_then_fails(
     engine: AsyncEngine, signed_up: tuple[User, TokenPair]
 ) -> None:
