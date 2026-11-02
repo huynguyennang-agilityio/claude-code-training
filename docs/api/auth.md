@@ -39,7 +39,7 @@ python -m app.scripts.create_admin someone@example.com --revoke   # make a norma
 - **Access token:** a JWT, valid for 15 minutes. Send it on protected routes as `Authorization: Bearer <access_token>`. The app must treat it as opaque and must not read its claims.
 - **Refresh token:** an opaque random string, valid for 30 days. Send it only to `/api/v1/auth/refresh` and `/api/v1/auth/signout`.
 - **Rotation:** every successful refresh returns a new refresh token and revokes the old one. Store the new pair and discard the old one. Using a revoked refresh token returns `401 invalid_refresh_token`, or `401 session_replaced` when the token was issued before the account's latest sign-in (see `POST /api/v1/auth/refresh`).
-- **One session per account:** only the device that signed in last stays signed in (see `POST /api/v1/auth/signin`).
+- **One session per account:** signing in on a device signs every other device out (see `POST /api/v1/auth/signin`).
 - Store both tokens in secure storage (Keychain or Keystore), never in plain preferences.
 - When a protected route returns `401` with `token_expired` or `invalid_token`, call `/api/v1/auth/refresh` once and retry the request. If the refresh fails, clear the tokens and go to Sign in.
 
@@ -223,7 +223,7 @@ Responses:
 }
 ```
 
-- `401 invalid_refresh_token` when the token is unknown or expired, or revoked with no sign-in since it was issued (already used by a refresh, signed out, or revoked by a password change). The app clears the tokens and goes to Sign in with its usual message.
+- `401 invalid_refresh_token` when the token is unknown or expired, or revoked with no sign-in since it was issued (already used by a refresh, signed out, or revoked by a password change). An expired token always returns `invalid_refresh_token`, even when a newer sign-in revoked it. The app clears the tokens and goes to Sign in with its usual message.
 - `422 validation_error`.
 
 ## `POST /api/v1/auth/signout`
