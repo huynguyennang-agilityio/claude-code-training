@@ -41,7 +41,7 @@ import 'package:stridequest/features/runs/domain/services/health_sync.dart';
 ///     flutter run -t integration_test/step_hour_sync_flow_test.dart -d <id> \
 ///       --dart-define=STEP_SYNC_PHASE=setup \
 ///       --dart-define=API_MODE=real \
-///       --dart-define=API_BASE_URL=http://<mac-lan-ip>:8000/api/v1/
+///       --dart-define=API_BASE_URL=http://<mac-lan-ip>:<port>/api/v1/
 ///
 /// and again with `STEP_SYNC_PHASE=sync`. The base URL includes `/api/v1/`.
 ///
@@ -58,6 +58,20 @@ void _log(String message) => debugPrint('#259 $message');
 /// hour of the last 3 days up to now, whatever window is asked for: the backend
 /// is the one that must ignore what does not count.
 class _FakeHealth implements HealthRepository {
+  _FakeHealth() : _lastHour = _currentUtcHour();
+
+  /// Every UTC hour of the last 3 days, plus the current one.
+  static const hourCount = 3 * 24 + 1;
+
+  /// Fixed when the fake is created, so an hour boundary between two syncs
+  /// cannot add an hour.
+  final DateTime _lastHour;
+
+  static DateTime _currentUtcHour() {
+    final now = DateTime.now().toUtc();
+    return DateTime.utc(now.year, now.month, now.day, now.hour);
+  }
+
   static const _allowed = {
     HealthMetric.steps,
     HealthMetric.calories,
@@ -77,12 +91,10 @@ class _FakeHealth implements HealthRepository {
     required DateTime from,
     required DateTime to,
   }) async {
-    final now = DateTime.now().toUtc();
-    final thisHour = DateTime.utc(now.year, now.month, now.day, now.hour);
     return [
-      for (var back = 3 * 24; back >= 0; back--)
+      for (var back = hourCount - 1; back >= 0; back--)
         StepHour(
-          hourStart: thisHour.subtract(Duration(hours: back)),
+          hourStart: _lastHour.subtract(Duration(hours: back)),
           steps: _stepsPerHour,
         ),
     ];
@@ -162,6 +174,23 @@ class _RecordingRunsSource implements RunsRemoteDataSource {
   @override
   Future<MyChallengePageModel> myChallenges({String? cursor, int limit = 20}) =>
       inner.myChallenges(cursor: cursor, limit: limit);
+}
+
+/// Sums what the step-hours calls made since the `from`th one sent and
+/// answered.
+({int sent, int accepted, int ignored}) _sumSince(
+  _RecordingRunsSource runs,
+  int from,
+) {
+  var sent = 0;
+  var accepted = 0;
+  var ignored = 0;
+  for (var i = from; i < runs.stepHourResults.length; i++) {
+    sent += runs.stepHourCounts[i];
+    accepted += runs.stepHourResults[i].accepted;
+    ignored += runs.stepHourResults[i].ignored;
+  }
+  return (sent: sent, accepted: accepted, ignored: ignored);
 }
 
 Future<ChallengeSummary> _findChallenge(ChallengeRepository challenges) async {
@@ -249,26 +278,34 @@ void main() {
 
     try {
       final before = await progress();
+      var seen = runs.stepHourResults.length;
       await reopen();
-      final first = runs.stepHourResults.single;
+      final sums1 = _sumSince(runs, seen);
       final afterFirst = await progress();
       _log(
-        'sync 1: hours_sent=${runs.stepHourCounts.last} '
-        'accepted=${first.accepted} ignored=${first.ignored} '
+        'sync 1: hours_sent=${sums1.sent} '
+        'accepted=${sums1.accepted} ignored=${sums1.ignored} '
         'progress $before -> $afterFirst',
       );
-      expect(first.accepted + first.ignored, runs.stepHourCounts.last);
-      if (first.accepted > 0) expect(afterFirst, greaterThan(before));
+      expect(sums1.accepted + sums1.ignored, sums1.sent);
+      expect(
+        sums1.accepted,
+        _FakeHealth.hourCount,
+        reason:
+            'every hour counts after session_started_at, joined_at and '
+            'hours_from were moved 4 days back in the database',
+      );
+      expect(afterFirst - before, sums1.accepted * _stepsPerHour);
 
+      seen = runs.stepHourResults.length;
       await reopen();
-      final second = runs.stepHourResults.last;
+      final sums2 = _sumSince(runs, seen);
       final afterSecond = await progress();
       _log(
-        'sync 2: hours_sent=${runs.stepHourCounts.last} '
-        'accepted=${second.accepted} ignored=${second.ignored} '
+        'sync 2: hours_sent=${sums2.sent} '
+        'accepted=${sums2.accepted} ignored=${sums2.ignored} '
         'progress $afterFirst -> $afterSecond',
       );
-      expect(runs.stepHourResults, hasLength(2));
       expect(afterSecond, afterFirst, reason: 'the same hours count once');
 
       // A negative step count breaks a field rule.
@@ -286,8 +323,11 @@ void main() {
       );
       _log('422 validation_error for a negative steps value and an empty list');
     } finally {
-      await getIt<ChallengeRepository>().leave(challenge.id);
-      await getIt<AuthRepository>().signOut();
+      try {
+        await getIt<ChallengeRepository>().leave(challenge.id);
+      } finally {
+        await getIt<AuthRepository>().signOut();
+      }
     }
   });
 }

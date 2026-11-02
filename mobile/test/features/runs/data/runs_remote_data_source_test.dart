@@ -96,31 +96,6 @@ void main() {
   });
 
   group('syncStepHours', () {
-    test('puts the hours and parses the answer', () async {
-      late RequestOptions sent;
-      final source = _source((request) async {
-        sent = request;
-        return jsonBody({
-          'accepted': 2,
-          'ignored': 1,
-          'enrollments': <Object>[],
-        }, 200);
-      });
-
-      final result = await source.syncStepHours([
-        {'hour_start': '2026-11-02T06:00:00Z', 'steps': 4120},
-      ]);
-
-      expect(sent.method, 'PUT');
-      expect(sent.path, 'runs/step-hours');
-      expect(sentJson(sent), {
-        'hours': [
-          {'hour_start': '2026-11-02T06:00:00Z', 'steps': 4120},
-        ],
-      });
-      expect((result.accepted, result.ignored), (2, 1));
-    });
-
     test('maps an error answer to its failure', () async {
       final source = _source((_) async => _error('validation_error', 422));
 
@@ -334,7 +309,8 @@ void main() {
         );
 
         final result = await source.syncStepHours([
-          {'hour_start': '2026-11-02T06:00:00Z', 'steps': 4120},
+          for (final hour in _example('step_hours_request')['hours'] as List)
+            (hour as Map<String, dynamic>).cast<String, Object>(),
         ]);
 
         expect(result.accepted, 2);
