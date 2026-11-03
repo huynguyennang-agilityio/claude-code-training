@@ -38,6 +38,9 @@ class FakeHealthRepository implements HealthRepository {
   var installs = 0;
   bool due = true;
   var explainerShown = 0;
+
+  /// When true, recording the explainer makes it not due, like the real store.
+  bool recordClearsDue = false;
   Object? readDaysError;
   var readDaysCalls = 0;
   ({Set<HealthMetric> allowed, int days})? lastReadDays;
@@ -85,7 +88,10 @@ class FakeHealthRepository implements HealthRepository {
   Future<bool> explainerDue() async => due;
 
   @override
-  Future<void> recordExplainerShown() async => explainerShown++;
+  Future<void> recordExplainerShown() async {
+    explainerShown++;
+    if (recordClearsDue) due = false;
+  }
 
   @override
   Future<List<StepRecord>> readStepRecords({required DateTime from}) async {

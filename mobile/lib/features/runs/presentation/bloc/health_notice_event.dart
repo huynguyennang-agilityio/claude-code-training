@@ -31,3 +31,21 @@ class HealthNoticeSettingsRequested extends HealthNoticeEvent {
 class HealthNoticeInstallRequested extends HealthNoticeEvent {
   const HealthNoticeInstallRequested();
 }
+
+/// The user just joined a challenge: open the explainer, if the notice is
+/// askable and it is due. Ignored while an earlier prompt is still pending.
+class HealthNoticeJoinPrompted extends HealthNoticeEvent {
+  const HealthNoticeJoinPrompted();
+}
+
+/// The screen opened the explainer asked for by a join prompt: record it as
+/// shown and accept a new prompt.
+class HealthNoticeExplainerShown extends HealthNoticeEvent {
+  const HealthNoticeExplainerShown();
+}
+
+/// The screen could not open the explainer (it is no longer on top): record
+/// nothing and accept a new prompt.
+class HealthNoticeExplainerSkipped extends HealthNoticeEvent {
+  const HealthNoticeExplainerSkipped();
+}

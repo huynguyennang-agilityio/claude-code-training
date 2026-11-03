@@ -37,6 +37,8 @@ Future<bool> showHealthSettings(
 Future<bool> _showSheet(BuildContext context, Widget sheet) async {
   final accepted = await showModalBottomSheet<bool>(
     context: context,
+    // Above the bottom bar, whichever tab the caller is on.
+    useRootNavigator: true,
     showDragHandle: true,
     // Tall text sizes need more than the default half of the screen.
     isScrollControlled: true,

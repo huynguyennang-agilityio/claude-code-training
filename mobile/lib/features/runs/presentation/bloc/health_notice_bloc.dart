@@ -29,6 +29,9 @@ class HealthNoticeBloc extends Bloc<HealthNoticeEvent, HealthNoticeState> {
     on<HealthNoticeInstallRequested>(
       (event, emit) => _guard(_health.installHealthConnect),
     );
+    on<HealthNoticeJoinPrompted>(_onJoinPrompted);
+    on<HealthNoticeExplainerShown>(_onExplainerShown);
+    on<HealthNoticeExplainerSkipped>((event, emit) => _prompting = false);
   }
 
   final GetHealthNotice _getNotice;
@@ -39,6 +42,40 @@ class HealthNoticeBloc extends Bloc<HealthNoticeEvent, HealthNoticeState> {
   /// its result. Events run concurrently, so a check started before the user
   /// asked could otherwise finish after the answer and show a stale notice.
   int _check = 0;
+
+  /// True from a join prompt until the screen answers its signal with
+  /// [HealthNoticeExplainerShown] or [HealthNoticeExplainerSkipped], so two
+  /// joins in a row ask once.
+  bool _prompting = false;
+
+  Future<void> _onJoinPrompted(
+    HealthNoticeJoinPrompted event,
+    Emitter<HealthNoticeState> emit,
+  ) async {
+    if (_prompting) return;
+    _prompting = true;
+    var signalled = false;
+    try {
+      final askable = await _getNotice() == HealthNotice.askable;
+      if (askable && await _health.explainerDue()) {
+        signalled = true;
+        emit(state.copyWith(explainerCount: state.explainerCount + 1));
+      }
+    } on Object catch (error, stack) {
+      _report(error, stack);
+    } finally {
+      // Without a signal nobody will answer, so the flag clears here.
+      if (!signalled) _prompting = false;
+    }
+  }
+
+  Future<void> _onExplainerShown(
+    HealthNoticeExplainerShown event,
+    Emitter<HealthNoticeState> emit,
+  ) async {
+    _prompting = false;
+    await _guard(_health.recordExplainerShown);
+  }
 
   Future<void> _onRefreshed(
     HealthNoticeRefreshed event,
@@ -55,7 +92,7 @@ class HealthNoticeBloc extends Bloc<HealthNoticeEvent, HealthNoticeState> {
   ) async {
     if (state.busy) return;
     _check++;
-    emit(HealthNoticeState(notice: state.notice, busy: true));
+    emit(state.copyWith(busy: true));
     try {
       final access = await _health.requestAccess();
       if (access.canReadSteps) {
@@ -68,14 +105,14 @@ class HealthNoticeBloc extends Bloc<HealthNoticeEvent, HealthNoticeState> {
     }
     final check = ++_check;
     final notice = await _notice();
-    if (check == _check) emit(HealthNoticeState(notice: notice));
+    if (check == _check) emit(state.copyWith(notice: notice, busy: false));
   }
 
   Future<void> _evaluate(Emitter<HealthNoticeState> emit) async {
     final check = ++_check;
     final notice = await _notice();
     if (check != _check) return;
-    emit(HealthNoticeState(notice: notice, busy: state.busy));
+    emit(state.copyWith(notice: notice));
   }
 
   /// The current notice; the previous one stays when it cannot be worked out.

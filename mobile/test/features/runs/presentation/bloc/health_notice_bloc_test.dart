@@ -221,4 +221,111 @@ void main() {
       await bloc.close();
     },
   );
+
+  group('join prompt', () {
+    setUp(() {
+      when(health.explainerDue).thenAnswer((_) async => true);
+      when(health.recordExplainerShown).thenAnswer((_) async {});
+    });
+
+    blocTest<HealthNoticeBloc, HealthNoticeState>(
+      'askable and due signals once',
+      build: build,
+      act: (bloc) => bloc.add(const HealthNoticeJoinPrompted()),
+      expect: () => [const HealthNoticeState(explainerCount: 1)],
+      verify: (_) => verifyNever(health.recordExplainerShown),
+    );
+
+    blocTest<HealthNoticeBloc, HealthNoticeState>(
+      'a notice that is not askable signals nothing',
+      setUp: () =>
+          when(() => getNotice()).thenAnswer((_) async => HealthNotice.none),
+      build: build,
+      act: (bloc) => bloc.add(const HealthNoticeJoinPrompted()),
+      expect: () => <HealthNoticeState>[],
+      verify: (_) => verifyNever(health.explainerDue),
+    );
+
+    blocTest<HealthNoticeBloc, HealthNoticeState>(
+      'an explainer that is not due signals nothing',
+      setUp: () => when(health.explainerDue).thenAnswer((_) async => false),
+      build: build,
+      act: (bloc) => bloc.add(const HealthNoticeJoinPrompted()),
+      expect: () => <HealthNoticeState>[],
+    );
+
+    blocTest<HealthNoticeBloc, HealthNoticeState>(
+      'two prompts before an answer signal once',
+      build: build,
+      act: (bloc) => bloc
+        ..add(const HealthNoticeJoinPrompted())
+        ..add(const HealthNoticeJoinPrompted()),
+      expect: () => [const HealthNoticeState(explainerCount: 1)],
+      verify: (_) => verify(() => getNotice()).called(1),
+    );
+
+    blocTest<HealthNoticeBloc, HealthNoticeState>(
+      'shown records it and accepts a new prompt',
+      build: build,
+      act: (bloc) async {
+        bloc.add(const HealthNoticeJoinPrompted());
+        await pumpEventQueue();
+        bloc.add(const HealthNoticeExplainerShown());
+        await pumpEventQueue();
+        bloc.add(const HealthNoticeJoinPrompted());
+      },
+      expect: () => [
+        const HealthNoticeState(explainerCount: 1),
+        const HealthNoticeState(explainerCount: 2),
+      ],
+      verify: (_) => verify(health.recordExplainerShown).called(1),
+    );
+
+    blocTest<HealthNoticeBloc, HealthNoticeState>(
+      'skipped records nothing and accepts a new prompt',
+      build: build,
+      act: (bloc) async {
+        bloc.add(const HealthNoticeJoinPrompted());
+        await pumpEventQueue();
+        bloc.add(const HealthNoticeExplainerSkipped());
+        await pumpEventQueue();
+        bloc.add(const HealthNoticeJoinPrompted());
+      },
+      expect: () => [
+        const HealthNoticeState(explainerCount: 1),
+        const HealthNoticeState(explainerCount: 2),
+      ],
+      verify: (_) => verifyNever(health.recordExplainerShown),
+    );
+
+    blocTest<HealthNoticeBloc, HealthNoticeState>(
+      'a failing check reports, signals nothing and accepts a new prompt',
+      setUp: () => when(() => getNotice()).thenThrow(const HealthFailure()),
+      build: build,
+      act: (bloc) async {
+        bloc.add(const HealthNoticeJoinPrompted());
+        await pumpEventQueue();
+        when(() => getNotice()).thenAnswer((_) async => HealthNotice.askable);
+        bloc.add(const HealthNoticeJoinPrompted());
+      },
+      expect: () => [const HealthNoticeState(explainerCount: 1)],
+      verify: (_) => expect(reported, [isA<HealthFailure>()]),
+    );
+
+    blocTest<HealthNoticeBloc, HealthNoticeState>(
+      'the signal count survives a later notice check',
+      build: build,
+      seed: () => const HealthNoticeState(explainerCount: 3),
+      setUp: () => when(
+        () => getNotice(),
+      ).thenAnswer((_) async => HealthNotice.settings),
+      act: (bloc) => bloc.add(const HealthNoticeRefreshed()),
+      expect: () => [
+        const HealthNoticeState(
+          notice: HealthNotice.settings,
+          explainerCount: 3,
+        ),
+      ],
+    );
+  });
 }

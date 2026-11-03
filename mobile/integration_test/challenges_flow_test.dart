@@ -8,6 +8,10 @@ import 'package:stridequest/core/di/injection.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/auth/presentation/widgets/auth_text_field.dart';
+import 'package:stridequest/features/runs/domain/entities/health_access.dart';
+import 'package:stridequest/features/runs/domain/repositories/health_repository.dart';
+import 'package:stridequest/features/runs/domain/usecases/get_health_notice.dart';
+import 'package:stridequest/features/runs/presentation/widgets/health_sheets.dart';
 
 /// Browse, search, filter, join, pause, resume and leave in the real app
 /// against the real backend.
@@ -85,6 +89,21 @@ Future<void> openChallenge(WidgetTester tester, String title) async {
   await pumpUntilFound(tester, find.byTooltip('Back'));
 }
 
+/// Waits a moment for the health explainer a join may open (health access not
+/// allowed yet, and not shown in the last 7 days) and answers **Not now**.
+/// Returns whether it opened.
+Future<bool> answerExplainerNotNow(WidgetTester tester) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 3));
+  while (find.byType(HealthExplainerSheet).evaluate().isEmpty) {
+    if (DateTime.now().isAfter(deadline)) return false;
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Not now'));
+  await tester.pumpAndSettle();
+  return true;
+}
+
 Future<void> back(WidgetTester tester) async {
   await tester.tap(find.byTooltip('Back'));
   await tester.pumpAndSettle();
@@ -143,11 +162,19 @@ void main() {
     // Join Old Quarter from its detail.
     await openChallenge(tester, _oldQuarter);
     expect(find.text('Challenge ends in'), findsOneWidget);
+    // Whether this first join must open the health explainer: on a fresh
+    // install it must (access not asked yet, never shown).
+    final mustAsk =
+        await getIt<GetHealthNotice>()() == HealthNotice.askable &&
+        await getIt<HealthRepository>().explainerDue();
     await tapAndWait(
       tester,
       find.text('Join Challenge'),
       find.widgetWithText(OutlinedButton, 'Pause'),
     );
+    // On a fresh install the join opens the health explainer; Not now keeps
+    // the user joined.
+    expect(await answerExplainerNotNow(tester), mustAsk);
     expect(find.text('Joined'), findsOneWidget);
     await back(tester);
     await pumpUntilFound(tester, find.text('Joined'));
@@ -184,6 +211,8 @@ void main() {
       find.text('Join Challenge'),
       find.widgetWithText(OutlinedButton, 'Pause'),
     );
+    // Shown or not, the explainer does not open again within 7 days.
+    expect(await answerExplainerNotNow(tester), isFalse);
     await back(tester);
     await openChallenge(tester, _oldQuarter);
     await pumpUntilFound(
