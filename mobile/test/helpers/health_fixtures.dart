@@ -1,4 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:stridequest/core/di/injection.dart';
 import 'package:stridequest/features/runs/data/datasources/health_data_source.dart';
@@ -218,9 +220,33 @@ void registerHealthBlocs([HealthRepository? repository]) {
   getIt
     ..registerFactory<HealthGateBloc>(() => HealthGateBloc(repo))
     ..registerFactory<ActivityBloc>(() => ActivityBloc(service))
-    ..registerFactory<MyChallengesBloc>(() => MyChallengesBloc(runs));
+    ..registerFactory<MyChallengesBloc>(() => MyChallengesBloc(runs))
+    ..registerFactory<HealthNoticeBloc>(() {
+      final notice = MockHealthNoticeBloc();
+      whenListen(
+        notice,
+        const Stream<HealthNoticeState>.empty(),
+        initialState: const HealthNoticeState(),
+      );
+      return notice;
+    });
 }
 
 class MockHealthNoticeBloc
     extends MockBloc<HealthNoticeEvent, HealthNoticeState>
     implements HealthNoticeBloc {}
+
+/// Puts a [HealthNoticeBloc] stuck on [notice] above [child], as the Active
+/// route does.
+Widget withHealthNotice(
+  Widget child, [
+  HealthNotice notice = HealthNotice.none,
+]) {
+  final bloc = MockHealthNoticeBloc();
+  whenListen(
+    bloc,
+    const Stream<HealthNoticeState>.empty(),
+    initialState: HealthNoticeState(notice: notice),
+  );
+  return BlocProvider<HealthNoticeBloc>.value(value: bloc, child: child);
+}

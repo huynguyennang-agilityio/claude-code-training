@@ -23,6 +23,7 @@ import '../../features/profile/presentation/bloc/profile_info_bloc.dart';
 import '../../features/profile/presentation/pages/profile_info_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/runs/presentation/bloc/health_gate_bloc.dart';
+import '../../features/runs/presentation/bloc/health_notice_bloc.dart';
 import '../../features/runs/presentation/pages/active_challenges_page.dart';
 import '../di/injection.dart';
 
@@ -72,9 +73,18 @@ final appRoutes = <RouteBase>[
         routes: [
           GoRoute(
             path: ActiveChallengesPage.path,
-            builder: (context, state) => BlocProvider(
-              create: (_) =>
-                  getIt<HealthGateBloc>()..add(const HealthGateStarted()),
+            builder: (context, state) => MultiBlocProvider(
+              providers: [
+                BlocProvider(
+                  create: (_) =>
+                      getIt<HealthGateBloc>()..add(const HealthGateStarted()),
+                ),
+                BlocProvider(
+                  create: (_) =>
+                      getIt<HealthNoticeBloc>()
+                        ..add(const HealthNoticeStarted()),
+                ),
+              ],
               child: const ActiveChallengesPage(),
             ),
           ),

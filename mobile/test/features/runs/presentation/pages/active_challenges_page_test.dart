@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -8,9 +10,13 @@ import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/health_gate_bloc.dart';
+import 'package:stridequest/features/runs/presentation/bloc/health_notice_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart';
 import 'package:stridequest/features/runs/presentation/pages/active_challenges_page.dart';
+import 'package:stridequest/features/runs/presentation/widgets/activity_tab.dart';
 import 'package:stridequest/features/runs/presentation/widgets/health_gate_view.dart';
+import 'package:stridequest/features/runs/presentation/widgets/health_metric_list.dart';
+import 'package:stridequest/features/runs/presentation/widgets/my_challenges_tab.dart';
 
 import '../../../../helpers/expect_accessible.dart';
 import '../../../../helpers/health_fixtures.dart';
@@ -33,10 +39,29 @@ final _states = <String, HealthGateState>{
   'granted': const HealthGateResolved(_granted),
 };
 
-Widget _page(MockHealthGateBloc bloc) => BlocProvider<HealthGateBloc>.value(
-  value: bloc,
-  child: const ActiveChallengesPage(),
-);
+Widget _page(HealthGateBloc bloc, {HealthNotice notice = HealthNotice.none}) =>
+    withHealthNotice(
+      BlocProvider<HealthGateBloc>.value(
+        value: bloc,
+        child: const ActiveChallengesPage(),
+      ),
+      notice,
+    );
+
+/// The app goes to Settings and comes back, in the order the platform reports
+/// it: `AppLifecycleListener` (the banner) asserts on a skipped state.
+void _comeBack(WidgetTester tester) {
+  for (final state in [
+    AppLifecycleState.inactive,
+    AppLifecycleState.hidden,
+    AppLifecycleState.paused,
+    AppLifecycleState.hidden,
+    AppLifecycleState.inactive,
+    AppLifecycleState.resumed,
+  ]) {
+    tester.binding.handleAppLifecycleStateChanged(state);
+  }
+}
 
 void main() {
   late MockHealthGateBloc bloc;
@@ -85,6 +110,7 @@ void main() {
       expect(find.text('Optional'), findsNWidgets(3));
       expect(find.text(healthConsentNote), findsOneWidget);
 
+      await tester.ensureVisible(find.text('Allow access'));
       await tester.tap(find.text('Allow access'));
 
       verify(() => bloc.add(const HealthAccessRequested())).called(1);
@@ -95,6 +121,7 @@ void main() {
       await pumpScreen(tester, _page(bloc));
 
       expect(find.text('Health access is off'), findsOneWidget);
+      await tester.ensureVisible(find.text('Open settings'));
       await tester.tap(find.text('Open settings'));
 
       verify(() => bloc.add(const HealthSettingsRequested())).called(1);
@@ -106,6 +133,7 @@ void main() {
       await pumpScreen(tester, _page(bloc));
 
       expect(find.text('Health Connect needed'), findsOneWidget);
+      await tester.ensureVisible(find.text('Install Health Connect'));
       await tester.tap(find.text('Install Health Connect'));
 
       verify(() => bloc.add(const HealthInstallRequested())).called(1);
@@ -138,13 +166,208 @@ void main() {
     });
   });
 
-  testWidgets('checking shows a spinner and no gate', (tester) async {
+  testWidgets('checking shows the tabs, with a spinner in Active', (
+    tester,
+  ) async {
     bloc = blocIn(const HealthGateChecking());
     await pumpScreen(tester, _page(bloc), settle: false);
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('Allow access'), findsNothing);
-    expect(find.text('Active'), findsOneWidget);
+    expect(find.text('My Challenges'), findsOneWidget);
+  });
+
+  group('without health access', () {
+    final items = [myChallenge(), myChallenge(id: 9, title: 'Mỹ Khê Bay')];
+
+    testWidgets('both tabs open: the gate in Active, the list with the '
+        'notice in My Challenges', (tester) async {
+      getIt.unregister<MyChallengesBloc>();
+      final mine = MockMyChallengesBloc();
+      whenListen(
+        mine,
+        const Stream<MyChallengesState>.empty(),
+        initialState: MyChallengesState(
+          status: MyChallengesStatus.ready,
+          items: items,
+        ),
+      );
+      getIt.registerFactory<MyChallengesBloc>(() => mine);
+      bloc = blocIn(const HealthGateResolved(HealthAccess.denied()));
+      await pumpScreen(tester, _page(bloc, notice: HealthNotice.askable));
+
+      expect(find.text('My Challenges'), findsOneWidget);
+      expect(find.text('Allow health access'), findsOneWidget);
+      expect(find.byType(HealthMetricList), findsOneWidget);
+      expect(find.byType(FilledButton), findsOneWidget);
+      expect(find.text(healthConsentNote), findsOneWidget);
+
+      await tester.tap(find.text('My Challenges'));
+      await tester.pumpAndSettle();
+
+      final banner = find.textContaining("Steps aren't tracked yet");
+      expect(banner, findsOneWidget);
+      expect(find.text(items.first.challenge.title), findsOneWidget);
+      expect(
+        tester.getBottomLeft(banner).dy,
+        lessThanOrEqualTo(
+          tester.getTopLeft(find.text(items.first.challenge.title)).dy,
+        ),
+      );
+    });
+
+    testWidgets('coming back from Settings with steps allowed shows the '
+        'figures in the same tab', (tester) async {
+      await getIt.reset();
+      final repository = FakeHealthRepository(
+        const HealthAccess.permanentlyDenied(),
+      );
+      registerHealthBlocs(repository);
+      final gate = getIt<HealthGateBloc>()..add(const HealthGateStarted());
+      addTearDown(gate.close);
+      await pumpScreen(tester, _page(gate));
+      expect(find.text('Health access is off'), findsOneWidget);
+      expect(find.byType(ActivityTab), findsNothing);
+
+      repository.access = _granted;
+      _comeBack(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ActivityTab), findsOneWidget);
+      expect(find.byType(HealthGateView), findsNothing);
+      expect(find.text('Refresh data'), findsOneWidget);
+      expect(find.byType(TabBar), findsOneWidget);
+    });
+
+    testWidgets('access turned on while on My Challenges keeps that tab', (
+      tester,
+    ) async {
+      await getIt.reset();
+      final repository = FakeHealthRepository(
+        const HealthAccess.permanentlyDenied(),
+      );
+      registerHealthBlocs(repository);
+      final gate = getIt<HealthGateBloc>()..add(const HealthGateStarted());
+      addTearDown(gate.close);
+      await pumpScreen(tester, _page(gate));
+      await tester.tap(find.widgetWithText(Tab, 'My Challenges'));
+      await tester.pumpAndSettle();
+
+      repository.access = _granted;
+      _comeBack(tester);
+      await tester.pumpAndSettle();
+
+      expect(
+        DefaultTabController.of(tester.element(find.byType(TabBar))).index,
+        1,
+      );
+      expect(find.byType(MyChallengesTab), findsOneWidget);
+    });
+  });
+
+  group('the gate and the notice follow each other', () {
+    testWidgets('access granted from the gate refreshes the notice', (
+      tester,
+    ) async {
+      final gates = StreamController<HealthGateState>();
+      addTearDown(gates.close);
+      final gate = MockHealthGateBloc();
+      whenListen(
+        gate,
+        gates.stream,
+        initialState: const HealthGateResolved(HealthAccess.denied()),
+      );
+      final notice = MockHealthNoticeBloc();
+      whenListen(
+        notice,
+        const Stream<HealthNoticeState>.empty(),
+        initialState: const HealthNoticeState(notice: HealthNotice.askable),
+      );
+      await pumpScreen(
+        tester,
+        BlocProvider<HealthNoticeBloc>.value(
+          value: notice,
+          child: BlocProvider<HealthGateBloc>.value(
+            value: gate,
+            child: const ActiveChallengesPage(),
+          ),
+        ),
+      );
+
+      gates.add(const HealthGateResolved(HealthAccess.denied(), busy: true));
+      await tester.pump();
+      verifyNever(() => notice.add(const HealthNoticeRefreshed()));
+
+      gates.add(const HealthGateResolved(_granted));
+      await tester.pump();
+      verify(() => notice.add(const HealthNoticeRefreshed())).called(1);
+    });
+
+    testWidgets('access asked from the notice rechecks the gate', (
+      tester,
+    ) async {
+      final notices = StreamController<HealthNoticeState>();
+      addTearDown(notices.close);
+      final notice = MockHealthNoticeBloc();
+      whenListen(
+        notice,
+        notices.stream,
+        initialState: const HealthNoticeState(notice: HealthNotice.askable),
+      );
+      bloc = blocIn(const HealthGateResolved(HealthAccess.denied()));
+      await pumpScreen(
+        tester,
+        BlocProvider<HealthNoticeBloc>.value(
+          value: notice,
+          child: BlocProvider<HealthGateBloc>.value(
+            value: bloc,
+            child: const ActiveChallengesPage(),
+          ),
+        ),
+      );
+
+      notices.add(
+        const HealthNoticeState(notice: HealthNotice.askable, busy: true),
+      );
+      await tester.pump();
+      verifyNever(() => bloc.add(const HealthGateRechecked()));
+
+      notices.add(const HealthNoticeState());
+      await tester.pump();
+      verify(() => bloc.add(const HealthGateRechecked())).called(1);
+    });
+  });
+
+  testWidgets('the list reloads when a sync finishes', (tester) async {
+    final activity = MockActivityBloc();
+    final mine = MockMyChallengesBloc();
+    final states = StreamController<ActivityState>();
+    addTearDown(states.close);
+    whenListen(
+      activity,
+      states.stream,
+      initialState: const ActivityState(
+        allowed: {HealthMetric.steps},
+        busy: true,
+      ),
+    );
+    whenListen(
+      mine,
+      const Stream<MyChallengesState>.empty(),
+      initialState: const MyChallengesState(status: MyChallengesStatus.ready),
+    );
+    getIt
+      ..unregister<ActivityBloc>()
+      ..unregister<MyChallengesBloc>()
+      ..registerFactory<ActivityBloc>(() => activity)
+      ..registerFactory<MyChallengesBloc>(() => mine);
+    await pumpScreen(tester, _page(blocIn(const HealthGateResolved(_granted))));
+    verifyNever(() => mine.add(const MyChallengesRefreshed()));
+
+    states.add(const ActivityState(allowed: {HealthMetric.steps}));
+    await tester.pump();
+
+    verify(() => mine.add(const MyChallengesRefreshed())).called(1);
   });
 
   testWidgets('granted opens the tab, with no gate', (tester) async {
