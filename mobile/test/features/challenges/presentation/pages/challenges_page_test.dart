@@ -102,6 +102,29 @@ void main() {
       ChallengesState(status: ChallengesStatus.ready, items: items ?? cards);
 
   group('the health notice', () {
+    for (final size in [smallPhone, largePhone]) {
+      for (final textScale in [1.0, 2.0]) {
+        testWidgets(
+          'joined cards with the banner fit and are accessible on $size '
+          'at text x$textScale',
+          (tester) async {
+            await pumpPage(
+              tester,
+              ready([summary(enrollment: enrolled()), summary(id: 2)]),
+              notice: HealthNotice.askable,
+              size: size,
+              textScale: textScale,
+            );
+            await scrollTo(tester, find.byType(HealthNoticeBanner));
+
+            expect(find.byType(HealthNoticeBanner), findsOneWidget);
+            expectNoLayoutException(tester);
+            await expectAccessible(tester);
+          },
+        );
+      }
+    }
+
     testWidgets('only the joined and the paused cards show the banner', (
       tester,
     ) async {

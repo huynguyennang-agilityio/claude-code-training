@@ -234,6 +234,27 @@ void main() {
       notice: notice,
     );
 
+    for (final size in [smallPhone, largePhone]) {
+      for (final textScale in [1.0, 2.0]) {
+        testWidgets(
+          'the banner fits and is accessible on $size at text x$textScale',
+          (tester) async {
+            await pumpPage(
+              tester,
+              loaded(challenge(enrollment: enrolled())),
+              notice: HealthNotice.askable,
+              size: size,
+              textScale: textScale,
+            );
+
+            expect(find.byType(HealthNoticeBanner), findsOneWidget);
+            expectNoLayoutException(tester);
+            await expectAccessible(tester);
+          },
+        );
+      }
+    }
+
     for (final status in EnrollmentStatus.values) {
       testWidgets('a ${status.name} challenge shows the banner', (
         tester,
