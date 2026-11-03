@@ -11,12 +11,12 @@ import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/health_gate_bloc.dart';
+import 'package:stridequest/features/runs/presentation/bloc/health_notice_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart';
 import 'package:stridequest/features/runs/presentation/pages/active_challenges_page.dart';
 import 'package:stridequest/features/runs/presentation/widgets/activity_tab.dart';
 import 'package:stridequest/features/runs/presentation/widgets/health_gate_view.dart';
 import 'package:stridequest/features/runs/presentation/widgets/health_metric_list.dart';
-import 'package:stridequest/features/runs/presentation/widgets/health_notice_banner.dart';
 import 'package:stridequest/features/runs/presentation/widgets/my_challenges_tab.dart';
 
 import '../../../../helpers/expect_accessible.dart';
@@ -48,6 +48,21 @@ Widget _page(HealthGateBloc bloc, {HealthNotice notice = HealthNotice.none}) =>
       ),
       notice,
     );
+
+/// The app goes to Settings and comes back, in the order the platform reports
+/// it: `AppLifecycleListener` (the banner) asserts on a skipped state.
+void _comeBack(WidgetTester tester) {
+  for (final state in [
+    AppLifecycleState.inactive,
+    AppLifecycleState.hidden,
+    AppLifecycleState.paused,
+    AppLifecycleState.hidden,
+    AppLifecycleState.inactive,
+    AppLifecycleState.resumed,
+  ]) {
+    tester.binding.handleAppLifecycleStateChanged(state);
+  }
+}
 
 void main() {
   late MockHealthGateBloc bloc;
@@ -191,10 +206,11 @@ void main() {
       await tester.tap(find.text('My Challenges'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(HealthNoticeBanner), findsOneWidget);
+      final banner = find.textContaining("Steps aren't tracked yet");
+      expect(banner, findsOneWidget);
       expect(find.text(items.first.challenge.title), findsOneWidget);
       expect(
-        tester.getBottomLeft(find.byType(HealthNoticeBanner)).dy,
+        tester.getBottomLeft(banner).dy,
         lessThanOrEqualTo(
           tester.getTopLeft(find.text(items.first.challenge.title)).dy,
         ),
@@ -208,7 +224,6 @@ void main() {
         const HealthAccess.permanentlyDenied(),
       );
       registerHealthBlocs(repository);
-      registerFallbackValue(const HealthGateStarted());
       final gate = getIt<HealthGateBloc>()..add(const HealthGateStarted());
       addTearDown(gate.close);
       await pumpScreen(tester, _page(gate));
@@ -216,8 +231,7 @@ void main() {
       expect(find.byType(ActivityTab), findsNothing);
 
       repository.access = _granted;
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      _comeBack(tester);
       await tester.pumpAndSettle();
 
       expect(find.byType(ActivityTab), findsOneWidget);
@@ -241,17 +255,7 @@ void main() {
       await tester.pumpAndSettle();
 
       repository.access = _granted;
-      // The banner is on screen: its listener wants the real order of states.
-      for (final state in [
-        AppLifecycleState.inactive,
-        AppLifecycleState.hidden,
-        AppLifecycleState.paused,
-        AppLifecycleState.hidden,
-        AppLifecycleState.inactive,
-        AppLifecycleState.resumed,
-      ]) {
-        tester.binding.handleAppLifecycleStateChanged(state);
-      }
+      _comeBack(tester);
       await tester.pumpAndSettle();
 
       expect(
@@ -259,6 +263,79 @@ void main() {
         1,
       );
       expect(find.byType(MyChallengesTab), findsOneWidget);
+    });
+  });
+
+  group('the gate and the notice follow each other', () {
+    testWidgets('access granted from the gate refreshes the notice', (
+      tester,
+    ) async {
+      final gates = StreamController<HealthGateState>();
+      addTearDown(gates.close);
+      final gate = MockHealthGateBloc();
+      whenListen(
+        gate,
+        gates.stream,
+        initialState: const HealthGateResolved(HealthAccess.denied()),
+      );
+      final notice = MockHealthNoticeBloc();
+      whenListen(
+        notice,
+        const Stream<HealthNoticeState>.empty(),
+        initialState: const HealthNoticeState(notice: HealthNotice.askable),
+      );
+      await pumpScreen(
+        tester,
+        BlocProvider<HealthNoticeBloc>.value(
+          value: notice,
+          child: BlocProvider<HealthGateBloc>.value(
+            value: gate,
+            child: const ActiveChallengesPage(),
+          ),
+        ),
+      );
+
+      gates.add(const HealthGateResolved(HealthAccess.denied(), busy: true));
+      await tester.pump();
+      verifyNever(() => notice.add(const HealthNoticeRefreshed()));
+
+      gates.add(const HealthGateResolved(_granted));
+      await tester.pump();
+      verify(() => notice.add(const HealthNoticeRefreshed())).called(1);
+    });
+
+    testWidgets('access asked from the notice rechecks the gate', (
+      tester,
+    ) async {
+      final notices = StreamController<HealthNoticeState>();
+      addTearDown(notices.close);
+      final notice = MockHealthNoticeBloc();
+      whenListen(
+        notice,
+        notices.stream,
+        initialState: const HealthNoticeState(notice: HealthNotice.askable),
+      );
+      bloc = blocIn(const HealthGateResolved(HealthAccess.denied()));
+      await pumpScreen(
+        tester,
+        BlocProvider<HealthNoticeBloc>.value(
+          value: notice,
+          child: BlocProvider<HealthGateBloc>.value(
+            value: bloc,
+            child: const ActiveChallengesPage(),
+          ),
+        ),
+      );
+
+      notices.add(
+        const HealthNoticeState(notice: HealthNotice.askable, busy: true),
+      );
+      await tester.pump();
+      verifyNever(() => bloc.add(const HealthGateRechecked()));
+
+      notices.add(const HealthNoticeState());
+      await tester.pump();
+      verify(() => bloc.add(const HealthGateRechecked())).called(1);
     });
   });
 

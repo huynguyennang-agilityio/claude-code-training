@@ -73,44 +73,64 @@ class _ActiveChallengesPageState extends State<ActiveChallengesPage>
     return BlocProvider(
       create: (_) =>
           getIt<MyChallengesBloc>()..add(const MyChallengesStarted()),
-      child: BlocBuilder<HealthGateBloc, HealthGateState>(
-        builder: (context, state) => switch (state) {
-          HealthGateChecking() => ActiveTabs(
-            key: _tabs,
-            activity: const Center(child: CircularProgressIndicator()),
+      child: MultiBlocListener(
+        listeners: [
+          // Access granted from the gate: the notice above the list follows.
+          BlocListener<HealthGateBloc, HealthGateState>(
+            listenWhen: (before, after) =>
+                before is HealthGateResolved &&
+                after is HealthGateResolved &&
+                !after.busy &&
+                before.access != after.access,
+            listener: (context, state) => context.read<HealthNoticeBloc>().add(
+              const HealthNoticeRefreshed(),
+            ),
           ),
-          HealthGateResolved(access: final access) when access.isGranted =>
-            MultiBlocProvider(
-              // A new bloc when the allowed metrics change (turned on in
-              // Settings).
-              key: ValueKey(access.allowed),
-              providers: [
-                BlocProvider(
-                  create: (_) =>
-                      getIt<ActivityBloc>()
-                        ..add(ActivityStarted(access.allowed)),
+          // Access asked from the notice: the Active tab follows.
+          BlocListener<HealthNoticeBloc, HealthNoticeState>(
+            listenWhen: (before, after) => before.busy && !after.busy,
+            listener: (context, state) => _recheck(),
+          ),
+        ],
+        child: BlocBuilder<HealthGateBloc, HealthGateState>(
+          builder: (context, state) => switch (state) {
+            HealthGateChecking() => ActiveTabs(
+              key: _tabs,
+              activity: const Center(child: CircularProgressIndicator()),
+            ),
+            HealthGateResolved(access: final access) when access.isGranted =>
+              MultiBlocProvider(
+                // A new bloc when the allowed metrics change (turned on in
+                // Settings).
+                key: ValueKey(access.allowed),
+                providers: [
+                  BlocProvider(
+                    create: (_) =>
+                        getIt<ActivityBloc>()
+                          ..add(ActivityStarted(access.allowed)),
+                  ),
+                ],
+                child: _SyncRefreshesList(
+                  child: ActiveTabs(key: _tabs, activity: const ActivityTab()),
                 ),
-              ],
-              child: _SyncRefreshesList(
-                child: ActiveTabs(key: _tabs, activity: const ActivityTab()),
+              ),
+            HealthGateResolved(:final access, :final busy) => ActiveTabs(
+              key: _tabs,
+              activity: HealthGateView(
+                status: access.status,
+                busy: busy,
+                onAction: () =>
+                    context.read<HealthGateBloc>().add(switch (access.status) {
+                      HealthAccessStatus.permanentlyDenied =>
+                        const HealthSettingsRequested(),
+                      HealthAccessStatus.unavailable =>
+                        const HealthInstallRequested(),
+                      _ => const HealthAccessRequested(),
+                    }),
               ),
             ),
-          HealthGateResolved(:final access, :final busy) => ActiveTabs(
-            key: _tabs,
-            activity: HealthGateView(
-              status: access.status,
-              busy: busy,
-              onAction: () =>
-                  context.read<HealthGateBloc>().add(switch (access.status) {
-                    HealthAccessStatus.permanentlyDenied =>
-                      const HealthSettingsRequested(),
-                    HealthAccessStatus.unavailable =>
-                      const HealthInstallRequested(),
-                    _ => const HealthAccessRequested(),
-                  }),
-            ),
-          ),
-        },
+          },
+        ),
       ),
     );
   }

@@ -220,7 +220,16 @@ void registerHealthBlocs([HealthRepository? repository]) {
   getIt
     ..registerFactory<HealthGateBloc>(() => HealthGateBloc(repo))
     ..registerFactory<ActivityBloc>(() => ActivityBloc(service))
-    ..registerFactory<MyChallengesBloc>(() => MyChallengesBloc(runs));
+    ..registerFactory<MyChallengesBloc>(() => MyChallengesBloc(runs))
+    ..registerFactory<HealthNoticeBloc>(() {
+      final notice = MockHealthNoticeBloc();
+      whenListen(
+        notice,
+        const Stream<HealthNoticeState>.empty(),
+        initialState: const HealthNoticeState(),
+      );
+      return notice;
+    });
 }
 
 class MockHealthNoticeBloc
