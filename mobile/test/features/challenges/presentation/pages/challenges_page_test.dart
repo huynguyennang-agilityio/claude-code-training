@@ -9,9 +9,12 @@ import 'package:stridequest/features/challenges/domain/entities/challenge.dart';
 import 'package:stridequest/features/challenges/domain/failures/challenge_failure.dart';
 import 'package:stridequest/features/challenges/presentation/bloc/challenges_bloc.dart';
 import 'package:stridequest/features/challenges/presentation/pages/challenges_page.dart';
+import 'package:stridequest/features/runs/domain/entities/health_access.dart';
+import 'package:stridequest/features/runs/presentation/widgets/health_notice_banner.dart';
 
 import '../../../../helpers/challenge_fixtures.dart';
 import '../../../../helpers/expect_accessible.dart';
+import '../../../../helpers/health_fixtures.dart';
 import '../../../../helpers/mock_challenge_blocs.dart';
 import '../../../../helpers/pump_screen.dart';
 
@@ -29,6 +32,7 @@ void main() {
   Future<void> pumpPage(
     WidgetTester tester,
     ChallengesState state, {
+    HealthNotice notice = HealthNotice.none,
     Size size = smallPhone,
     double textScale = 1,
     bool settle = true,
@@ -40,9 +44,12 @@ void main() {
     );
     await pumpScreen(
       tester,
-      BlocProvider<ChallengesBloc>.value(
-        value: bloc,
-        child: const ChallengesPage(searchDelay: Duration(milliseconds: 10)),
+      withHealthNotice(
+        BlocProvider<ChallengesBloc>.value(
+          value: bloc,
+          child: const ChallengesPage(searchDelay: Duration(milliseconds: 10)),
+        ),
+        notice,
       ),
       size: size,
       textScale: textScale,
@@ -86,6 +93,47 @@ void main() {
   ];
   ChallengesState ready([List<ChallengeSummary>? items]) =>
       ChallengesState(status: ChallengesStatus.ready, items: items ?? cards);
+
+  group('the health notice', () {
+    testWidgets('only the joined and the paused cards show the banner', (
+      tester,
+    ) async {
+      await pumpPage(tester, ready(), notice: HealthNotice.askable);
+      expect(find.byType(HealthNoticeBanner), findsOneWidget);
+
+      await scrollTo(tester, find.text('Paused'));
+      expect(find.byType(HealthNoticeBanner), findsNWidgets(2));
+      expect(find.textContaining('Steps aren'), findsNWidgets(2));
+    });
+
+    testWidgets('a card the user has not joined has no banner', (tester) async {
+      await pumpPage(tester, ready([summary()]), notice: HealthNotice.askable);
+
+      expect(find.byType(HealthNoticeBanner), findsNothing);
+    });
+
+    testWidgets('nothing shows when the notice is none', (tester) async {
+      await pumpPage(tester, ready());
+
+      expect(find.textContaining('Steps aren'), findsNothing);
+    });
+
+    testWidgets('tapping the banner does not open the challenge', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        ready([summary(enrollment: enrolled())]),
+        notice: HealthNotice.install,
+      );
+
+      await tester.tap(find.byType(HealthNoticeBanner));
+      await tester.pump();
+
+      // The page has no router here: opening the detail would throw.
+      expect(tester.takeException(), isNull);
+    });
+  });
 
   group('the list', () {
     testWidgets('shows the title, the search, the chips and the cards', (
@@ -265,9 +313,11 @@ void main() {
       whenListen(bloc, states.stream, initialState: ready());
       await pumpScreen(
         tester,
-        BlocProvider<ChallengesBloc>.value(
-          value: bloc,
-          child: const ChallengesPage(),
+        withHealthNotice(
+          BlocProvider<ChallengesBloc>.value(
+            value: bloc,
+            child: const ChallengesPage(),
+          ),
         ),
       );
 

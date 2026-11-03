@@ -74,7 +74,10 @@ void main() {
             create: (_) =>
                 getIt<ChallengesBloc>()..add(const ChallengesStarted()),
           ),
-          BlocProvider(create: (_) => getIt<HealthNoticeBloc>()),
+          BlocProvider(
+            create: (_) =>
+                getIt<HealthNoticeBloc>()..add(const HealthNoticeStarted()),
+          ),
         ],
         child: const HealthExplainerOnJoin<ChallengesBloc, ChallengesState>(
           joined: challengesJoined,
@@ -99,7 +102,10 @@ void main() {
                 getIt<ChallengeDetailBloc>()
                   ..add(const ChallengeDetailStarted(1)),
           ),
-          BlocProvider(create: (_) => getIt<HealthNoticeBloc>()),
+          BlocProvider(
+            create: (_) =>
+                getIt<HealthNoticeBloc>()..add(const HealthNoticeStarted()),
+          ),
         ],
         child: HealthExplainerOnJoin<ChallengeDetailBloc, ChallengeDetailState>(
           joined: challengeDetailJoined,
@@ -215,7 +221,9 @@ void main() {
         await tester.tap(find.widgetWithText(FilledButton, entry.join).first);
         await tester.pumpAndSettle();
 
-        verifyNever(() => getNotice(clock: any(named: 'clock')));
+        // Only the check that loads the banner when the route opens, none for
+        // a join prompt.
+        verify(() => getNotice(clock: any(named: 'clock'))).called(1);
         expect(find.byType(HealthExplainerSheet), findsNothing);
         expect(health.explainerShown, 0);
       });
@@ -368,7 +376,9 @@ void main() {
 
         expect(find.text('Joined'), findsOneWidget);
         expect(find.byType(HealthExplainerSheet), findsNothing);
-        expect(reported, [isA<StateError>()]);
+        // One from loading the banner when the route opened, one from the
+        // join prompt.
+        expect(reported, [isA<StateError>(), isA<StateError>()]);
       });
     });
   }
@@ -387,7 +397,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(challenges.actions, ['pause 1', 'resume 1']);
-      verifyNever(() => getNotice(clock: any(named: 'clock')));
+      // Only the check that loads the banner when the route opens.
+      verify(() => getNotice(clock: any(named: 'clock'))).called(1);
       expect(find.byType(HealthExplainerSheet), findsNothing);
     });
   });

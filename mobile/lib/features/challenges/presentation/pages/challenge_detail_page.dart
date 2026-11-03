@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_tokens.dart';
+import '../../../runs/presentation/widgets/health_notice_banner.dart';
 import '../../domain/entities/challenge.dart';
 import '../bloc/challenge_detail_bloc.dart';
 import '../format.dart';
@@ -17,7 +18,8 @@ import '../widgets/medal_tiles.dart';
 import '../widgets/meta_item.dart';
 
 /// One challenge: the cover, what it is, the countdown, the details, who is in
-/// it, the medal checkpoints and the rules. Expects a [ChallengeDetailBloc].
+/// it, the medal checkpoints and the rules. Expects a [ChallengeDetailBloc]
+/// and, for a challenge the caller is in, a `HealthNoticeBloc` for the banner.
 class ChallengeDetailPage extends StatelessWidget {
   const ChallengeDetailPage({
     super.key,
@@ -220,6 +222,8 @@ class _Detail extends StatelessWidget {
             ],
           ),
         ),
+        // Under the cover, with the banner's own side padding.
+        if (challenge.enrollment != null) const HealthNoticeBanner(),
         Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(

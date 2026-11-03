@@ -68,7 +68,11 @@ final appRoutes = <RouteBase>[
                   create: (_) =>
                       getIt<ChallengesBloc>()..add(const ChallengesStarted()),
                 ),
-                BlocProvider(create: (_) => getIt<HealthNoticeBloc>()),
+                BlocProvider(
+                  create: (_) =>
+                      getIt<HealthNoticeBloc>()
+                        ..add(const HealthNoticeStarted()),
+                ),
               ],
               child:
                   const HealthExplainerOnJoin<ChallengesBloc, ChallengesState>(
@@ -132,7 +136,10 @@ final appRoutes = <RouteBase>[
               return bloc;
             },
           ),
-          BlocProvider(create: (_) => getIt<HealthNoticeBloc>()),
+          BlocProvider(
+            create: (_) =>
+                getIt<HealthNoticeBloc>()..add(const HealthNoticeStarted()),
+          ),
         ],
         child: HealthExplainerOnJoin<ChallengeDetailBloc, ChallengeDetailState>(
           joined: challengeDetailJoined,

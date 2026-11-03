@@ -5,23 +5,32 @@ import 'package:stridequest/features/challenges/domain/entities/challenge.dart';
 import 'package:stridequest/features/challenges/domain/failures/challenge_failure.dart';
 import 'package:stridequest/features/challenges/presentation/bloc/challenge_detail_bloc.dart';
 import 'package:stridequest/features/challenges/presentation/pages/challenge_detail_page.dart';
+import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 
 import '../../../../helpers/challenge_fixtures.dart';
 import '../../../../helpers/golden_screen.dart';
+import '../../../../helpers/health_fixtures.dart';
 import '../../../../helpers/mock_challenge_blocs.dart';
 
 final _now = DateTime.utc(2026, 10, 17, 12, 46, 53);
 
-Widget _page(ChallengeDetailState state, {DateTime? now}) {
+Widget _page(
+  ChallengeDetailState state, {
+  DateTime? now,
+  HealthNotice notice = HealthNotice.none,
+}) {
   final bloc = MockChallengeDetailBloc();
   whenListen(
     bloc,
     const Stream<ChallengeDetailState>.empty(),
     initialState: state,
   );
-  return BlocProvider<ChallengeDetailBloc>.value(
-    value: bloc,
-    child: ChallengeDetailPage(challengeId: 1, clock: () => now ?? _now),
+  return withHealthNotice(
+    BlocProvider<ChallengeDetailBloc>.value(
+      value: bloc,
+      child: ChallengeDetailPage(challengeId: 1, clock: () => now ?? _now),
+    ),
+    notice,
   );
 }
 
@@ -103,6 +112,14 @@ void main() {
           ),
         ),
       ),
+    ),
+  );
+  goldenScreen(
+    'ChallengeDetailPage, joined with the health notice',
+    'challenge_detail_page_health_notice',
+    _page(
+      ChallengeDetailLoaded(challenge(enrollment: enrolled())),
+      notice: HealthNotice.askable,
     ),
   );
 }

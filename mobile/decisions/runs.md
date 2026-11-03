@@ -18,3 +18,4 @@ Loaded through `mobile/CLAUDE.md`, with every `mobile/decisions/<area>.md`, when
 - **2026-11-03, #263.** `HealthSync.syncNow()` queues one forced run behind an in-flight one instead of joining it, since that run may have read access from before the grant.
   `showHealthExplainer` only asks: the caller requests access and calls `recordExplainerShown`.
 - **2026-11-03, #266.** `ActiveChallengesPage` keeps `ActiveTabs` under one `GlobalKey`, so the tab the user is on survives the gate moving it under the `ActivityBloc` provider. A widget test with `HealthNoticeBanner` mounted must send lifecycle states in the real order (`inactive`, `hidden`, `paused`, …); `paused` → `resumed` trips `AppLifecycleListener`'s assert.
+- **2026-11-03, #265.** `HealthPromptStore` lives in the iOS keychain, which outlives an uninstall: to see an `askable` notice again on the Simulator, run `xcrun simctl keychain <device> reset` (this also signs the app out).
