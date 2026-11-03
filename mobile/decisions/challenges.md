@@ -10,4 +10,5 @@ Loaded through `mobile/CLAUDE.md`, with every `mobile/decisions/<area>.md`, when
 ## Entries
 
 - **2026-11-02, #270.** Fixtures have fixed dates, so a test that opens `ChallengeDetailPage` through the router must pass a fixed `clock`: rebuild only the detail route in `createAppRouter(routes: ...)` (see `challenges_flow_test.dart`), never rely on `DateTime.now`.
-- **2026-11-03, #264.** A join asks `getIt` for `GetHealthNotice` and `HealthRepository`: `registerChallengeBlocs` registers a `none` notice and `FakeHealthRepository` only when none is registered, so a test that wants the explainer registers its own first.
+- **2026-11-03, #264.** Challenge routes provide a `HealthNoticeBloc` (the join prompt and #265's banner read it); a test that builds them passes `notice`/`health`/`sync` to `registerChallengeBlocs`, which answers a `none` notice by default.
+- **2026-11-03, #264.** To walk out through nested navigators (the list sits in a tab's navigator), use `navigator.context.findAncestorStateOfType<NavigatorState>()`: `Navigator.maybeOf(navigator.context)` returns that same navigator, so a loop on it froze the app on a join.

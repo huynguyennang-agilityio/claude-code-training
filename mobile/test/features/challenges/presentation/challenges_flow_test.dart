@@ -16,6 +16,8 @@ import 'package:stridequest/features/challenges/domain/entities/challenge.dart';
 import 'package:stridequest/features/challenges/domain/failures/challenge_failure.dart';
 import 'package:stridequest/features/challenges/presentation/bloc/challenge_detail_bloc.dart';
 import 'package:stridequest/features/challenges/presentation/pages/challenge_detail_page.dart';
+import 'package:stridequest/features/challenges/presentation/widgets/health_explainer_on_join.dart';
+import 'package:stridequest/features/runs/presentation/bloc/health_notice_bloc.dart';
 
 import '../../../helpers/challenge_fixtures.dart';
 import '../../../helpers/challenges_di.dart';
@@ -35,13 +37,28 @@ final _routes = [
         path: ChallengeDetailPage.path,
         builder: (context, state) {
           final id = int.tryParse(state.pathParameters['id'] ?? '');
-          return BlocProvider(
-            create: (_) {
-              final bloc = getIt<ChallengeDetailBloc>();
-              if (id != null) bloc.add(ChallengeDetailStarted(id));
-              return bloc;
-            },
-            child: ChallengeDetailPage(challengeId: id ?? 0, clock: () => _now),
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider(
+                create: (_) {
+                  final bloc = getIt<ChallengeDetailBloc>();
+                  if (id != null) bloc.add(ChallengeDetailStarted(id));
+                  return bloc;
+                },
+              ),
+              BlocProvider(create: (_) => getIt<HealthNoticeBloc>()),
+            ],
+            child:
+                HealthExplainerOnJoin<
+                  ChallengeDetailBloc,
+                  ChallengeDetailState
+                >(
+                  joined: challengeDetailJoined,
+                  child: ChallengeDetailPage(
+                    challengeId: id ?? 0,
+                    clock: () => _now,
+                  ),
+                ),
           );
         },
       )
@@ -73,7 +90,7 @@ void main() {
       ],
     );
     repository.detail = challenge(id: 2, title: 'Mỹ Khê Bay 20 km');
-    registerChallengeBlocs(repository);
+    registerChallengeBlocs(repository: repository);
     addTearDown(getIt.reset);
 
     final auth = _MockAuthRepository();

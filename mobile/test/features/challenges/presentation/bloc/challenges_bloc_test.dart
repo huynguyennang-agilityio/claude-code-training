@@ -244,6 +244,7 @@ void main() {
         expect(bloc.state.items.first.enrollment, enrolled());
         expect(bloc.state.items.first.participantCount, 1235);
         expect(bloc.state.items.last, second);
+        expect(bloc.state.joinedCount, 1);
       },
     );
 
@@ -268,6 +269,7 @@ void main() {
         expect(bloc.state.joiningId, isNull);
         expect(bloc.state.notice?.message, 'You are already in “X”.');
         expect(bloc.state.noticeCount, 1);
+        expect(bloc.state.joinedCount, 0);
         verify(() => repository.list(query: '')).called(1);
       },
     );

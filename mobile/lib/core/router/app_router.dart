@@ -17,12 +17,14 @@ import '../../features/challenges/presentation/bloc/challenge_detail_bloc.dart';
 import '../../features/challenges/presentation/bloc/challenges_bloc.dart';
 import '../../features/challenges/presentation/pages/challenge_detail_page.dart';
 import '../../features/challenges/presentation/pages/challenges_page.dart';
+import '../../features/challenges/presentation/widgets/health_explainer_on_join.dart';
 import '../../features/home/presentation/pages/home_shell.dart';
 import '../../features/medals/presentation/pages/medals_page.dart';
 import '../../features/profile/presentation/bloc/profile_info_bloc.dart';
 import '../../features/profile/presentation/pages/profile_info_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/runs/presentation/bloc/health_gate_bloc.dart';
+import '../../features/runs/presentation/bloc/health_notice_bloc.dart';
 import '../../features/runs/presentation/pages/active_challenges_page.dart';
 import '../di/injection.dart';
 
@@ -60,10 +62,19 @@ final appRoutes = <RouteBase>[
         routes: [
           GoRoute(
             path: ChallengesPage.path,
-            builder: (context, state) => BlocProvider(
-              create: (_) =>
-                  getIt<ChallengesBloc>()..add(const ChallengesStarted()),
-              child: const ChallengesPage(),
+            builder: (context, state) => MultiBlocProvider(
+              providers: [
+                BlocProvider(
+                  create: (_) =>
+                      getIt<ChallengesBloc>()..add(const ChallengesStarted()),
+                ),
+                BlocProvider(create: (_) => getIt<HealthNoticeBloc>()),
+              ],
+              child:
+                  const HealthExplainerOnJoin<ChallengesBloc, ChallengesState>(
+                    joined: challengesJoined,
+                    child: ChallengesPage(),
+                  ),
             ),
           ),
         ],
@@ -103,13 +114,21 @@ final appRoutes = <RouteBase>[
     path: ChallengeDetailPage.path,
     builder: (context, state) {
       final id = int.tryParse(state.pathParameters['id'] ?? '');
-      return BlocProvider(
-        create: (_) {
-          final bloc = getIt<ChallengeDetailBloc>();
-          if (id != null) bloc.add(ChallengeDetailStarted(id));
-          return bloc;
-        },
-        child: ChallengeDetailPage(challengeId: id ?? 0),
+      return MultiBlocProvider(
+        providers: [
+          BlocProvider(
+            create: (_) {
+              final bloc = getIt<ChallengeDetailBloc>();
+              if (id != null) bloc.add(ChallengeDetailStarted(id));
+              return bloc;
+            },
+          ),
+          BlocProvider(create: (_) => getIt<HealthNoticeBloc>()),
+        ],
+        child: HealthExplainerOnJoin<ChallengeDetailBloc, ChallengeDetailState>(
+          joined: challengeDetailJoined,
+          child: ChallengeDetailPage(challengeId: id ?? 0),
+        ),
       );
     },
   ),
