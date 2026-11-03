@@ -104,6 +104,12 @@ class HealthSyncService implements HealthSync {
     });
   }
 
+  /// Syncs at once, skipping the throttle, for the moment access was granted.
+  /// A run in flight may have read the access before it was granted, so this
+  /// queues one follow-up behind it instead of joining it (still single-flight).
+  @override
+  Future<void> syncNow() => sync(force: true);
+
   Future<void> _begin({required bool force}) {
     _runGeneration = _generation;
     return _running = _run(
@@ -118,9 +124,7 @@ class HealthSyncService implements HealthSync {
       if (await _auth.restoreSession() == null || stale()) return;
       final access = await _health.checkAccess();
       if (stale()) return;
-      if (!access.isGranted || !access.allowed.contains(HealthMetric.steps)) {
-        return;
-      }
+      if (!access.canReadSteps) return;
       final last = _lastSuccessAt;
       if (!force &&
           last != null &&

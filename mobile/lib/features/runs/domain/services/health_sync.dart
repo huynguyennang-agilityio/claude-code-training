@@ -45,6 +45,12 @@ abstract interface class HealthSync {
   /// [force] skips the throttle (the **Refresh data** button). Never throws.
   Future<void> sync({bool force = false});
 
+  /// Runs a sync now, without waiting for the throttle: for the moment access
+  /// has just been granted. It never joins a run that started earlier (that run
+  /// may have read the access before the change); it queues one behind it, so
+  /// syncs stay single-flight. Never throws.
+  Future<void> syncNow();
+
   /// Stops listening; the container calls it on reset.
   Future<void> dispose();
 }
