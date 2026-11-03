@@ -8,6 +8,9 @@ import 'package:stridequest/core/di/injection.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/auth/presentation/widgets/auth_text_field.dart';
+import 'package:stridequest/features/runs/domain/entities/health_access.dart';
+import 'package:stridequest/features/runs/domain/repositories/health_repository.dart';
+import 'package:stridequest/features/runs/domain/usecases/get_health_notice.dart';
 import 'package:stridequest/features/runs/presentation/widgets/health_sheets.dart';
 
 /// Browse, search, filter, join, pause, resume and leave in the real app
@@ -159,6 +162,11 @@ void main() {
     // Join Old Quarter from its detail.
     await openChallenge(tester, _oldQuarter);
     expect(find.text('Challenge ends in'), findsOneWidget);
+    // Whether this first join must open the health explainer: on a fresh
+    // install it must (access not asked yet, never shown).
+    final mustAsk =
+        await getIt<GetHealthNotice>()() == HealthNotice.askable &&
+        await getIt<HealthRepository>().explainerDue();
     await tapAndWait(
       tester,
       find.text('Join Challenge'),
@@ -166,8 +174,7 @@ void main() {
     );
     // On a fresh install the join opens the health explainer; Not now keeps
     // the user joined.
-    final asked = await answerExplainerNotNow(tester);
-    debugPrint('health explainer opened on the first join: $asked');
+    expect(await answerExplainerNotNow(tester), mustAsk);
     expect(find.text('Joined'), findsOneWidget);
     await back(tester);
     await pumpUntilFound(tester, find.text('Joined'));

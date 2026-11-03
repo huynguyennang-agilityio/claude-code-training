@@ -65,10 +65,6 @@ void main() {
     addTearDown(getIt.reset);
   });
 
-  Future<void> noticeBlocSettles(WidgetTester tester) async {
-    await tester.pumpAndSettle();
-  }
-
   // The two entry points, wired like the routes in `app_router.dart`.
   final entries = <String, _Entry>{
     'a card on the list': (
@@ -128,7 +124,7 @@ void main() {
       Future<void> join(WidgetTester tester) async {
         await pumpScreen(tester, entry.page());
         await tester.tap(find.widgetWithText(FilledButton, entry.join).first);
-        await noticeBlocSettles(tester);
+        await tester.pumpAndSettle();
       }
 
       testWidgets('Not now closes the sheet; the user stays joined', (
@@ -282,10 +278,41 @@ void main() {
           ),
         );
         await tester.tap(find.widgetWithText(FilledButton, entry.join).first);
-        await noticeBlocSettles(tester);
+        await tester.pumpAndSettle();
 
         expect(find.byType(HealthExplainerSheet), findsOneWidget);
         expect(health.explainerShown, 1);
+      });
+
+      testWidgets('nothing opens or is recorded once the user left the tab', (
+        tester,
+      ) async {
+        final gate = Completer<HealthNotice>();
+        when(
+          () => getNotice(clock: any(named: 'clock')),
+        ).thenAnswer((_) => gate.future);
+        final active = ValueNotifier(true);
+        addTearDown(active.dispose);
+
+        // Like the shell: a tab the user left stays mounted, its tickers off.
+        await pumpScreen(
+          tester,
+          ValueListenableBuilder(
+            valueListenable: active,
+            builder: (_, enabled, child) =>
+                TickerMode(enabled: enabled, child: child!),
+            child: entry.page(),
+          ),
+        );
+        await tester.tap(find.widgetWithText(FilledButton, entry.join).first);
+        await tester.pump();
+        active.value = false;
+        await tester.pump();
+        gate.complete(HealthNotice.askable);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(HealthExplainerSheet), findsNothing);
+        expect(health.explainerShown, 0);
       });
 
       testWidgets(

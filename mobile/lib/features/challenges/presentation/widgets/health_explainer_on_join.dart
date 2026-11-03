@@ -78,6 +78,9 @@ class HealthExplainerOnJoin<B extends StateStreamable<S>, S>
   /// the list sits in a tab's navigator, while the detail screen is pushed on
   /// the root one above the whole shell.
   static bool _onTop(BuildContext context) {
+    // A tab the user left stays mounted, its route still current, but the
+    // shell turns its tickers off.
+    if (!TickerMode.of(context)) return false;
     if (ModalRoute.of(context)?.isCurrent == false) return false;
     var navigator = Navigator.maybeOf(context);
     while (navigator != null) {
