@@ -48,6 +48,10 @@ class HealthNoticeBloc extends Bloc<HealthNoticeEvent, HealthNoticeState> {
   /// joins in a row ask once.
   bool _prompting = false;
 
+  /// True while a [HealthNoticeRefreshed] check runs. Every banner on a screen
+  /// sends one on resume, so the ones that arrive meanwhile are dropped.
+  bool _refreshing = false;
+
   Future<void> _onJoinPrompted(
     HealthNoticeJoinPrompted event,
     Emitter<HealthNoticeState> emit,
@@ -82,8 +86,13 @@ class HealthNoticeBloc extends Bloc<HealthNoticeEvent, HealthNoticeState> {
     Emitter<HealthNoticeState> emit,
   ) async {
     // The system dialog is up: its answer decides, not this check.
-    if (state.busy) return;
-    await _evaluate(emit);
+    if (state.busy || _refreshing) return;
+    _refreshing = true;
+    try {
+      await _evaluate(emit);
+    } finally {
+      _refreshing = false;
+    }
   }
 
   Future<void> _onRequested(

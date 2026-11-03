@@ -215,15 +215,15 @@ void main() {
 
       testWidgets('a refused join opens nothing', (tester) async {
         await pumpScreen(tester, entry.page());
+        // Forget the check that loads the banner when the route opens.
+        clearInteractions(getNotice);
         challenges.failure = const ChallengeFailure(
           ChallengeFailureCode.challengeEnded,
         );
         await tester.tap(find.widgetWithText(FilledButton, entry.join).first);
         await tester.pumpAndSettle();
 
-        // Only the check that loads the banner when the route opens, none for
-        // a join prompt.
-        verify(() => getNotice(clock: any(named: 'clock'))).called(1);
+        verifyNever(() => getNotice(clock: any(named: 'clock')));
         expect(find.byType(HealthExplainerSheet), findsNothing);
         expect(health.explainerShown, 0);
       });
@@ -364,21 +364,21 @@ void main() {
       testWidgets('the join is unaffected when the health check throws', (
         tester,
       ) async {
-        when(
-          () => getNotice(clock: any(named: 'clock')),
-        ).thenAnswer((_) async => throw StateError('no health'));
         final reported = <Object>[];
         final previous = FlutterError.onError;
         FlutterError.onError = (details) => reported.add(details.exception);
         addTearDown(() => FlutterError.onError = previous);
-
-        await join(tester);
+        await pumpScreen(tester, entry.page());
+        when(
+          () => getNotice(clock: any(named: 'clock')),
+        ).thenAnswer((_) async => throw StateError('no health'));
+        reported.clear();
+        await tester.tap(find.widgetWithText(FilledButton, entry.join).first);
+        await tester.pumpAndSettle();
 
         expect(find.text('Joined'), findsOneWidget);
         expect(find.byType(HealthExplainerSheet), findsNothing);
-        // One from loading the banner when the route opened, one from the
-        // join prompt.
-        expect(reported, [isA<StateError>(), isA<StateError>()]);
+        expect(reported, [isA<StateError>()]);
       });
     });
   }
@@ -387,6 +387,8 @@ void main() {
     testWidgets('pausing and resuming never ask', (tester) async {
       challenges.detail = challenge(enrollment: enrolled());
       await pumpScreen(tester, entries.values.last.page());
+      // Forget the check that loads the banner when the route opens.
+      clearInteractions(getNotice);
       final bloc = tester
           .element(find.byType(ChallengeDetailPage))
           .read<ChallengeDetailBloc>();
@@ -397,8 +399,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(challenges.actions, ['pause 1', 'resume 1']);
-      // Only the check that loads the banner when the route opens.
-      verify(() => getNotice(clock: any(named: 'clock'))).called(1);
+      verifyNever(() => getNotice(clock: any(named: 'clock')));
       expect(find.byType(HealthExplainerSheet), findsNothing);
     });
   });

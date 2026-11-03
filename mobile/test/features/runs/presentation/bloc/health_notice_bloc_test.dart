@@ -175,6 +175,43 @@ void main() {
     verify: (_) => verifyNever(() => getNotice()),
   );
 
+  test('refreshes that arrive during a check run it once', () async {
+    final gate = Completer<HealthNotice>();
+    when(() => getNotice()).thenAnswer((_) => gate.future);
+    final bloc = build();
+
+    bloc
+      ..add(const HealthNoticeRefreshed())
+      ..add(const HealthNoticeRefreshed())
+      ..add(const HealthNoticeRefreshed());
+    await pumpEventQueue();
+    verify(() => getNotice()).called(1);
+    gate.complete(HealthNotice.settings);
+    await pumpEventQueue();
+    expect(bloc.state.notice, HealthNotice.settings);
+
+    // The check is over: the next refresh runs again.
+    when(() => getNotice()).thenAnswer((_) async => HealthNotice.none);
+    bloc.add(const HealthNoticeRefreshed());
+    await pumpEventQueue();
+    verify(() => getNotice()).called(1);
+    expect(bloc.state.notice, HealthNotice.none);
+    await bloc.close();
+  });
+
+  test('a failed check does not block the next refresh', () async {
+    when(() => getNotice()).thenThrow(const HealthFailure());
+    final bloc = build()..add(const HealthNoticeRefreshed());
+    await pumpEventQueue();
+
+    when(() => getNotice()).thenAnswer((_) async => HealthNotice.install);
+    bloc.add(const HealthNoticeRefreshed());
+    await pumpEventQueue();
+
+    expect(bloc.state.notice, HealthNotice.install);
+    await bloc.close();
+  });
+
   blocTest<HealthNoticeBloc, HealthNoticeState>(
     'open settings',
     build: build,

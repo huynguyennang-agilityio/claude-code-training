@@ -243,12 +243,14 @@ class MockHealthNoticeBloc
     implements HealthNoticeBloc {}
 
 /// Puts a [HealthNoticeBloc] stuck on [notice] above [child], as the Active
-/// route does.
+/// route does. A test that checks what the screen sends passes its own [bloc].
 Widget withHealthNotice(
   Widget child, [
   HealthNotice notice = HealthNotice.none,
+  MockHealthNoticeBloc? bloc,
 ]) {
-  final bloc = MockHealthNoticeBloc();
+  bloc ??= MockHealthNoticeBloc();
+  when(() => bloc!.isClosed).thenReturn(false);
   whenListen(
     bloc,
     const Stream<HealthNoticeState>.empty(),

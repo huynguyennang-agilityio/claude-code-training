@@ -4,12 +4,15 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:stridequest/core/theme/app_theme.dart';
 import 'package:stridequest/features/challenges/domain/entities/challenge.dart';
 import 'package:stridequest/features/challenges/domain/failures/challenge_failure.dart';
 import 'package:stridequest/features/challenges/presentation/bloc/challenges_bloc.dart';
 import 'package:stridequest/features/challenges/presentation/pages/challenges_page.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
+import 'package:stridequest/features/runs/presentation/bloc/health_notice_bloc.dart';
 import 'package:stridequest/features/runs/presentation/widgets/health_notice_banner.dart';
 
 import '../../../../helpers/challenge_fixtures.dart';
@@ -20,12 +23,15 @@ import '../../../../helpers/pump_screen.dart';
 
 void main() {
   late MockChallengesBloc bloc;
+  late MockHealthNoticeBloc noticeBloc;
 
   setUpAll(() {
     registerFallbackValue(const ChallengesStarted());
+    registerFallbackValue(const HealthNoticeStarted());
   });
   setUp(() {
     bloc = MockChallengesBloc();
+    noticeBloc = MockHealthNoticeBloc();
     when(() => bloc.isClosed).thenReturn(false);
   });
 
@@ -50,6 +56,7 @@ void main() {
           child: const ChallengesPage(searchDelay: Duration(milliseconds: 10)),
         ),
         notice,
+        noticeBloc,
       ),
       size: size,
       textScale: textScale,
@@ -130,8 +137,67 @@ void main() {
       await tester.tap(find.byType(HealthNoticeBanner));
       await tester.pump();
 
+      verify(
+        () => noticeBloc.add(const HealthNoticeInstallRequested()),
+      ).called(1);
       // The page has no router here: opening the detail would throw.
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('opening a challenge', () {
+    testWidgets('refreshes the list and the notice after coming back', (
+      tester,
+    ) async {
+      whenListen(
+        bloc,
+        const Stream<ChallengesState>.empty(),
+        initialState: ready([summary()]),
+      );
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => withHealthNotice(
+              BlocProvider<ChallengesBloc>.value(
+                value: bloc,
+                child: const ChallengesPage(),
+              ),
+              HealthNotice.none,
+              noticeBloc,
+            ),
+          ),
+          GoRoute(
+            path: '/challenges/:id',
+            builder: (context, _) => Scaffold(
+              body: TextButton(
+                onPressed: context.pop,
+                child: const Text('Back'),
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Old Quarter 50K Steps'));
+      await tester.pumpAndSettle();
+      expect(find.text('Back'), findsOneWidget);
+      // Nothing is sent while the detail is open.
+      verifyNever(
+        () => noticeBloc.add(any(that: isA<HealthNoticeRefreshed>())),
+      );
+      verifyNever(() => bloc.add(const ChallengesRefreshed()));
+
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+
+      verify(() => noticeBloc.add(const HealthNoticeRefreshed())).called(1);
+      verify(() => bloc.add(const ChallengesRefreshed())).called(1);
     });
   });
 
