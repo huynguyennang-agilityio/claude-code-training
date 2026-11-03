@@ -35,6 +35,11 @@ class HealthNoticeBloc extends Bloc<HealthNoticeEvent, HealthNoticeState> {
   final HealthRepository _health;
   final HealthSync _sync;
 
+  /// Bumped by each check; a check whose number is no longer the latest drops
+  /// its result. Events run concurrently, so a check started before the user
+  /// asked could otherwise finish after the answer and show a stale notice.
+  int _check = 0;
+
   Future<void> _onRefreshed(
     HealthNoticeRefreshed event,
     Emitter<HealthNoticeState> emit,
@@ -49,10 +54,11 @@ class HealthNoticeBloc extends Bloc<HealthNoticeEvent, HealthNoticeState> {
     Emitter<HealthNoticeState> emit,
   ) async {
     if (state.busy) return;
+    _check++;
     emit(HealthNoticeState(notice: state.notice, busy: true));
     try {
       final access = await _health.requestAccess();
-      if (access.isGranted && access.allowed.contains(HealthMetric.steps)) {
+      if (access.canReadSteps) {
         // Sync at once; the banner need not wait for the figures to arrive.
         // The sync never throws and reports its own failures in its state.
         unawaited(_sync.syncNow());
@@ -60,11 +66,17 @@ class HealthNoticeBloc extends Bloc<HealthNoticeEvent, HealthNoticeState> {
     } on Object catch (error, stack) {
       _report(error, stack);
     }
-    emit(HealthNoticeState(notice: await _notice()));
+    final check = ++_check;
+    final notice = await _notice();
+    if (check == _check) emit(HealthNoticeState(notice: notice));
   }
 
-  Future<void> _evaluate(Emitter<HealthNoticeState> emit) async =>
-      emit(HealthNoticeState(notice: await _notice()));
+  Future<void> _evaluate(Emitter<HealthNoticeState> emit) async {
+    final check = ++_check;
+    final notice = await _notice();
+    if (check != _check) return;
+    emit(HealthNoticeState(notice: notice, busy: state.busy));
+  }
 
   /// The current notice; the previous one stays when it cannot be worked out.
   Future<HealthNotice> _notice() async {

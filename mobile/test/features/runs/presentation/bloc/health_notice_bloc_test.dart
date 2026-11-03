@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -185,5 +187,38 @@ void main() {
     build: build,
     act: (bloc) => bloc.add(const HealthNoticeInstallRequested()),
     verify: (_) => verify(health.installHealthConnect).called(1),
+  );
+
+  test(
+    'a check started before the request never overwrites its answer',
+    () async {
+      // The first check (Started) is slow and still says askable; the user
+      // grants access meanwhile, and the check after the request says none.
+      final slow = Completer<HealthNotice>();
+      var calls = 0;
+      when(() => getNotice()).thenAnswer((_) {
+        calls++;
+        return calls == 1 ? slow.future : Future.value(HealthNotice.none);
+      });
+      when(health.requestAccess).thenAnswer((_) async => _granted);
+      final bloc = build();
+      final states = <HealthNoticeState>[];
+      final sub = bloc.stream.listen(states.add);
+
+      bloc
+        ..add(const HealthNoticeStarted())
+        ..add(const HealthNoticeAccessRequested());
+      await pumpEventQueue();
+      slow.complete(HealthNotice.askable);
+      await pumpEventQueue();
+
+      expect(states, const [
+        HealthNoticeState(busy: true),
+        HealthNoticeState(),
+      ]);
+      expect(bloc.state.notice, HealthNotice.none);
+      await sub.cancel();
+      await bloc.close();
+    },
   );
 }

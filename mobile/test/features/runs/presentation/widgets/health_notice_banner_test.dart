@@ -28,6 +28,7 @@ MockHealthNoticeBloc blocWith(HealthNotice notice) {
     const Stream<HealthNoticeState>.empty(),
     initialState: HealthNoticeState(notice: notice),
   );
+  when(() => bloc.isClosed).thenReturn(false);
   return bloc;
 }
 
@@ -190,6 +191,7 @@ void main() {
         busy: true,
       ),
     );
+    when(() => bloc.isClosed).thenReturn(false);
     await pumpScreen(tester, banner(bloc));
     await tester.tap(find.byType(InkWell));
     await tester.pumpAndSettle();

@@ -74,6 +74,9 @@ class HealthAccess extends Equatable {
 
   bool get isGranted => status == HealthAccessStatus.granted;
 
+  /// Steps, which challenges count, may be read.
+  bool get canReadSteps => isGranted && allowed.contains(HealthMetric.steps);
+
   @override
   List<Object?> get props => [status, allowed, confirmed];
 }

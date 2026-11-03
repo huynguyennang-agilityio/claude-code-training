@@ -59,12 +59,17 @@ class _HealthNoticeBannerState extends State<HealthNoticeBanner> {
     final bloc = context.read<HealthNoticeBloc>();
     switch (notice) {
       case HealthNotice.askable:
-        // The bloc outlives the sheet; the page may not, so use the bloc only.
+        // Use only the bloc after the sheet: the route, and its bloc, may
+        // have closed while the sheet was up.
         final accepted = await showHealthExplainer(context);
-        if (accepted) bloc.add(const HealthNoticeAccessRequested());
+        if (accepted && !bloc.isClosed) {
+          bloc.add(const HealthNoticeAccessRequested());
+        }
       case HealthNotice.settings || HealthNotice.noSteps:
         final accepted = await showHealthSettings(context);
-        if (accepted) bloc.add(const HealthNoticeSettingsRequested());
+        if (accepted && !bloc.isClosed) {
+          bloc.add(const HealthNoticeSettingsRequested());
+        }
       case HealthNotice.install:
         bloc.add(const HealthNoticeInstallRequested());
       case HealthNotice.none:

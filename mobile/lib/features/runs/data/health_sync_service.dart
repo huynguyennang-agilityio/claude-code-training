@@ -124,9 +124,7 @@ class HealthSyncService implements HealthSync {
       if (await _auth.restoreSession() == null || stale()) return;
       final access = await _health.checkAccess();
       if (stale()) return;
-      if (!access.isGranted || !access.allowed.contains(HealthMetric.steps)) {
-        return;
-      }
+      if (!access.canReadSteps) return;
       final last = _lastSuccessAt;
       if (!force &&
           last != null &&
