@@ -6,8 +6,11 @@ import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart';
 import 'package:stridequest/features/runs/presentation/widgets/active_tabs.dart';
+import 'package:stridequest/features/runs/presentation/widgets/activity_tab.dart';
+import 'package:stridequest/features/runs/presentation/widgets/health_gate_view.dart';
 
 import '../../../../helpers/golden_screen.dart';
+import '../../../../helpers/health_fixtures.dart';
 import '../../../../helpers/runs_fixtures.dart';
 
 const _all = {
@@ -28,12 +31,45 @@ Widget _tabs(ActivityState state) {
     const Stream<MyChallengesState>.empty(),
     initialState: const MyChallengesState(status: MyChallengesStatus.ready),
   );
-  return MultiBlocProvider(
-    providers: [
-      BlocProvider<ActivityBloc>.value(value: bloc),
-      BlocProvider<MyChallengesBloc>.value(value: mine),
-    ],
-    child: const ActiveTabs(),
+  return withHealthNotice(
+    MultiBlocProvider(
+      providers: [
+        BlocProvider<ActivityBloc>.value(value: bloc),
+        BlocProvider<MyChallengesBloc>.value(value: mine),
+      ],
+      child: const ActiveTabs(activity: ActivityTab()),
+    ),
+  );
+}
+
+/// The tabs with no health access: the gate in Active, and the notice above
+/// the list in My Challenges ([initialIndex] 1).
+Widget _noAccess({required int initialIndex}) {
+  final mine = MockMyChallengesBloc();
+  whenListen(
+    mine,
+    const Stream<MyChallengesState>.empty(),
+    initialState: MyChallengesState(
+      status: MyChallengesStatus.ready,
+      items: [
+        myChallenge(),
+        myChallenge(id: 9, title: 'Mỹ Khê Bay 20 km'),
+      ],
+    ),
+  );
+  return withHealthNotice(
+    BlocProvider<MyChallengesBloc>.value(
+      value: mine,
+      child: ActiveTabs(
+        initialIndex: initialIndex,
+        activity: HealthGateView(
+          status: HealthAccessStatus.denied,
+          busy: false,
+          onAction: () {},
+        ),
+      ),
+    ),
+    HealthNotice.askable,
   );
 }
 
@@ -46,6 +82,16 @@ ActivityReading _reading() => ActivityReading(
 );
 
 void main() {
+  goldenScreen(
+    'ActiveTabs, no access, the Active tab',
+    'active_tabs_no_access_active',
+    _noAccess(initialIndex: 0),
+  );
+  goldenScreen(
+    'ActiveTabs, no access, My Challenges',
+    'active_tabs_no_access_my_challenges',
+    _noAccess(initialIndex: 1),
+  );
   goldenScreen(
     'ActiveTabs, the figures',
     'active_tab_figures',

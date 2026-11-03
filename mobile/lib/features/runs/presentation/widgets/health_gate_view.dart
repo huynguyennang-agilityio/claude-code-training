@@ -62,81 +62,74 @@ class HealthGateView extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final text = _texts[status] ?? _texts[HealthAccessStatus.denied]!;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Active')),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: AppSizes.formMaxWidth,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: ExcludeSemantics(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: theme.colorScheme.surfaceContainerLow,
-                          border: Border.all(color: theme.colorScheme.outline),
-                        ),
-                        child: SizedBox(
-                          width: AppActiveSizes.gateCircle,
-                          height: AppActiveSizes.gateCircle,
-                          child: Icon(
-                            Icons.favorite_border,
-                            size: AppActiveSizes.gateIcon,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: AppSizes.formMaxWidth),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: ExcludeSemantics(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: theme.colorScheme.surfaceContainerLow,
+                      border: Border.all(color: theme.colorScheme.outline),
+                    ),
+                    child: SizedBox(
+                      width: AppActiveSizes.gateCircle,
+                      height: AppActiveSizes.gateCircle,
+                      child: Icon(
+                        Icons.favorite_border,
+                        size: AppActiveSizes.gateIcon,
+                        color: theme.colorScheme.primary,
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  Semantics(
-                    header: true,
-                    child: Text(
-                      text.title,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineMedium,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    text.message,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  const HealthMetricList(),
-                  const SizedBox(height: AppSpacing.lg),
-                  FilledButton(
-                    onPressed: busy ? null : onAction,
-                    child: busy
-                        ? const SizedBox(
-                            width: AppChallengeSizes.metaIcon,
-                            height: AppChallengeSizes.metaIcon,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(text.button),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    healthConsentNote,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(height: AppSpacing.lg),
+              Semantics(
+                header: true,
+                child: Text(
+                  text.title,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineMedium,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                text.message,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const HealthMetricList(),
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton(
+                onPressed: busy ? null : onAction,
+                child: busy
+                    ? const SizedBox(
+                        width: AppChallengeSizes.metaIcon,
+                        height: AppChallengeSizes.metaIcon,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(text.button),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                healthConsentNote,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         ),
       ),
