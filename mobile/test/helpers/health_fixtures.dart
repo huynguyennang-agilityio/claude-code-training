@@ -10,6 +10,7 @@ import 'package:stridequest/features/runs/domain/repositories/health_repository.
 import 'package:stridequest/features/runs/domain/usecases/sync_activity.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/health_gate_bloc.dart';
+import 'package:stridequest/features/runs/presentation/bloc/health_notice_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart';
 
 import 'auth_fixtures.dart';
@@ -219,3 +220,7 @@ void registerHealthBlocs([HealthRepository? repository]) {
     ..registerFactory<ActivityBloc>(() => ActivityBloc(service))
     ..registerFactory<MyChallengesBloc>(() => MyChallengesBloc(runs));
 }
+
+class MockHealthNoticeBloc
+    extends MockBloc<HealthNoticeEvent, HealthNoticeState>
+    implements HealthNoticeBloc {}

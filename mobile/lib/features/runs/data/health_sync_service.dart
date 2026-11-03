@@ -104,6 +104,12 @@ class HealthSyncService implements HealthSync {
     });
   }
 
+  /// Syncs at once, skipping the throttle, for the moment access was granted.
+  /// A run in flight may have read the access before it was granted, so this
+  /// queues one follow-up behind it instead of joining it (still single-flight).
+  @override
+  Future<void> syncNow() => sync(force: true);
+
   Future<void> _begin({required bool force}) {
     _runGeneration = _generation;
     return _running = _run(

@@ -187,6 +187,18 @@ void main() {
     expect(health.readTodayCalls, 2);
   });
 
+  test('syncNow skips the throttle', () async {
+    await service.sync();
+    await service.syncNow();
+    expect(health.readTodayCalls, 2);
+  });
+
+  test('syncNow does not run when steps are not allowed', () async {
+    health.access = const HealthAccess.denied();
+    await service.syncNow();
+    expect(health.readTodayCalls, 0);
+  });
+
   group('with a read in flight', () {
     late _GatedHealthRepository gated;
 
@@ -245,6 +257,20 @@ void main() {
       gated.gates[1].complete(_at(2));
       await next;
       expect(service.state, const HealthSyncState());
+    });
+
+    test('syncNow queues one follow-up and calls share it', () async {
+      await pumpEventQueue();
+      final a = service.syncNow();
+      final b = service.syncNow();
+      expect(gated.gates, hasLength(1));
+      gated.gates[0].complete(_at(1));
+      await pumpEventQueue();
+      expect(gated.gates, hasLength(2));
+      gated.gates[1].complete(_at(2));
+      await Future.wait([a, b]);
+      expect(gated.gates, hasLength(2));
+      expect(service.state.reading, _at(2));
     });
 
     test('force queues exactly one follow-up', () async {

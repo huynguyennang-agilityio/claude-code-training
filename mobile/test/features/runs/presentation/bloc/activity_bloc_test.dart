@@ -43,6 +43,9 @@ class _FakeHealthSync implements HealthSync {
   Future<void> sync({bool force = false}) async => syncs++;
 
   @override
+  Future<void> syncNow() async => syncs++;
+
+  @override
   void start() {}
 
   @override

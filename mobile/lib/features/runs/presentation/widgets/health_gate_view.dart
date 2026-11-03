@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_tokens.dart';
 import '../../domain/entities/health_access.dart';
+import 'health_metric_list.dart';
 
 /// What the user is told, and offered, for a status that stops the Active tab.
 class _GateText {
@@ -113,7 +114,7 @@ class HealthGateView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  const _MetricList(),
+                  const HealthMetricList(),
                   const SizedBox(height: AppSpacing.lg),
                   FilledButton(
                     onPressed: busy ? null : onAction,
@@ -138,49 +139,6 @@ class HealthGateView extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// The four figures, and which of them is required.
-class _MetricList extends StatelessWidget {
-  const _MetricList();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: theme.colorScheme.outline),
-      ),
-      child: Column(
-        children: [
-          for (final (index, metric) in HealthMetric.values.indexed) ...[
-            if (index > 0) const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(metric.label, style: theme.textTheme.bodyLarge),
-                  ),
-                  Text(
-                    metric.isRequired ? 'Required' : 'Optional',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }
