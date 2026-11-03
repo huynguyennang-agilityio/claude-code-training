@@ -19,8 +19,9 @@ void registerAuthFormBlocs(AuthRepository repository) {
     ..registerFactory<SignInBloc>(() => SignInBloc(repository))
     ..registerFactory<SignUpBloc>(() => SignUpBloc(repository))
     ..registerFactory<DeleteAccountBloc>(() => DeleteAccountBloc(repository));
-  // The app routes also open the Challenges tab once the user is signed in.
-  registerChallengeBlocs();
-  // And the Active tab.
+  // The app routes also open the Challenges tab once the user is signed in,
+  // and the Active tab, whose helper registers the `HealthNoticeBloc` both
+  // routes ask for.
+  registerChallengeBlocs(noticeBloc: false);
   registerHealthBlocs();
 }

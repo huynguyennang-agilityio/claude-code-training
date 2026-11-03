@@ -28,13 +28,15 @@ MockGetHealthNotice noticeAnswering(HealthNotice notice) {
 /// Registers the blocs the challenge routes ask `getIt` for, built on
 /// [repository] (an in-memory one by default). The routes also provide a
 /// [HealthNoticeBloc], built on [notice] (answers `none` by default), [health]
-/// (a [FakeHealthRepository]) and [sync] (does nothing). The caller resets
-/// `getIt` when the test ends.
+/// (a [FakeHealthRepository]) and [sync] (does nothing); pass
+/// `noticeBloc: false` when another helper registers that bloc (the Active
+/// route asks for it too). The caller resets `getIt` when the test ends.
 void registerChallengeBlocs({
   ChallengeRepository? repository,
   GetHealthNotice? notice,
   HealthRepository? health,
   HealthSync? sync,
+  bool noticeBloc = true,
 }) {
   final repo = repository ?? FakeChallengeRepository();
   final getNotice = notice ?? noticeNone();
@@ -42,10 +44,12 @@ void registerChallengeBlocs({
   final healthSync = sync ?? _quietSync();
   getIt
     ..registerFactory<ChallengesBloc>(() => ChallengesBloc(repo))
-    ..registerFactory<ChallengeDetailBloc>(() => ChallengeDetailBloc(repo))
-    ..registerFactory<HealthNoticeBloc>(
+    ..registerFactory<ChallengeDetailBloc>(() => ChallengeDetailBloc(repo));
+  if (noticeBloc) {
+    getIt.registerFactory<HealthNoticeBloc>(
       () => HealthNoticeBloc(getNotice, healthRepo, healthSync),
     );
+  }
 }
 
 HealthSync _quietSync() {
