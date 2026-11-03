@@ -82,6 +82,8 @@ ActivityReading _reading() => ActivityReading(
 );
 
 void main() {
+  // The same pixels as the page's `active_gate_denied` golden, on purpose: the
+  // issue asks for both tabs without access as a pair of widget goldens.
   goldenScreen(
     'ActiveTabs, no access, the Active tab',
     'active_tabs_no_access_active',
