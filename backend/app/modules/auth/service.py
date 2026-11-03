@@ -23,10 +23,12 @@ from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import (
     ChangeEmailRequest,
     ChangePasswordRequest,
+    DeleteAccountRequest,
     SignInRequest,
     SignUpRequest,
     TokenPair,
 )
+from app.modules.runs.service import RunService
 
 MAX_FAILED_SIGN_INS_PER_EMAIL = 5
 MAX_FAILED_SIGN_INS_PER_IP = 20
@@ -58,6 +60,11 @@ class InvalidRefreshTokenError(DomainError):
     code = "invalid_refresh_token"
 
 
+class SessionReplacedError(DomainError):
+    status_code = 401
+    code = "session_replaced"
+
+
 class NotAuthenticatedError(DomainError):
     status_code = 401
     code = NOT_AUTHENTICATED_CODE
@@ -83,6 +90,11 @@ class SameEmailError(DomainError):
 class SamePasswordError(DomainError):
     status_code = 422
     code = VALIDATION_ERROR_CODE
+
+
+class LastAdminError(DomainError):
+    status_code = 409
+    code = "last_admin"
 
 
 class UnknownUserError(Exception):
@@ -121,22 +133,27 @@ class AuthService:
         session: AsyncSession,
         repository: AuthRepository,
         settings: AuthSettings,
+        runs: RunService,
         now: Callable[[], datetime] = _utcnow,
     ) -> None:
         self._session = session
         self._repository = repository
         self._settings = settings
+        # The only way auth reaches the enrollments: for the lock in `delete_account`.
+        self._runs = runs
         self._now = now
 
     async def sign_up(self, data: SignUpRequest) -> tuple[User, TokenPair]:
         if await self._repository.get_user_by_email(data.email) is not None:
             raise EmailTakenError("An account with this email already exists.")
+        created_at = self._now()
         user = User(
             id=uuid.uuid4(),
             email=data.email,
             password_hash=await hash_password_async(data.password),
             display_name=data.display_name,
-            created_at=self._now(),
+            created_at=created_at,
+            session_started_at=created_at,
         )
         try:
             await self._repository.add_user(user)
@@ -166,6 +183,13 @@ class AuthService:
             await self._session.commit()
             raise InvalidCredentialsError("Email or password is incorrect.")
         await self._repository.clear_login_attempts(data.email)
+        # One session per account: this sign-in replaces every other one. It runs under the
+        # refresh-token lock taken above, so a refresh in flight can't keep a token alive. The
+        # clock is read again under the lock: a token a refresh committed while this request
+        # waited was created before the new session started.
+        started_at = self._now()
+        await self._repository.revoke_all_refresh_tokens(user.id, started_at)
+        await self._repository.update_session_started_at(user, started_at)
         tokens = await self._issue_tokens(user.id)
         await self._session.commit()
         return user, tokens
@@ -231,12 +255,47 @@ class AuthService:
         await self._session.commit()
         return tokens
 
+    async def delete_account(self, user: User, data: DeleteAccountRequest, ip: str) -> None:
+        """Delete `user` and everything that belongs to them, for good. The order of checks is
+        part of the contract: rate limit, current password, last admin (see `docs/api/auth.md`).
+
+        The locks are taken in the order `join` and `resume` use (enrollments, then refresh
+        tokens, then rows), so a delete running with them waits instead of deadlocking.
+        """
+        now = self._now()
+        await self._verify_current_password(user, data.current_password, ip, now)
+        await self._runs.lock_user_enrollments(user.id)
+        if not await self._password_unchanged_after_lock(user):
+            # A password change committed after the check: the password sent is wrong now.
+            await self._repository.add_login_attempt(user.email, ip, now)
+            await self._session.commit()
+            raise IncorrectPasswordError("The current password is incorrect.")
+        if (
+            user.role == UserRole.ADMIN.value
+            and await self._repository.lock_admins_and_count() <= 1
+        ):
+            raise LastAdminError(
+                "You're the only admin. Make another account an admin before deleting yours."
+            )
+        await self._repository.delete_user(user.id)
+        await self._repository.clear_login_attempts(user.email)
+        await self._session.commit()
+
     async def refresh(self, refresh_token: str) -> TokenPair:
         token_hash = hash_refresh_token(refresh_token)
-        # Serialized with `change_password`, so a password change revokes this pair too.
+        # Serialized with `sign_in` and `change_password`, so a password change revokes this
+        # pair too and a sign-in can't change the answer midway.
         await self._repository.lock_refresh_token_owner(token_hash)
-        user_id = await self._repository.consume_refresh_token(token_hash, self._now())
+        now = self._now()
+        user_id = await self._repository.consume_refresh_token(token_hash, now)
         if user_id is None:
+            revoked = await self._repository.get_revoked_token_session(token_hash)
+            if (
+                revoked is not None
+                and revoked.expires_at > now
+                and revoked.created_at < revoked.session_started_at
+            ):
+                raise SessionReplacedError("Your account was signed in on another device.")
             raise InvalidRefreshTokenError("The refresh token is unknown, expired or used.")
         tokens = await self._issue_tokens(user_id)
         await self._session.commit()

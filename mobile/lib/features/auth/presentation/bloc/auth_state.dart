@@ -22,11 +22,14 @@ final class AuthAuthenticated extends AuthState {
 }
 
 final class AuthUnauthenticated extends AuthState {
-  const AuthUnauthenticated({this.sessionExpired = false});
+  const AuthUnauthenticated({this.endReason, this.accountDeleted = false});
 
-  /// True when the session ended without the user signing out.
-  final bool sessionExpired;
+  /// Why the session ended without the user signing out; null otherwise.
+  final SessionEndReason? endReason;
+
+  /// True when the user deleted their account on this device.
+  final bool accountDeleted;
 
   @override
-  List<Object?> get props => [sessionExpired];
+  List<Object?> get props => [endReason, accountDeleted];
 }

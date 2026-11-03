@@ -123,6 +123,11 @@ class ChangePasswordRequest(BaseModel):
         return _check_password_rule(value)
 
 
+class DeleteAccountRequest(BaseModel):
+    # Only presence is checked, as in `ChangePasswordRequest`.
+    current_password: str = Field(min_length=1, max_length=128)
+
+
 class RefreshTokenRequest(BaseModel):
     refresh_token: str = Field(min_length=1, max_length=512)
 

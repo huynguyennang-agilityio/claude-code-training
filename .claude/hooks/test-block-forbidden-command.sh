@@ -157,34 +157,16 @@ blocked on-feature 'gh pr merge 5 -t "x y" -d'
 blocked on-feature 'gh repo edit --delete-branch-on-merge'
 blocked on-feature 'gh repo edit o/r --delete-branch-on-merge=true'
 
-# --- gh: removing, deleting or renaming human-merge ---
-blocked on-feature 'gh pr edit 5 --remove-label human-merge'
-blocked on-feature 'gh issue edit 5 --remove-label human-merge'
-blocked on-feature 'gh pr edit 5 --remove-label=human-merge'
-blocked on-feature 'gh pr edit 5 --remove-label "human-merge"'
-blocked on-feature "gh pr edit 5 --remove-label 'bug, human-merge'"
-blocked on-feature 'gh pr edit 5 --remove-label bug,human-merge'
-blocked on-feature 'gh pr edit 5 --remove-label Human-Merge'
-blocked on-feature 'gh pr edit 5 --remove-label bug --remove-label human-merge'
-blocked on-feature 'gh issue edit 5 6 --add-label bug --remove-label human-merge'
-blocked on-feature 'gh issue edit 5 -R o/r --remove-label human-merge'
-blocked on-feature 'gh -R o/r issue edit 5 --remove-label human-merge'
-blocked on-feature 'gh label delete human-merge --yes'
-blocked on-feature 'gh label delete --yes human-merge'
-blocked on-feature 'gh label edit human-merge --name merge-ok'
-blocked on-feature 'gh label edit human-merge -n merge-ok'
-blocked on-feature 'gh label edit human-merge --name=merge-ok'
-
 # --- gh: hidden behind other syntax ---
 blocked on-feature 'bash -c "gh pr merge 5 --merge -d"'
-blocked on-feature "sh -c 'gh pr edit 5 --remove-label human-merge'"
+blocked on-feature "sh -c 'gh pr merge 5 --merge -d'"
 blocked on-feature 'eval "gh pr close 5 -d"'
 blocked on-feature 'gh pr checks 5 && gh pr merge 5 --merge -d'
 blocked on-feature '(gh pr close 5 -d)'
 blocked on-feature 'GH_REPO=o/r gh pr merge 5 -d'
 blocked on-feature 'env GH_REPO=o/r gh pr merge 5 -d'
 blocked on-feature '/opt/homebrew/bin/gh pr merge 5 -d'
-blocked on-feature $'gh pr view 5\ngh pr edit 5 --remove-label human-merge'
+blocked on-feature $'gh pr view 5\ngh pr merge 5 -d'
 
 # --- gh: allowed ---
 allowed on-feature 'gh pr merge 5 --merge'
@@ -195,28 +177,22 @@ allowed on-feature 'gh pr merge 5 -m -t -d'
 allowed on-feature 'gh pr merge 5 -td'
 allowed on-feature 'gh pr merge 5 --merge -b "use -d later"'
 allowed on-feature 'gh pr close 5 --comment "superseded"'
-allowed on-feature 'gh pr edit 5 --add-label human-merge'
 allowed on-feature 'gh pr edit 5 --remove-label bug'
-allowed on-feature 'gh pr edit 5 --remove-label human-merge-later'
 allowed on-feature 'gh issue edit 5 --remove-label "needs triage"'
-allowed on-feature 'gh pr edit 5 --title "--remove-label human-merge"'
 allowed on-feature 'gh pr view 5 --json labels'
 allowed on-feature 'gh issue view 107 --json labels'
 allowed on-feature 'gh label list'
-allowed on-feature 'gh label edit human-merge --description "Stop /run-tasks"'
 allowed on-feature 'gh label delete stale --yes'
 allowed on-feature 'gh repo edit --delete-branch-on-merge=false'
 allowed on-feature 'gh repo view'
 allowed on-feature 'gh pr checks 5 --watch --required'
-allowed on-feature 'gh pr create --body "never gh pr merge -d or --remove-label human-merge"'
-allowed on-feature 'git commit -m "block gh pr edit --remove-label human-merge"'
-allowed on-feature $'gh pr create --body "$(cat <<\'EOF\'\nNever run gh pr merge 5 --delete-branch\nor gh pr edit 5 --remove-label human-merge\nEOF\n)"'
+allowed on-feature 'gh pr create --body "never gh pr merge -d or --delete-branch"'
+allowed on-feature $'gh pr create --body "$(cat <<\'EOF\'\nNever run gh pr merge 5 --delete-branch\nEOF\n)"'
 allowed on-feature 'gh api repos/o/r/pulls/5/files --paginate'
 
 # --- nested quotes and parentheses inside quotes (review of #109) ---
 blocked on-feature "bash -c \"gh pr merge 5 --merge -t 'Release' -d\""
-blocked on-feature "bash -c \"gh pr edit 5 --remove-label 'human-merge'\""
-blocked on-feature "sh -c 'gh pr edit 5 --remove-label \"bug, human-merge\"'"
+blocked on-feature "sh -c 'gh pr merge 5 -t \"a b\" -d'"
 blocked on-feature "bash -c \"git -c user.name='A B' push origin main\""
 blocked on-feature 'gh pr merge 5 -t "fix (x)" -d'
 blocked on-feature 'gh pr close 5 -c "done (for now)" --delete-branch'
@@ -238,24 +214,17 @@ blocked on-feature 'gh api repos/o/r/git/refs/heads/x -X DELETE'
 blocked on-feature 'gh api -XDELETE /repos/o/r/git/refs/heads/x'
 blocked on-feature 'gh api --method=delete https://api.github.com/repos/o/r/git/refs/heads/x'
 blocked on-feature 'gh api -X PATCH repos/o/r/git/refs/heads/main -f sha=abc -F force=true'
-blocked on-feature 'gh api -X DELETE repos/o/r/issues/5/labels/human-merge'
-blocked on-feature 'gh api -XDELETE /repos/{owner}/{repo}/issues/5/labels/Human-Merge'
-blocked on-feature 'gh api -X DELETE repos/o/r/issues/5/labels'
-blocked on-feature "gh api --method put repos/o/r/issues/5/labels -f 'labels[]=bug'"
-blocked on-feature "gh api -X PATCH repos/o/r/issues/5 -f 'labels[]=bug'"
-blocked on-feature 'gh api -X PATCH repos/o/r/pulls/5 --field labels=bug'
-blocked on-feature 'gh api -X DELETE repos/o/r/labels/human-merge'
-blocked on-feature 'gh api -X PATCH repos/o/r/labels/human-merge -f new_name=ok'
 blocked on-feature 'gh api -X PATCH repos/o/r -F delete_branch_on_merge=true'
 blocked on-feature "gh api graphql -f query='mutation { deleteRef(input: {refId: \"x\"}) { clientMutationId } }'"
-blocked on-feature "gh api graphql -f query='mutation { removeLabelsFromLabelable(input: {labelableId: \"x\", labelIds: [\"y\"]}) { clientMutationId } }'"
 blocked on-feature 'eval "gh api -X DELETE repos/o/r/git/refs/heads/x"'
-blocked on-feature "bash -c \"gh api -X DELETE 'repos/o/r/issues/5/labels/human-merge'\""
 allowed on-feature "gh api repos/o/r/issues/5/comments --jq '.[].body'"
-allowed on-feature "gh api -X POST repos/o/r/issues/5/labels -f 'labels[]=human-merge'"
-allowed on-feature "gh api repos/o/r/issues/5/labels -f 'labels[]=human-merge'"
 allowed on-feature 'gh api -X DELETE repos/o/r/issues/comments/9'
 allowed on-feature 'gh api -X DELETE repos/o/r/issues/5/labels/bug'
+allowed on-feature 'gh api -X DELETE repos/o/r/issues/5/labels'
+allowed on-feature "gh api --method put repos/o/r/issues/5/labels -f 'labels[]=bug'"
+allowed on-feature "gh api -X PATCH repos/o/r/issues/5 -f 'labels[]=bug'"
+allowed on-feature 'gh api -X PATCH repos/o/r/pulls/5 --field labels=bug'
+allowed on-feature "gh api graphql -f query='mutation { removeLabelsFromLabelable(input: {labelableId: \"x\", labelIds: [\"y\"]}) { clientMutationId } }'"
 allowed on-feature 'gh api -X PATCH repos/o/r/issues/5 -f title=x'
 allowed on-feature 'gh api -X PATCH repos/o/r -F delete_branch_on_merge=false'
 allowed on-feature 'gh api repos/o/r/git/refs/heads/main'

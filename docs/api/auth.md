@@ -21,6 +21,7 @@ This is the source of truth for sign up and sign in between the Flutter app and 
 | `GET` | `/api/v1/users/me` | access token | Read the signed-in user, with their `role` |
 | `PUT` | `/api/v1/users/me/email` | access token | Change the email, with the current password |
 | `PUT` | `/api/v1/users/me/password` | access token | Change the password, with the current password |
+| `POST` | `/api/v1/users/me/delete` | access token | Delete the signed-in user's account for good, with the current password |
 
 ## Roles
 
@@ -37,7 +38,8 @@ python -m app.scripts.create_admin someone@example.com --revoke   # make a norma
 
 - **Access token:** a JWT, valid for 15 minutes. Send it on protected routes as `Authorization: Bearer <access_token>`. The app must treat it as opaque and must not read its claims.
 - **Refresh token:** an opaque random string, valid for 30 days. Send it only to `/api/v1/auth/refresh` and `/api/v1/auth/signout`.
-- **Rotation:** every successful refresh returns a new refresh token and revokes the old one. Store the new pair and discard the old one. Using a revoked refresh token returns `401 invalid_refresh_token`.
+- **Rotation:** every successful refresh returns a new refresh token and revokes the old one. Store the new pair and discard the old one. Using a revoked refresh token returns `401 invalid_refresh_token`, or `401 session_replaced` when the token is unexpired and was issued before the account's latest sign-in (see `POST /api/v1/auth/refresh`).
+- **One session per account:** signing in on a device signs every other device out (see `POST /api/v1/auth/signin`).
 - Store both tokens in secure storage (Keychain or Keystore), never in plain preferences.
 - When a protected route returns `401` with `token_expired` or `invalid_token`, call `/api/v1/auth/refresh` once and retry the request. If the refresh fails, clear the tokens and go to Sign in.
 
@@ -142,12 +144,14 @@ Every error, including validation errors, has this shape. Branch on `error.code`
 | 422 | `validation_error` | The body is missing a field or breaks a field rule. See `fields`. |
 | 409 | `email_taken` | Sign up, or change the email, with an email that already has an account. |
 | 401 | `invalid_credentials` | Sign in with a wrong email or a wrong password. Both cases return the same code on purpose. |
-| 401 | `invalid_refresh_token` | Refresh with a token that is unknown, expired or already revoked. |
+| 401 | `invalid_refresh_token` | Refresh with a token that is unknown, expired, or revoked with no sign-in since it was issued (used by a refresh, signed out, or revoked by a password change). |
+| 401 | `session_replaced` | Refresh with an unexpired, revoked token that was issued before the account's latest sign-in, whatever revoked it: another device signed in. |
 | 401 | `not_authenticated` | A protected route was called without an `Authorization` header, whatever dependency guards it. |
 | 401 | `invalid_token` | The access token is malformed, has a bad signature, or its user no longer exists. |
 | 401 | `token_expired` | The access token has expired. Refresh and retry. |
 | 403 | `forbidden` | The caller is signed in, but the route needs the `admin` role. |
-| 403 | `incorrect_password` | The `current_password` sent to change the email or the password is wrong. It is not `401`, so the app's refresh-and-retry (for `token_expired` and `invalid_token`) never runs for it. |
+| 403 | `incorrect_password` | The `current_password` sent to change the email or the password, or to delete the account, is wrong. It is not `401`, so the app's refresh-and-retry (for `token_expired` and `invalid_token`) never runs for it. |
+| 409 | `last_admin` | The only remaining `admin` tries to delete their own account. Make another account an admin first. |
 | 429 | `rate_limited` | Too many failed sign-ins (a wrong `current_password` counts) for this email or device. Wait for the number of seconds in the `Retry-After` header. |
 | 404 | `not_found` | No route matches the path. |
 | 405 | `method_not_allowed` | The path exists but not for this method. The `Allow` header lists the valid methods. |
@@ -189,6 +193,8 @@ Responses:
 - `200 OK` with `AuthResponse`.
 - `401 invalid_credentials`, `422 validation_error`, `429 rate_limited`.
 
+A successful sign-in revokes every other refresh token of the user: one account has one session at a time. Access tokens issued before stay valid until they expire (15 minutes by default); there is no deny list. So another device keeps working until its access token expires, then its refresh returns `401 session_replaced` and it is signed out.
+
 Sign in is rate limited: after 5 failed attempts for the same email within 15 minutes, or 20 failed attempts from the same IP within 15 minutes, it returns `429` until the window passes, even with the right password. A successful sign-in clears the count for that email.
 
 ## `POST /api/v1/auth/refresh`
@@ -205,7 +211,21 @@ Request:
 Responses:
 
 - `200 OK` with `TokenPair` (a new access token and a new refresh token).
-- `401 invalid_refresh_token`, `422 validation_error`.
+- `401 session_replaced` when the refresh token is revoked and was issued before the account's latest sign-in, whatever revoked it: a newer sign-in revokes every older token, so the session was replaced. The app clears the tokens and shows "Your account was signed in on another device." on the Sign in screen:
+
+<!-- example: auth/error_session_replaced.json -->
+```json
+{
+  "error": {
+    "code": "session_replaced",
+    "message": "Your account was signed in on another device.",
+    "fields": []
+  }
+}
+```
+
+- `401 invalid_refresh_token` when the token is unknown or expired, or revoked with no sign-in since it was issued (already used by a refresh, signed out, or revoked by a password change). An expired token always returns `invalid_refresh_token`, even when a newer sign-in revoked it. The app clears the tokens and goes to Sign in with its usual message.
+- `422 validation_error`.
 
 ## `POST /api/v1/auth/signout`
 
@@ -298,6 +318,54 @@ Responses:
 - `200 OK` with a new `TokenPair` for the device in use. Every refresh token of the user is revoked, including the one this device held, so the app must store the new pair at once and every other device is signed out when its access token expires. Access tokens issued before stay valid until they expire (15 minutes by default); there is no deny list.
 - `403 incorrect_password` (the example above).
 - `422 validation_error` when `new_password` breaks the rule or equals `current_password`; in both cases `fields[0].field` is `new_password`.
+- `429 rate_limited` with a `Retry-After` header, under the same rate limit as above.
+- `401 not_authenticated`, `401 invalid_token`, `401 token_expired`.
+
+## `POST /api/v1/users/me/delete`
+
+Header: `Authorization: Bearer <access_token>`.
+
+Request:
+
+<!-- example: auth/delete_account_request.json -->
+```json
+{
+  "current_password": "run4medals"
+}
+```
+
+The route takes no user id: it always deletes the account of the access token's user, so a user can only delete themselves. It is a `POST`, not a `DELETE` with a body, because a `DELETE` body has no defined meaning (RFC 9110) and proxies may drop it.
+
+Order of checks: the body's field rules (`422`), the rate limit (`429`), the current password (`403`), and last the last admin (`409`). This is the order of `PUT /users/me/email` and `PUT /users/me/password`, plus the admin step: every request whose body passes the field rules goes through the rate limit and the password check, and the rate limit applies even with the right password.
+
+A wrong `current_password` is recorded as a failed sign-in for the rate limit of `POST /api/v1/auth/signin` (by the user's email and by IP), as on the two routes above, so this route cannot be used to guess the password.
+
+Responses:
+
+- `204 No Content`, with no body. The account is deleted for good, in one transaction, with no undo:
+  - the user and their profile;
+  - every refresh token of the user;
+  - their runs (challenge enrollments) and the step samples of those runs;
+  - their daily activity synced from Apple Health or Health Connect.
+
+  The failed sign-in attempts recorded for the user's email are cleared, as a successful sign-in does. Attempts recorded by IP for other emails are kept: they expire with the rate-limit window. Data in Apple Health or Health Connect on the phone is not touched.
+
+  After the delete, any access token issued before gets `401 invalid_token` ("The account no longer exists."), since its user no longer exists, and `POST /api/v1/auth/refresh` with any of the user's refresh tokens gets `401 invalid_refresh_token`. The app should delete both tokens locally.
+- `403 incorrect_password` (the example in `PUT /api/v1/users/me/email`).
+- `409 last_admin` when the caller is the only remaining `admin`. When only two admins remain and both delete themselves at the same time, one of them gets this error.
+
+<!-- example: auth/error_last_admin.json -->
+```json
+{
+  "error": {
+    "code": "last_admin",
+    "message": "You're the only admin. Make another account an admin before deleting yours.",
+    "fields": []
+  }
+}
+```
+
+- `422 validation_error` when `current_password` is missing, empty or longer than 128 characters; `fields[0].field` is `current_password`.
 - `429 rate_limited` with a `Retry-After` header, under the same rate limit as above.
 - `401 not_authenticated`, `401 invalid_token`, `401 token_expired`.
 

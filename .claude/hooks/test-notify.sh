@@ -111,7 +111,8 @@ run '{"hook_event_name":"Notification","message":null}'
 run '{"hook_event_name":"Notification","message":[1,2]}'
 [ "$(calls)" = 9 ] && ok || bad "array message: expected 9 argument lines, got $(calls)"
 
-huge=$(jq -n --arg m "$(head -c 1000000 /dev/zero | tr '\0' 'z')" '{hook_event_name: "Notification", message: $m}')
+# Through stdin, not --arg: Linux refuses a single argument over 128 KB.
+huge=$(head -c 1000000 /dev/zero | tr '\0' 'z' | jq -Rs '{hook_event_name: "Notification", message: .}')
 run "$huge"
 len=$(last_message | tr -d '\n' | wc -c | tr -d ' ')
 [ "$len" = 200 ] && ok || bad "1 MB message: length was $len, expected 200"

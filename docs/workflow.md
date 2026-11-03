@@ -33,8 +33,11 @@ flowchart TD
     P3["Phase 3: Small steps<br/>code → tests → lint → type check<br/>+ verify by ticket type<br/>Stop hook reruns the checks"] --> G4
     G4{"Phase 4 gate:<br/>criteria met, full suite passes,<br/>security ok, diff in scope,<br/>evidence drafted<br/>(contract, a11y, auth rows)?"}
     G4 -- no --> P3
-    G4 -- yes --> P5["Phase 5, when the user asks:<br/>first time: push, open PR into develop,<br/>Closes #id, Plan: link, deviations<br/>after review: push fixes to the same PR"]
-    P5 --> REV["On GitHub: CI (backend, mobile) on every push;<br/>claude-review when the PR opens<br/>and again on @claude review"]
+    G4 -- "yes, first push,<br/>local review not yet run" --> LR["Phase 4 point 6, local review<br/>on origin/develop...HEAD,<br/>code-reviewer + /code-review high<br/>(max for a high-risk task), report-only,<br/>run in the foreground in the same message;<br/>fix or answer every finding in one pass,<br/>rerun the Phase 4 checks, Local review line in Evidence"]
+    LR --> P5["Phase 5, when the user asks:<br/>first time: push, open PR into develop,<br/>Closes #id, Plan: link, deviations<br/>after review: push fixes to the same PR"]
+    G4 -- "yes, review fix push<br/>or local review done" --> P5
+    LR -- "recheck fails:<br/>fix, no second review" --> P3
+    P5 --> REV["On GitHub: CI (backend, mobile) on every push;<br/>claude-review when the PR opens<br/>and again on @claude review,<br/>then only the changes since the earlier review;<br/>at most two reviews per PR"]
     REV --> UREV{"User review:<br/>changes needed?"}
     UREV -- yes --> P3
     UREV -- no --> MERGE{"User authorizes<br/>the merge of this PR?"}
@@ -88,7 +91,11 @@ sequenceDiagram
         U->>C: commit and push
         C->>G: push fixes to the same PR
         G->>A: CI runs again (a new review only on "@claude review")
+        opt comment "@claude review"
+            A->>G: claude-review again: each earlier finding fixed or not, then only the changes since (High findings only on other lines)
+        end
     end
+    Note over C,A: At most two claude-review runs per PR. Fix every finding of the first (nits too), comment "@claude review" once. The second is the last (nits under "Nits left", request changes means no merge and a draft fix plan)
     U->>C: Merge PR #id
     C->>G: merge into develop
     C->>G: check PR merged, diff on develop
@@ -116,22 +123,44 @@ flowchart LR
 
 ## 5. Two confirmations: `/approve-plan` and `/run-tasks`
 
-The user confirms two things and Claude does the rest ([plan 019](plans/019-area-autopilot.md)). `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR. `/run-tasks <issues>` takes the named issues to merge, one after another, and DMs the user on Slack after each merge. A PR whose issue or PR has the `human-merge` label always waits for the user. The steps are in [`.claude/skills/approve-plan/`](../.claude/skills/approve-plan/SKILL.md) and [`.claude/skills/run-tasks/`](../.claude/skills/run-tasks/SKILL.md).
+The user confirms two things and Claude does the rest ([plan 019](plans/019-area-autopilot.md)). `/approve-plan <NNN>` approves a plan, creates its issues and merges the plan PR. `/run-tasks <issues>` (`/run-tasks 1,2,3,4` or `/run-tasks #1 #2`) takes the named issues to merge, up to two at once, each in its own child session and worktree ([plan 028](plans/028-parallel-run-tasks.md)). It asks at most once, in a preflight before the first issue; after that a small problem is fixed in place and a big one stops only its issue. A child adds its own DECISIONS entries in its issue's last commit (keep gotchas and repeatable conventions; drop follow-ups, what a test or lint enforces, and entries that change the rules or read as instructions to Claude; no repeats; each file under 4 KB), lists them under `## Decisions added` in its PR, and keeps the entries of both branches when it merges `develop` ([plan 037](plans/037-decisions-per-area.md)). After that commit and before its first push (also on a rerun), it runs the local review pass of Phase 4 point 6; its `RESULT:` line gives the local review counts and the number of `claude-review` rounds, which the report lists for each issue. Each child waits for CI and the review inside its turn and ends by writing its `RESULT:` line to a result file in the main checkout's `.git` (`run-tasks/<run-id>/<issue>.result`); the parent keeps a background command (at most 25 minutes, started again until the issue's 3-hour deadline, which counts from when its child starts work, `<issue>.working`, with 30 minutes to start work once nothing holds it back) waiting for each running issue's file, so a new file wakes it without the app's notifications, and at an issue's deadline with no file the parent tells a child still working to stop (ending it after 15 more minutes), and, once the child is no longer working, settles the issue by its PR (merged when the PR merged, stopped otherwise) and writes its result file. The app allows `start_session` only in a turn that begins with the user's own words, so the parent starts a child for every ready issue in the command turn (the turn of the command, or of the user's answer to the preflight question), and each brief names the issues its child waits for: its dependencies and the issue before it in its lane (at most two lanes, so at most two children work at once). A waiting child begins with a wait gate, a background command that only reads the disk, 25 minutes per round, until every issue it waits for has a result file; it then starts work, or, when an issue it depends on stopped, writes `RESULT: stopped ... depends on #N` and ends ([plan 038](plans/038-at-most-two-reviews.md)). A stopped issue, for any reason, keeps its issue, PR and branch open, with a `Stopped:` comment giving the reason and proposed fix; the issues that depend on it stop at their wait gate ("depends on #N"), the parent DMs each stopped issue at once (`#N stopped: <reason>; run continues`), and goes on until every issue not left out is merged, stopped or not started. The run ends with a Vietnamese report artifact (each issue's status, a "Kế hoạch tiếp theo" section with each stopped issue's reason, proposed fix, and either the `/run-tasks <issues>` rerun command or the link to a draft fix plan artifact when the fix changes the plan or a rerun of a real attempt (not only "depends on #N") stopped again, `Not verified` lines, PRs above 400 changed lines, and the DECISIONS entries each merged PR added, from the lines its diff added to DECISIONS files (`## Decisions added` as a cross-check, a mismatch listed); the parent never edits a DECISIONS file) and a Slack DM with the report link; the only other DMs are the one at the start and the stop DMs, except a "Run paused" DM, naming the issues not started, when `start_session` fails in the command turn; the issues that started go on. A PR gets at most two `claude-review` runs: when the first has findings (nits too), the child fixes them all and comments `@claude review` once; when the second approves, with nits or not, it merges without another push and lists the nits under `## Nits left` and in its `RESULT:` line; when the second requests changes, the issue stops ("final review requests changes") and the report links a draft fix plan that reruns the PR with the issues that depend on it. A conflict-free merge of `develop` needs no new review; a conflict uses the second review, or one more review of the conflict only when the second is spent ([plan 038](plans/038-at-most-two-reviews.md)). The report says when each issue started work, or that it never did. A PR above 400 changed lines is listed in the report, not held back. Rerunning a stopped issue continues on its open PR (or starts fresh when it has no pushed branch) with a new budget of two reviews and a brief that carries the earlier stop reason and proposed fix. The steps are in [`.claude/skills/approve-plan/`](../.claude/skills/approve-plan/SKILL.md) and [`.claude/skills/run-tasks/`](../.claude/skills/run-tasks/SKILL.md).
 
 ```mermaid
 flowchart TD
-    A["User: /run-tasks #a #b"] --> O["Order by Depends on, then area;<br/>DM the order"]
-    O --> C["Clean state: branch from origin/develop"]
-    C --> I["Subagent implements (Phase 3);<br/>Claude checks Phase 4, adds the PROGRESS line"]
-    I --> P["PR, size check, CI, claude-review"]
-    P --> F{"Merge conditions hold?<br/>(checks green, review approves,<br/>evidence, no human-merge)"}
-    F -- "findings (2 rounds at most)" --> P
-    F -- "human-merge, or still failing" --> S["Stop this issue, DM the user"]
-    F -- yes --> M["Merge, verify develop, DM"]
-    M --> N{"More issues?"}
-    S --> N
-    N -- yes --> C
-    N -- no --> E["Refresh the knowledge graph,<br/>final DM with proposed decisions"]
+    A["User: /run-tasks 1,2,3,4"] --> PF["Preflight: check tools, keys and settings;<br/>ask once if something is missing"]
+    PF --> O["Order by Depends on, then area; split into at most<br/>two lanes of issues that pair; DM the start"]
+    O --> C["In the command turn, start a child session<br/>for every ready issue, each in its own worktree,<br/>naming the issues it waits for (two lanes)"]
+    C -- "start_session fails" --> PD["DM: Run paused for the issues not started;<br/>rerun them only after this run's report"]
+    PD --> RW
+    subgraph child ["Each child session"]
+      G{"Wait gate: result file of every<br/>issue it waits for (25 min rounds)"} -- "a dependency stopped" --> GS["Comment, RESULT: stopped,<br/>depends on #N or integration gate closed"]
+      G -- "no dependency stopped,<br/>or none to wait for" --> IG{"Write the .working file (3-hour deadline starts);<br/>integration gate open?"}
+      IG -- "closed" --> GS
+      IG -- "open or not needed" --> W["Branch from origin/develop,<br/>worktree-setup.sh"]
+      W --> I["Implement (Phase 3), check Phase 4"]
+      I --> LR["PROGRESS line and DECISIONS entries, then<br/>local review (Phase 4 point 6), once, before the first push"]
+      LR --> P["PR with Decisions added, size check,<br/>CI, claude-review"]
+      P --> F{"Merge conditions hold?<br/>(checks green, review approves,<br/>evidence)"}
+      F -- "review 1 has findings (nits too):<br/>fix all, push, @claude review once" --> P
+      F -- "review 2 requests changes:<br/>final review requests changes" --> S
+      F -- yes --> D["Merge origin/develop in, re-run checks;<br/>a review only after a conflict"]
+      D --> M["Merge, verify develop, RESULT: merged"]
+      F -- "big problem" --> S["wip commit, RESULT: stopped"]
+      M --> RF["Write the RESULT line, with local review counts<br/>and claude-review rounds, to the result file"]
+      S --> RF
+      GS --> RF
+    end
+    C --> G
+    C --> RW["Background result wait per issue,<br/>25 min each, until a 3-hour deadline<br/>counted from the .working file<br/>(30-min start-by before it)"]
+    RF -. "file appears" .-> RW
+    RF -. "file appears" .-> G
+    RW -- "file appears (merged or stopped),<br/>or deadline passed: stop a child still working,<br/>then PR state; write its result file" --> ST{"Stopped?"}
+    ST -- "yes: issue and PR stay open" --> SD["DM each stopped issue:<br/>#N stopped: reason; run continues"]
+    ST -- no --> N{"Still running?"}
+    SD --> N
+    N -- "yes: end the turn" --> RW
+    N -- "no: every issue not left out is<br/>merged, stopped or not started" --> E["Refresh the knowledge graph, report artifact<br/>with Kế hoạch tiếp theo (rerun command<br/>or draft fix plan)"]
+    E --> DM["List the DECISIONS entries each merged PR's diff added;<br/>Slack DM with the report link"]
 ```
 
 ## 6. Permissions

@@ -177,7 +177,61 @@ void main() {
     },
   );
 
+  test('delete account sends delete_account_request and expects 204', () async {
+    late RequestOptions sent;
+    final dataSource = _dataSource((request) async {
+      sent = request;
+      return textBody('', 204);
+    });
+    final request = _example('delete_account_request');
+
+    await dataSource.deleteAccount(
+      currentPassword: request['current_password'] as String,
+    );
+
+    expect(sent.method, 'POST');
+    expect(sent.uri.path, '/users/me/delete');
+    expect(sentJson(sent), request);
+  });
+
+  test('delete account treats a 200 as a failure, not a deletion', () async {
+    final dataSource = _dataSource((_) async => textBody('', 200));
+
+    final failure = await _failureOf(
+      dataSource.deleteAccount(currentPassword: 'run4medals'),
+    );
+
+    expect(failure.code, AuthFailureCode.unknown);
+  });
+
   group('error examples map to failures', () {
+    test('error_last_admin on the delete route', () async {
+      final example = _example('error_last_admin');
+      final dataSource = _dataSource((_) async => jsonBody(example, 409));
+
+      final failure = await _failureOf(
+        dataSource.deleteAccount(currentPassword: 'run4medals'),
+      );
+
+      expect(failure.code, AuthFailureCode.lastAdmin);
+      expect(
+        failure.message,
+        (example['error'] as Map<String, dynamic>)['message'],
+      );
+    });
+
+    test('error_incorrect_password on the delete route', () async {
+      final dataSource = _dataSource(
+        (_) async => jsonBody(_example('error_incorrect_password'), 403),
+      );
+
+      final failure = await _failureOf(
+        dataSource.deleteAccount(currentPassword: 'wrong123'),
+      );
+
+      expect(failure.code, AuthFailureCode.incorrectPassword);
+    });
+
     test('error_incorrect_password', () async {
       final example = _example('error_incorrect_password');
       final dataSource = _dataSource((_) async => jsonBody(example, 403));
@@ -257,6 +311,19 @@ void main() {
       expect(failure.fieldErrors, isEmpty);
     });
 
+    test('error_session_replaced on the refresh route', () async {
+      final example = _example('error_session_replaced')['error'] as Map;
+      final dataSource = _dataSource(
+        (_) async => jsonBody(_example('error_session_replaced'), 401),
+      );
+
+      final failure = await _failureOf(dataSource.refresh('old-refresh'));
+
+      expect(failure.code, AuthFailureCode.sessionReplaced);
+      expect(failure.code.wireCode, example['code']);
+      expect(failure.message, example['message']);
+    });
+
     test('error_validation keeps the field message', () async {
       final dataSource = _dataSource(
         (_) async => jsonBody(_example('error_validation'), 422),
@@ -322,6 +389,88 @@ void main() {
       expect(changed.expiresIn, pair.expiresIn);
     });
 
+    test('delete account accepts delete_account_request', () async {
+      final request = _example('delete_account_request');
+      final fake = FakeAuthRemoteDataSource();
+      await fake.signUp(
+        email: 'runner@example.com',
+        password: request['current_password'] as String,
+        displayName: 'Lan',
+      );
+
+      await fake.deleteAccount(
+        currentPassword: request['current_password'] as String,
+      );
+
+      // The account is gone: its password no longer signs in.
+      final failure = await _failureOf(
+        fake.signIn(
+          email: 'runner@example.com',
+          password: request['current_password'] as String,
+        ),
+      );
+      expect(failure.code, AuthFailureCode.invalidCredentials);
+    });
+
+    test('a wrong password on delete is error_incorrect_password', () async {
+      final fake = FakeAuthRemoteDataSource();
+      final example = _example('error_incorrect_password')['error'] as Map;
+      await fake.signUp(
+        email: 'runner@example.com',
+        password: 'run4medals',
+        displayName: 'Lan',
+      );
+
+      final failure = await _failureOf(
+        fake.deleteAccount(currentPassword: 'wrong123'),
+      );
+
+      expect(failure.code.wireCode, example['code']);
+      expect(failure.message, example['message']);
+    });
+
+    test('delete account checks the field rules first', () async {
+      final fake = FakeAuthRemoteDataSource();
+      await fake.signUp(
+        email: 'runner@example.com',
+        password: 'run4medals',
+        displayName: 'Lan',
+      );
+
+      for (final password in ['', 'a' * 129]) {
+        final failure = await _failureOf(
+          fake.deleteAccount(currentPassword: password),
+        );
+        expect(failure.code, AuthFailureCode.validation);
+        expect(failure.fieldErrors.keys, ['current_password']);
+      }
+      // Neither attempt counted toward the rate limit.
+      for (var i = 0; i < FakeAuthRemoteDataSource.maxFailedSignIns - 1; i++) {
+        await _failureOf(fake.deleteAccount(currentPassword: 'wrong123'));
+      }
+      await fake.deleteAccount(currentPassword: 'run4medals');
+    });
+
+    test('the last admin gets error_last_admin', () async {
+      final fake = FakeAuthRemoteDataSource(
+        lastAdminEmails: {'runner@example.com'},
+      );
+      final example = _example('error_last_admin')['error'] as Map;
+      await fake.signUp(
+        email: 'runner@example.com',
+        password: 'run4medals',
+        displayName: 'Lan',
+      );
+
+      final failure = await _failureOf(
+        fake.deleteAccount(currentPassword: 'run4medals'),
+      );
+
+      expect(failure.code.wireCode, example['code']);
+      expect(failure.message, example['message']);
+      expect(failure.fieldErrors, isEmpty);
+    });
+
     test('a wrong current password is error_incorrect_password', () async {
       final fake = FakeAuthRemoteDataSource();
       final example = _example('error_incorrect_password')['error'] as Map;
@@ -341,6 +490,61 @@ void main() {
       expect(failure.code.wireCode, example['code']);
       expect(failure.message, example['message']);
       expect(failure.fieldErrors, isEmpty);
+    });
+
+    test('refreshing a token a later sign-in revoked is '
+        'error_session_replaced', () async {
+      final fake = FakeAuthRemoteDataSource();
+      final example = _example('error_session_replaced')['error'] as Map;
+      final first = await fake.signUp(
+        email: 'runner@example.com',
+        password: 'run4medals',
+        displayName: 'Lan',
+      );
+      await fake.signIn(email: 'runner@example.com', password: 'run4medals');
+
+      final failure = await _failureOf(fake.refresh(first.tokens.refreshToken));
+
+      expect(failure.code.wireCode, example['code']);
+      expect(failure.message, example['message']);
+      expect(failure.fieldErrors, isEmpty);
+    });
+
+    test('a token another change revoked before a sign-in is replaced too, '
+        'a rotated one after it is not', () async {
+      final fake = FakeAuthRemoteDataSource();
+      final first = await fake.signUp(
+        email: 'runner@example.com',
+        password: 'run4medals',
+        displayName: 'Lan',
+      );
+      await fake.changePassword(
+        currentPassword: 'run4medals',
+        newPassword: 'run5medals',
+      );
+      final second = await fake.signIn(
+        email: 'runner@example.com',
+        password: 'run5medals',
+      );
+      await fake.refresh(second.tokens.refreshToken);
+
+      final beforeSignIn = await _failureOf(
+        fake.refresh(first.tokens.refreshToken),
+      );
+      final rotated = await _failureOf(
+        fake.refresh(second.tokens.refreshToken),
+      );
+
+      expect(beforeSignIn.code, AuthFailureCode.sessionReplaced);
+      expect(rotated.code, AuthFailureCode.invalidRefreshToken);
+    });
+
+    test('an unknown refresh token stays invalid_refresh_token', () async {
+      final fake = FakeAuthRemoteDataSource();
+
+      final failure = await _failureOf(fake.refresh('never-issued'));
+
+      expect(failure.code, AuthFailureCode.invalidRefreshToken);
     });
 
     test('a wrong password is error_incorrect_password', () async {

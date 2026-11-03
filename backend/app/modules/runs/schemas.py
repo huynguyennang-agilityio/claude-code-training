@@ -1,5 +1,5 @@
 import re
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Self
 
 from pydantic import (
@@ -52,6 +52,58 @@ class StepSyncRequest(BaseModel):
     samples: list[StepSampleIn] = Field(min_length=1, max_length=MAX_SAMPLES_PER_SYNC)
 
 
+MAX_HOURS_PER_SYNC = 744  # 31 days
+MAX_STEPS_VALUE = 2_147_483_647  # what the `steps` column holds
+
+
+class StepHourIn(BaseModel):
+    """The steps of one UTC hour, as the health data reports them. `hour_start` is converted to
+    UTC, so two spellings of one hour are equal."""
+
+    hour_start: AwareDatetime
+    steps: int = Field(ge=0, le=MAX_STEPS_VALUE)
+
+    @field_validator("hour_start", mode="before")
+    @classmethod
+    def _date_is_text(cls, value: object) -> object:
+        """A date and time is sent as ISO 8601 text; Pydantic would also take a bare number."""
+        if not isinstance(value, str | datetime):
+            raise ValueError("Send an ISO 8601 date and time with a timezone.")
+        return value
+
+    @field_validator("steps", mode="before")
+    @classmethod
+    def _steps_is_not_a_boolean(cls, value: object) -> object:
+        """Pydantic would read `true` as 1."""
+        if isinstance(value, bool):
+            raise ValueError("steps must be a whole number.")
+        return value
+
+    @field_validator("hour_start", mode="after")
+    @classmethod
+    def _on_the_hour(cls, value: datetime) -> datetime:
+        try:
+            value = value.astimezone(UTC)
+        except OverflowError:
+            # A year-1 or year-9999 time can fall outside the datetime range once in UTC; a
+            # validator raises ValueError only, or the request would answer 500.
+            raise ValueError("hour_start is out of range.") from None
+        if value.minute or value.second or value.microsecond:
+            raise ValueError("hour_start must be the start of a UTC hour.")
+        return value
+
+
+class StepHoursRequest(BaseModel):
+    hours: list[StepHourIn] = Field(min_length=1, max_length=MAX_HOURS_PER_SYNC)
+
+    @model_validator(mode="after")
+    def hours_are_different(self) -> Self:
+        starts = [item.hour_start for item in self.hours]
+        if len(set(starts)) != len(starts):
+            raise ValueError("Send each hour once.")
+        return self
+
+
 class ProgressRead(BaseModel):
     """How far the caller is in a challenge. `tracked` is false for a type whose progress the
     app does not count yet (swim and cycle): its `current_value` stays 0."""
@@ -69,9 +121,10 @@ class EnrollmentProgress(BaseModel):
 
 
 class StepSyncResult(BaseModel):
-    accepted: int = Field(ge=0, description="Samples that were counted.")
+    accepted: int = Field(ge=0, description="Samples (or hours) that were counted.")
     ignored: int = Field(
-        ge=0, description="Samples that were not (duplicate or outside the window)."
+        ge=0,
+        description="Samples (or hours) that were not: a duplicate or outside the rules.",
     )
     enrollments: list[EnrollmentProgress]
 

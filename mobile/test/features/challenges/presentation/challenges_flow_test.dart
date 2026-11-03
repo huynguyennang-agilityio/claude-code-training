@@ -14,11 +14,63 @@ import 'package:stridequest/features/auth/domain/repositories/auth_repository.da
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/challenges/domain/entities/challenge.dart';
 import 'package:stridequest/features/challenges/domain/failures/challenge_failure.dart';
+import 'package:stridequest/features/challenges/presentation/bloc/challenge_detail_bloc.dart';
+import 'package:stridequest/features/challenges/presentation/pages/challenge_detail_page.dart';
+import 'package:stridequest/features/challenges/presentation/widgets/health_explainer_on_join.dart';
+import 'package:stridequest/features/runs/presentation/bloc/health_notice_bloc.dart';
 
 import '../../../helpers/challenge_fixtures.dart';
 import '../../../helpers/challenges_di.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+// Inside the fixture's dates (it ends 2026-10-31), whatever the real date is.
+final _now = DateTime.utc(2026, 10, 17, 12, 46, 53);
+
+/// The app's routes, with the detail page reading [_now] instead of the real
+/// clock. Everything else is the real route table. The detail builder is a
+/// copy of the one in `app_router.dart` plus `clock`: keep the two in sync.
+final _routes = [
+  for (final route in appRoutes)
+    if (_isDetailRoute(route))
+      GoRoute(
+        path: ChallengeDetailPage.path,
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '');
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider(
+                create: (_) {
+                  final bloc = getIt<ChallengeDetailBloc>();
+                  if (id != null) bloc.add(ChallengeDetailStarted(id));
+                  return bloc;
+                },
+              ),
+              BlocProvider(
+                create: (_) =>
+                    getIt<HealthNoticeBloc>()..add(const HealthNoticeStarted()),
+              ),
+            ],
+            child:
+                HealthExplainerOnJoin<
+                  ChallengeDetailBloc,
+                  ChallengeDetailState
+                >(
+                  joined: challengeDetailJoined,
+                  child: ChallengeDetailPage(
+                    challengeId: id ?? 0,
+                    clock: () => _now,
+                  ),
+                ),
+          );
+        },
+      )
+    else
+      route,
+];
+
+bool _isDetailRoute(RouteBase route) =>
+    route is GoRoute && route.path == ChallengeDetailPage.path;
 
 /// Browse, search, filter and open a challenge through the real routes and
 /// blocs, with an in-memory repository.
@@ -27,6 +79,10 @@ void main() {
   late AuthBloc authBloc;
   late GoRouterRefreshStream refresh;
   late GoRouter router;
+
+  // If the detail route moves (for example under the shell), nothing would be
+  // replaced and the tests would fall back to the real clock.
+  setUpAll(() => expect(appRoutes.where(_isDetailRoute), hasLength(1)));
 
   Future<void> pumpApp(WidgetTester tester) async {
     repository = FakeChallengeRepository(
@@ -37,13 +93,14 @@ void main() {
       ],
     );
     repository.detail = challenge(id: 2, title: 'Mỹ Khê Bay 20 km');
-    registerChallengeBlocs(repository);
+    registerChallengeBlocs(repository: repository);
     addTearDown(getIt.reset);
 
     final auth = _MockAuthRepository();
     when(() => auth.sessionStarted).thenAnswer((_) => const Stream.empty());
     when(() => auth.userUpdated).thenAnswer((_) => const Stream.empty());
-    when(() => auth.sessionExpired).thenAnswer((_) => const Stream.empty());
+    when(() => auth.accountDeleted).thenAnswer((_) => const Stream.empty());
+    when(() => auth.sessionEnded).thenAnswer((_) => const Stream.empty());
     when(() => auth.restoreSession()).thenAnswer(
       (_) async => AuthUser(
         id: 'user-1',
@@ -54,7 +111,11 @@ void main() {
     );
     authBloc = AuthBloc(auth)..add(const AuthStarted());
     refresh = GoRouterRefreshStream(authBloc.stream);
-    router = createAppRouter(authBloc: authBloc, refreshListenable: refresh);
+    router = createAppRouter(
+      authBloc: authBloc,
+      refreshListenable: refresh,
+      routes: _routes,
+    );
     addTearDown(() async {
       router.dispose();
       refresh.dispose();

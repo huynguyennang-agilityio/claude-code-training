@@ -7,6 +7,7 @@ import 'package:stridequest/features/auth/data/datasources/auth_remote_data_sour
 import 'package:stridequest/features/auth/data/models/auth_session_model.dart';
 import 'package:stridequest/features/auth/data/models/token_pair_model.dart';
 import 'package:stridequest/features/auth/data/repositories/auth_repository_impl.dart';
+import 'package:stridequest/features/auth/domain/entities/session_end_reason.dart';
 import 'package:stridequest/features/auth/domain/failures/auth_failure.dart';
 
 import '../../../../helpers/auth_fixtures.dart';
@@ -152,6 +153,7 @@ void main() {
 
   for (final code in [
     AuthFailureCode.invalidRefreshToken,
+    AuthFailureCode.sessionReplaced,
     AuthFailureCode.validation,
   ]) {
     test('refreshTokens reports ${code.wireCode} as rejected', () async {
@@ -214,12 +216,65 @@ void main() {
 
   test('expireSession clears the session and notifies listeners', () async {
     local.session = testSession();
-    final expired = expectLater(repository.sessionExpired, emits(null));
+    final ended = expectLater(
+      repository.sessionEnded,
+      emits(SessionEndReason.expired),
+    );
 
     await repository.expireSession();
 
-    await expired;
+    await ended;
     expect(local.session, isNull);
+  });
+
+  test('a session_replaced refresh ends the session as replaced', () async {
+    local.session = testSession();
+    when(
+      () => remote.refresh(any()),
+    ).thenThrow(AuthFailure(AuthFailureCode.sessionReplaced));
+    final ended = expectLater(
+      repository.sessionEnded,
+      emits(SessionEndReason.replaced),
+    );
+
+    expect(await repository.refreshTokens(), TokenRefreshResult.rejected);
+    await repository.expireSession();
+
+    await ended;
+    expect(local.session, isNull);
+  });
+
+  test('the replaced reason is used once', () async {
+    local.session = testSession();
+    when(
+      () => remote.refresh(any()),
+    ).thenThrow(AuthFailure(AuthFailureCode.sessionReplaced));
+    final reasons = <SessionEndReason>[];
+    final subscription = repository.sessionEnded.listen(reasons.add);
+    addTearDown(subscription.cancel);
+
+    await repository.refreshTokens();
+    await repository.expireSession();
+    await repository.expireSession();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(reasons, [SessionEndReason.replaced, SessionEndReason.expired]);
+  });
+
+  test('another rejected refresh ends the session as expired', () async {
+    local.session = testSession();
+    when(
+      () => remote.refresh(any()),
+    ).thenThrow(AuthFailure(AuthFailureCode.invalidRefreshToken));
+    final ended = expectLater(
+      repository.sessionEnded,
+      emits(SessionEndReason.expired),
+    );
+
+    await repository.refreshTokens();
+    await repository.expireSession();
+
+    await ended;
   });
 
   group('changeEmail', () {
@@ -359,6 +414,114 @@ void main() {
     });
   });
 
+  group('deleteAccount', () {
+    Future<void> delete() =>
+        repository.deleteAccount(currentPassword: 'run4medals');
+
+    test('clears the session after success, then announces it', () async {
+      local.session = testSession();
+      when(
+        () => remote.deleteAccount(currentPassword: 'run4medals'),
+      ).thenAnswer((_) async {});
+      var clearedWhenAnnounced = false;
+      final deleted = <Object?>[];
+      final subscription = repository.accountDeleted.listen((_) {
+        clearedWhenAnnounced = local.session == null;
+        deleted.add(null);
+      });
+      addTearDown(subscription.cancel);
+
+      await delete();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(local.session, isNull);
+      expect(deleted, hasLength(1));
+      expect(clearedWhenAnnounced, isTrue);
+      expect(await repository.accessToken(), isNull);
+    });
+
+    test('still announces it when clearing the session fails', () async {
+      final failing = _ClearThrowingLocal()..session = testSession();
+      final repo = AuthRepositoryImpl(remote, failing);
+      addTearDown(repo.dispose);
+      when(
+        () => remote.deleteAccount(currentPassword: 'run4medals'),
+      ).thenAnswer((_) async {});
+      var deleted = 0;
+      final subscription = repo.accountDeleted.listen((_) => deleted++);
+      addTearDown(subscription.cancel);
+
+      await repo.deleteAccount(currentPassword: 'run4medals');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(deleted, 1);
+    });
+
+    test('a sign-out during the request leaves the session and announces '
+        'nothing', () async {
+      local.session = testSession();
+      when(
+        () => remote.deleteAccount(currentPassword: 'run4medals'),
+      ).thenAnswer((_) async => local.session = null);
+      final deleted = <Object?>[];
+      final subscription = repository.accountDeleted.listen(deleted.add);
+      addTearDown(subscription.cancel);
+
+      await delete();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(local.session, isNull);
+      expect(deleted, isEmpty);
+    });
+
+    test("another user's sign-in during the request is kept and announces "
+        'nothing', () async {
+      local.session = testSession();
+      final other = AuthSessionModel(
+        user: testUser.copyWith(id: 'user-2', email: 'other@example.com'),
+        tokens: testTokens(2),
+      );
+      when(
+        () => remote.deleteAccount(currentPassword: 'run4medals'),
+      ).thenAnswer((_) async => local.session = other);
+      final deleted = <Object?>[];
+      final subscription = repository.accountDeleted.listen(deleted.add);
+      addTearDown(subscription.cancel);
+
+      await delete();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(local.session, other);
+      expect(deleted, isEmpty);
+    });
+
+    for (final code in [
+      AuthFailureCode.incorrectPassword,
+      AuthFailureCode.lastAdmin,
+      AuthFailureCode.rateLimited,
+      AuthFailureCode.network,
+    ]) {
+      test('${code.wireCode} clears nothing and announces nothing', () async {
+        local.session = testSession();
+        when(
+          () => remote.deleteAccount(currentPassword: 'run4medals'),
+        ).thenThrow(AuthFailure(code));
+        final deleted = <Object?>[];
+        final subscription = repository.accountDeleted.listen(deleted.add);
+        addTearDown(subscription.cancel);
+
+        await expectLater(
+          delete(),
+          throwsA(isA<AuthFailure>().having((f) => f.code, 'code', code)),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(local.session, testSession());
+        expect(deleted, isEmpty);
+      });
+    }
+  });
+
   group('changePassword', () {
     setUp(() {
       when(
@@ -410,8 +573,8 @@ void main() {
       final failing = _ThrowingLocal()..session = testSession();
       final repo = AuthRepositoryImpl(remote, failing);
       addTearDown(repo.dispose);
-      var expired = 0;
-      final subscription = repo.sessionExpired.listen((_) => expired++);
+      final reasons = <SessionEndReason>[];
+      final subscription = repo.sessionEnded.listen(reasons.add);
       addTearDown(subscription.cancel);
 
       await expectLater(
@@ -430,7 +593,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(failing.session, isNull);
-      expect(expired, 1);
+      expect(reasons, [SessionEndReason.expired]);
     });
 
     test('a sign-out during the request stores nothing', () async {
@@ -501,4 +664,9 @@ class _ThrowingLocal extends InMemoryAuthLocalDataSource {
   @override
   Future<void> saveSession(AuthSessionModel session) async =>
       throw StateError('storage failed');
+}
+
+class _ClearThrowingLocal extends InMemoryAuthLocalDataSource {
+  @override
+  Future<void> clear() async => throw StateError('storage failed');
 }

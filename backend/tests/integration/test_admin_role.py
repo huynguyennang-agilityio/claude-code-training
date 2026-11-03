@@ -21,6 +21,8 @@ from app.modules.auth.deps import AdminUserDep, get_auth_settings
 from app.modules.auth.models import User, UserRole
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.service import AuthService, UnknownUserError
+from app.modules.runs.repository import RunRepository
+from app.modules.runs.service import RunService
 
 SECRET = "an-integration-test-secret-that-is-long-enough"
 PREFIX = "/api/v1"
@@ -60,7 +62,9 @@ async def sign_up(client: AsyncClient) -> dict[str, str]:
 
 
 async def set_role(session: AsyncSession, email: str, role: UserRole) -> None:
-    service = AuthService(session, AuthRepository(session), get_auth_settings())
+    service = AuthService(
+        session, AuthRepository(session), get_auth_settings(), RunService(RunRepository(session))
+    )
     await service.set_role(email, role)
 
 

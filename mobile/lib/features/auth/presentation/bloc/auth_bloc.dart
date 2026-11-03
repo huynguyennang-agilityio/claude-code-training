@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 
 import '../../domain/entities/auth_user.dart';
+import '../../domain/entities/session_end_reason.dart';
 import '../../domain/repositories/auth_repository.dart';
 
 part 'auth_event.dart';
@@ -26,23 +27,28 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthStarted>(_onStarted);
     on<AuthSignOutRequested>(_onSignOutRequested);
     on<_AuthSessionStarted>(_onSessionStarted);
-    on<_AuthSessionExpired>(_onSessionExpired);
+    on<_AuthSessionEnded>(_onSessionEnded);
     on<_AuthUserUpdated>(_onUserUpdated);
+    on<_AuthAccountDeleted>(_onAccountDeleted);
     _sessionStarted = _repository.sessionStarted.listen(
       (user) => add(_AuthSessionStarted(user)),
     );
     _userUpdated = _repository.userUpdated.listen(
       (user) => add(_AuthUserUpdated(user)),
     );
-    _sessionExpired = _repository.sessionExpired.listen(
-      (_) => add(const _AuthSessionExpired()),
+    _sessionEnded = _repository.sessionEnded.listen(
+      (reason) => add(_AuthSessionEnded(reason)),
+    );
+    _accountDeleted = _repository.accountDeleted.listen(
+      (_) => add(const _AuthAccountDeleted()),
     );
   }
 
   final AuthRepository _repository;
   late final StreamSubscription<AuthUser> _sessionStarted;
   late final StreamSubscription<AuthUser> _userUpdated;
-  late final StreamSubscription<void> _sessionExpired;
+  late final StreamSubscription<SessionEndReason> _sessionEnded;
+  late final StreamSubscription<void> _accountDeleted;
 
   Future<void> _onStarted(AuthStarted event, Emitter<AuthState> emit) async {
     final user = await _repository.restoreSession();
@@ -67,15 +73,23 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (state is AuthAuthenticated) emit(AuthAuthenticated(event.user));
   }
 
-  void _onSessionExpired(_AuthSessionExpired event, Emitter<AuthState> emit) {
-    emit(const AuthUnauthenticated(sessionExpired: true));
+  /// Ignored when already signed out, so a refresh that was queued behind a
+  /// sign-out or a deleted account cannot replace its message.
+  void _onSessionEnded(_AuthSessionEnded event, Emitter<AuthState> emit) {
+    if (state is AuthUnauthenticated) return;
+    emit(AuthUnauthenticated(endReason: event.reason));
+  }
+
+  void _onAccountDeleted(_AuthAccountDeleted event, Emitter<AuthState> emit) {
+    emit(const AuthUnauthenticated(accountDeleted: true));
   }
 
   @override
   Future<void> close() async {
     await _sessionStarted.cancel();
     await _userUpdated.cancel();
-    await _sessionExpired.cancel();
+    await _sessionEnded.cancel();
+    await _accountDeleted.cancel();
     return super.close();
   }
 }

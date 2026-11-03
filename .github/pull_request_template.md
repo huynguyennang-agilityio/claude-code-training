@@ -14,15 +14,24 @@ Plan: docs/plans/NNN-name.md
 
 ## Evidence
 
-<!-- For each acceptance criterion: the command run, request/response or screenshot, and the result.
+<!-- For each acceptance criterion and each Verification item of the issue (when it has one): the command run, request/response or screenshot, and the result.
      Redact tokens, passwords, Authorization headers, cookies and connection strings.
      Attach large logs and screenshots here instead of committing them.
      Rows to cover where they apply: screen quality (page tests, sizes, text scales, states), API contract (examples, openapi.json diff), authorization sweep and ownership tests.
+     Local review: one line giving, for code-reviewer and for /code-review high, the findings found, fixed and answered; when /code-review is unavailable, code-reviewer's counts and `Not verified: /code-review unavailable`. See Phase 4 point 6 in .claude/workflow/pr-review.md.
      Write `Not verified: <reason>` for anything you couldn't check. See .claude/workflow/evidence.md. -->
+
+## Decisions added
+
+<!-- Each DECISIONS entry this PR adds, with its file (`backend/DECISIONS.md`, `mobile/decisions/<area>.md`, ...), or "None". See step 4 of the session brief in .claude/skills/run-tasks/SKILL.md. -->
+
+## Nits left
+
+<!-- The nits the second claude-review left, each with its file and line, merged without another push; or "None". See Phase 5 step 5 in .claude/workflow/pr-review.md. -->
 
 ## Review checklist
 
-Comment `@claude review` after your last push, before asking for a merge.
+A PR gets at most two `claude-review` runs. The first runs when the PR opens; when it has findings (nits too), fix them all, push once and comment `@claude review` once for the second, which is the last. A conflict-free merge of `develop` needs no new review.
 
 Review in this order. Tick an item only after checking it.
 

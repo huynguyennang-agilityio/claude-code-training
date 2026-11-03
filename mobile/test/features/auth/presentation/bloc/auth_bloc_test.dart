@@ -4,6 +4,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
+import 'package:stridequest/features/auth/domain/entities/session_end_reason.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 
@@ -14,28 +15,32 @@ class _MockRepository extends Mock implements AuthRepository {}
 void main() {
   final user = testUser.toEntity();
   late _MockRepository repository;
-  late StreamController<void> sessionExpired;
+  late StreamController<SessionEndReason> sessionEnded;
   late StreamController<AuthUser> sessionStarted;
   late StreamController<AuthUser> userUpdated;
+  late StreamController<void> accountDeleted;
 
   setUp(() {
     repository = _MockRepository();
-    sessionExpired = StreamController<void>.broadcast();
+    sessionEnded = StreamController<SessionEndReason>.broadcast();
     sessionStarted = StreamController<AuthUser>.broadcast();
     userUpdated = StreamController<AuthUser>.broadcast();
+    accountDeleted = StreamController<void>.broadcast();
+    when(
+      () => repository.accountDeleted,
+    ).thenAnswer((_) => accountDeleted.stream);
     when(() => repository.userUpdated).thenAnswer((_) => userUpdated.stream);
     when(
       () => repository.sessionStarted,
     ).thenAnswer((_) => sessionStarted.stream);
-    when(
-      () => repository.sessionExpired,
-    ).thenAnswer((_) => sessionExpired.stream);
+    when(() => repository.sessionEnded).thenAnswer((_) => sessionEnded.stream);
   });
 
   tearDown(() async {
-    await sessionExpired.close();
+    await sessionEnded.close();
     await sessionStarted.close();
     await userUpdated.close();
+    await accountDeleted.close();
   });
 
   test('starts unknown', () async {
@@ -73,7 +78,7 @@ void main() {
   blocTest<AuthBloc, AuthState>(
     'does not need the sign-in or sign-up form: a started session is enough',
     build: () => AuthBloc(repository),
-    seed: () => const AuthUnauthenticated(sessionExpired: true),
+    seed: () => const AuthUnauthenticated(endReason: SessionEndReason.expired),
     act: (_) => sessionStarted.add(user),
     expect: () => [AuthAuthenticated(user)],
   );
@@ -92,9 +97,49 @@ void main() {
     'becomes unauthenticated when the repository expires the session',
     build: () => AuthBloc(repository),
     seed: () => AuthAuthenticated(user),
-    act: (_) => sessionExpired.add(null),
-    expect: () => [const AuthUnauthenticated(sessionExpired: true)],
+    act: (_) => sessionEnded.add(SessionEndReason.expired),
+    expect: () => [
+      const AuthUnauthenticated(endReason: SessionEndReason.expired),
+    ],
   );
+
+  blocTest<AuthBloc, AuthState>(
+    'keeps the replaced reason when another device signed in',
+    build: () => AuthBloc(repository),
+    seed: () => AuthAuthenticated(user),
+    act: (_) => sessionEnded.add(SessionEndReason.replaced),
+    expect: () => [
+      const AuthUnauthenticated(endReason: SessionEndReason.replaced),
+    ],
+  );
+
+  blocTest<AuthBloc, AuthState>(
+    'says the account was deleted when the repository announces it',
+    build: () => AuthBloc(repository),
+    seed: () => AuthAuthenticated(user),
+    act: (_) => accountDeleted.add(null),
+    expect: () => [const AuthUnauthenticated(accountDeleted: true)],
+  );
+
+  blocTest<AuthBloc, AuthState>(
+    'a session expiry after a deleted account keeps the deleted notice',
+    build: () => AuthBloc(repository),
+    seed: () => AuthAuthenticated(user),
+    act: (_) async {
+      accountDeleted.add(null);
+      await Future<void>.delayed(Duration.zero);
+      sessionEnded.add(SessionEndReason.expired);
+    },
+    expect: () => [const AuthUnauthenticated(accountDeleted: true)],
+  );
+
+  test('a deleted account is not a session expiry', () {
+    expect(
+      const AuthUnauthenticated(accountDeleted: true),
+      isNot(const AuthUnauthenticated(endReason: SessionEndReason.expired)),
+    );
+    expect(const AuthUnauthenticated(accountDeleted: true).endReason, isNull);
+  });
 
   final updated = AuthUser(
     id: user.id,

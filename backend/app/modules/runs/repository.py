@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.modules.runs.models import DailyActivity, Run, RunStatus, StepSample
+from app.modules.runs.models import DailyActivity, Run, RunStatus, StepHour, StepSample
 
 # A user "is in" a challenge while the enrollment is active or paused.
 _JOINED = (RunStatus.ACTIVE.value, RunStatus.PAUSED.value)
@@ -135,6 +135,44 @@ class RunRepository:
 
     async def add_samples(self, samples: Sequence[StepSample]) -> None:
         self._session.add_all(samples)
+        await self._session.flush()
+
+    async def stored_step_hours(
+        self, run_id: int, hour_starts: Sequence[datetime]
+    ) -> dict[datetime, int]:
+        """The steps stored for these hours of the run, by hour. Read while the run row is
+        locked (`active_with_challenge`), so the values can't change before the upsert."""
+        if not hour_starts:
+            return {}
+        rows = await self._session.execute(
+            select(StepHour.hour_start, StepHour.steps).where(
+                StepHour.run_id == run_id, StepHour.hour_start.in_(hour_starts)
+            )
+        )
+        return {hour_start: steps for hour_start, steps in rows}
+
+    async def upsert_step_hours(
+        self, run_id: int, hours: Sequence[tuple[datetime, int]], *, now: datetime
+    ) -> None:
+        """Store each `(hour_start, steps)` for the run, replacing the value of an hour that is
+        already there."""
+        if not hours:
+            return
+        insertion = insert(StepHour).values(
+            [
+                {"run_id": run_id, "hour_start": hour_start, "steps": steps, "updated_at": now}
+                for hour_start, steps in hours
+            ]
+        )
+        await self._session.execute(
+            insertion.on_conflict_do_update(
+                constraint="uq_step_hours_run_hour",
+                set_={
+                    "steps": insertion.excluded.steps,
+                    "updated_at": insertion.excluded.updated_at,
+                },
+            )
+        )
         await self._session.flush()
 
     async def joined_page(

@@ -5,23 +5,26 @@ already stored and the challenge rule, and get a typed result back.
 """
 
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 
 from pydantic import BaseModel
 
-from app.modules.runs.schemas import StepSampleIn
+from app.modules.runs.schemas import StepHourIn, StepSampleIn
 
 
 class ChallengeRule(BaseModel):
     """What a sample must fit to count: the challenge window, the time the enrollment counts
-    from (after a pause), and the latest end a sample may have (the server's now plus a margin)."""
+    from (after a pause), the latest end a sample may have (the server's now plus a margin) and
+    `hours_from`, the moment from which the enrollment counts hourly steps instead, so a sample
+    starting at or after it is ignored. None means no cutoff."""
 
     target_steps: int
     starts_at: datetime
     ends_at: datetime
     counting_from: datetime | None = None
     latest_end: datetime | None = None
+    hours_from: datetime | None = None
 
     @property
     def earliest_start(self) -> datetime:
@@ -54,7 +57,7 @@ def validate_run(
     rule: ChallengeRule,
     known_record_ids: Iterable[str] = (),
 ) -> ValidationResult:
-    """Count the steps that are new and inside the challenge window and the counting period."""
+    """Count the new steps inside the challenge window and counting period, before `hours_from`."""
     seen = set(known_record_ids)
     accepted: list[StepSampleIn] = []
     rejected: list[RejectedSample] = []
@@ -62,7 +65,11 @@ def validate_run(
     for sample in samples:
         if sample.health_record_id in seen:
             reason = RejectionReason.DUPLICATE
-        elif sample.start_time < rule.earliest_start or sample.end_time > rule.last_end:
+        elif (
+            sample.start_time < rule.earliest_start
+            or sample.end_time > rule.last_end
+            or (rule.hours_from is not None and sample.start_time >= rule.hours_from)
+        ):
             reason = RejectionReason.OUTSIDE_WINDOW
         else:
             seen.add(sample.health_record_id)
@@ -76,4 +83,44 @@ def validate_run(
         counted_steps=counted_steps,
         accepted=accepted,
         rejected=rejected,
+    )
+
+
+HOUR = timedelta(hours=1)
+MAX_STEPS_PER_HOUR = 15_000
+
+
+class HourRule(BaseModel):
+    """What an hour of steps must fit to count for an enrollment: it starts at or after every
+    `*_from` bound, ends within the challenge (rounded up to a whole hour) and not in the
+    future, and holds a plausible number of steps."""
+
+    starts_at: datetime
+    ends_at: datetime
+    counting_from: datetime
+    hours_from: datetime
+    session_started_at: datetime
+    now: datetime
+
+    @property
+    def earliest_hour(self) -> datetime:
+        return max(self.starts_at, self.counting_from, self.hours_from, self.session_started_at)
+
+    @property
+    def last_hour_end(self) -> datetime:
+        """The challenge's end rounded up to a whole UTC hour (unchanged when it is one)."""
+        end = self.ends_at.astimezone(UTC)
+        floor = end.replace(minute=0, second=0, microsecond=0)
+        return floor if floor == end else floor + HOUR
+
+
+def hour_counts(hour: StepHourIn, rule: HourRule) -> bool:
+    """Whether the hour counts for an enrollment that is active and tracks steps. The caller
+    checks those two; an hour that fails any rule here is ignored, never an error."""
+    return (
+        # The future check comes first: `hour_start + HOUR` overflows for the last hour of 9999.
+        hour.hour_start <= rule.now
+        and hour.hour_start >= rule.earliest_hour
+        and hour.hour_start + HOUR <= rule.last_hour_end
+        and hour.steps <= MAX_STEPS_PER_HOUR
     )

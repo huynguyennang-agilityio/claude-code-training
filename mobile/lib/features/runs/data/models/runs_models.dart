@@ -91,6 +91,15 @@ Map<String, Object> stepRecordJson(StepRecord record) => {
   'steps': record.steps,
 };
 
+/// One hour of a step-hours request: the UTC hour as `2026-11-02T06:00:00Z`.
+Map<String, Object> stepHourJson(StepHour hour) => {
+  'hour_start': hour.hourStart.toUtc().toIso8601String().replaceFirst(
+    '.000Z',
+    'Z',
+  ),
+  'steps': hour.steps,
+};
+
 Map<String, Object> dailyFiguresJson(DailyFigures day) => {
   'date': _dateText(day.date),
   'steps': ?day.steps,

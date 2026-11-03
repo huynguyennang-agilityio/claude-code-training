@@ -32,11 +32,18 @@ class _Pages implements RunsRepository {
       throw UnimplementedError();
 
   @override
+  Future<StepSyncResult> syncStepHours(List<StepHour> hours) =>
+      throw UnimplementedError();
+
+  @override
   Future<void> saveDailyActivity(List<DailyFigures> days) =>
       throw UnimplementedError();
 
   @override
   Future<DateTime?> earliestRunJoin() => throw UnimplementedError();
+
+  @override
+  Future<DateTime?> earliestRunCounting() => throw UnimplementedError();
 }
 
 MyChallengePage _page(List<MyChallenge> items, [String? next]) =>

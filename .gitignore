@@ -33,3 +33,6 @@ mutants/
 
 # Local overrides of the security-guidance plugin's rules (plan 017)
 .claude/claude-security-guidance.local.md
+
+# Context the claude-review workflow writes for a second review (plan 038)
+.review-context/

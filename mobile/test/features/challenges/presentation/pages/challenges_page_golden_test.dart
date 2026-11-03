@@ -5,17 +5,22 @@ import 'package:stridequest/features/challenges/domain/entities/challenge.dart';
 import 'package:stridequest/features/challenges/domain/failures/challenge_failure.dart';
 import 'package:stridequest/features/challenges/presentation/bloc/challenges_bloc.dart';
 import 'package:stridequest/features/challenges/presentation/pages/challenges_page.dart';
+import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 
 import '../../../../helpers/challenge_fixtures.dart';
 import '../../../../helpers/golden_screen.dart';
+import '../../../../helpers/health_fixtures.dart';
 import '../../../../helpers/mock_challenge_blocs.dart';
 
-Widget _page(ChallengesState state) {
+Widget _page(ChallengesState state, [HealthNotice notice = HealthNotice.none]) {
   final bloc = MockChallengesBloc();
   whenListen(bloc, const Stream<ChallengesState>.empty(), initialState: state);
-  return BlocProvider<ChallengesBloc>.value(
-    value: bloc,
-    child: const ChallengesPage(),
+  return withHealthNotice(
+    BlocProvider<ChallengesBloc>.value(
+      value: bloc,
+      child: const ChallengesPage(),
+    ),
+    notice,
   );
 }
 
@@ -80,6 +85,35 @@ void main() {
         status: ChallengesStatus.failed,
         failure: ChallengeFailure(ChallengeFailureCode.network),
       ),
+    ),
+  );
+  goldenScreen(
+    'ChallengesPage, joined and paused cards with the health notice',
+    'challenges_page_health_notice',
+    _page(
+      ChallengesState(
+        status: ChallengesStatus.ready,
+        items: [
+          summary(
+            id: 2,
+            title: 'Mỹ Khê Bay 20 km',
+            type: ChallengeType.swim,
+            target: 20000,
+            city: 'Đà Nẵng',
+            participants: 860,
+            enrollment: enrolled(),
+          ),
+          summary(
+            id: 3,
+            title: 'Saigon Ride',
+            type: ChallengeType.cycle,
+            target: 100000,
+            enrollment: enrolled(EnrollmentStatus.paused),
+          ),
+          summary(),
+        ],
+      ),
+      HealthNotice.askable,
     ),
   );
 }

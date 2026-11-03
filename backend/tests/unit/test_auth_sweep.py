@@ -56,10 +56,12 @@ ROUTE_ACCESS: dict[tuple[str, str], Access] = {
     ("GET", "/api/v1/users/me"): "user",
     ("PUT", "/api/v1/users/me/email"): "user",
     ("PUT", "/api/v1/users/me/password"): "user",
+    ("POST", "/api/v1/users/me/delete"): "user",
     ("GET", "/api/v1/users/me/profile"): "user",
     ("PUT", "/api/v1/users/me/profile"): "user",
     ("GET", "/api/v1/runs"): "user",
     ("POST", "/api/v1/runs/steps"): "user",
+    ("PUT", "/api/v1/runs/step-hours"): "user",
     ("PUT", "/api/v1/runs/daily-activity"): "user",
     ("GET", "/api/v1/challenges"): "user",
     ("GET", "/api/v1/challenges/{challenge_id}"): "user",
@@ -175,6 +177,7 @@ def _a_normal_user() -> User:
         display_name="Lan Runner",
         role=UserRole.USER.value,
         created_at=datetime(2026, 10, 18, tzinfo=UTC),
+        session_started_at=datetime(2026, 10, 18, tzinfo=UTC),
     )
 
 

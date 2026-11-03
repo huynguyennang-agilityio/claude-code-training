@@ -30,9 +30,12 @@ from tests.integration.test_auth_api import (  # noqa: F401  (autouse fixture)
 __all__ = ["auth_settings"]
 
 MAX_QUERIES_FOR_CURRENT_USER = 1  # the user
-# attempts by email and by IP, user, token lock, stored hash, clear attempts, refresh token
-MAX_QUERIES_FOR_SIGN_IN = 7
+# attempts by email and by IP, user, token lock, stored hash, clear attempts, revoke every
+# refresh token, session start, new refresh token
+MAX_QUERIES_FOR_SIGN_IN = 9
 MAX_QUERIES_FOR_REFRESH = 3  # lock the owner's tokens, consume the old one, store the new one
+# lock the owner's tokens, try to consume the token, read the revoked token and session start
+MAX_QUERIES_FOR_FAILED_REFRESH = 3
 MAX_QUERIES_FOR_QUEST_WITH_NESTED_ROWS = 3  # quests, challenges, medals
 
 
@@ -83,6 +86,23 @@ async def test_refresh_query_count_is_bounded(
 
     assert response.status_code == 200
     assert len(queries) <= MAX_QUERIES_FOR_REFRESH, queries.text()
+
+
+@pytest.mark.anyio
+async def test_a_failed_refresh_query_count_is_bounded(
+    client: AsyncClient, session: AsyncSession, query_counter: QueryCounter
+) -> None:
+    refresh_token = (await sign_up(client))["tokens"]["refresh_token"]
+    assert (await client.post(f"{PREFIX}/auth/signin", json=SIGNIN)).status_code == 200
+    session.expunge_all()
+
+    with query_counter.measure() as queries:
+        response = await client.post(
+            f"{PREFIX}/auth/refresh", json={"refresh_token": refresh_token}
+        )
+
+    assert response.json()["error"]["code"] == "session_replaced"
+    assert len(queries) <= MAX_QUERIES_FOR_FAILED_REFRESH, queries.text()
 
 
 async def add_quest(session: AsyncSession, challenges: int) -> int:

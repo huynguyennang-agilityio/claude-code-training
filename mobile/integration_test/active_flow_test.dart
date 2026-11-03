@@ -62,6 +62,18 @@ class _FakeHealth implements HealthRepository {
   }
 
   @override
+  Future<List<StepHour>> readStepHours({
+    required DateTime from,
+    required DateTime to,
+  }) async => const [];
+
+  @override
+  Future<bool> explainerDue() async => false;
+
+  @override
+  Future<void> recordExplainerShown() async {}
+
+  @override
   Future<void> openSettings() async {}
 
   @override

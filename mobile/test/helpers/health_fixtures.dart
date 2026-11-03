@@ -1,15 +1,21 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:stridequest/core/di/injection.dart';
 import 'package:stridequest/features/runs/data/datasources/health_data_source.dart';
 import 'package:stridequest/features/runs/data/datasources/health_prompt_store.dart';
+import 'package:stridequest/features/runs/data/health_sync_service.dart';
 import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 import 'package:stridequest/features/runs/domain/repositories/health_repository.dart';
 import 'package:stridequest/features/runs/domain/usecases/sync_activity.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/health_gate_bloc.dart';
+import 'package:stridequest/features/runs/presentation/bloc/health_notice_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart';
 
+import 'auth_fixtures.dart';
 import 'runs_fixtures.dart';
 
 class MockHealthGateBloc extends MockBloc<HealthGateEvent, HealthGateState>
@@ -30,6 +36,14 @@ class FakeHealthRepository implements HealthRepository {
   var requests = 0;
   var settingsOpened = 0;
   var installs = 0;
+  bool due = true;
+  var explainerShown = 0;
+
+  /// When true, recording the explainer makes it not due, like the real store.
+  bool recordClearsDue = false;
+  Object? readDaysError;
+  var readDaysCalls = 0;
+  ({Set<HealthMetric> allowed, int days})? lastReadDays;
 
   ActivityReading reading = ActivityReading(
     readAt: DateTime(2026, 10, 19, 21, 55),
@@ -37,8 +51,10 @@ class FakeHealthRepository implements HealthRepository {
   List<DailyFigures> days = const [];
   List<StepRecord> records = const [];
   Object? readError;
+  List<StepHour> hours = const [];
   var readTodayCalls = 0;
   DateTime? stepsFrom;
+  ({DateTime from, DateTime to})? hoursRead;
 
   @override
   Future<ActivityReading> readToday(Set<HealthMetric> allowed) async {
@@ -51,7 +67,31 @@ class FakeHealthRepository implements HealthRepository {
   Future<List<DailyFigures>> readDays(
     Set<HealthMetric> allowed, {
     required int days,
-  }) async => this.days;
+  }) async {
+    readDaysCalls++;
+    lastReadDays = (allowed: allowed, days: days);
+    if (readDaysError != null) throw readDaysError!;
+    return this.days;
+  }
+
+  @override
+  Future<List<StepHour>> readStepHours({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    hoursRead = (from: from, to: to);
+    if (readError != null) throw readError!;
+    return hours;
+  }
+
+  @override
+  Future<bool> explainerDue() async => due;
+
+  @override
+  Future<void> recordExplainerShown() async {
+    explainerShown++;
+    if (recordClearsDue) due = false;
+  }
 
   @override
   Future<List<StepRecord>> readStepRecords({required DateTime from}) async {
@@ -91,6 +131,9 @@ class FakeHealthDataSource implements HealthDataSource {
   final totals = <HealthMetric, int>{};
   final totalCalls = <(HealthMetric, DateTime, DateTime)>[];
   List<StepRecord> records = const [];
+  List<StepHour> hours = const [];
+  final hourCalls = <(DateTime, DateTime)>[];
+  final stepTotalCalls = <(DateTime, DateTime)>[];
   DateTime? recordsFrom;
   DateTime? recordsTo;
   Object? readError;
@@ -127,6 +170,20 @@ class FakeHealthDataSource implements HealthDataSource {
   }
 
   @override
+  Future<List<StepHour>> stepHours(DateTime from, DateTime to) async {
+    if (readError != null) throw readError!;
+    hourCalls.add((from, to));
+    return hours;
+  }
+
+  @override
+  Future<int> stepTotal(DateTime from, DateTime to) async {
+    if (readError != null) throw readError!;
+    stepTotalCalls.add((from, to));
+    return hours.fold<int>(0, (sum, hour) => sum + hour.steps);
+  }
+
+  @override
   Future<List<StepRecord>> stepRecords(DateTime from, DateTime to) async {
     if (readError != null) throw readError!;
     recordsFrom = from;
@@ -139,12 +196,19 @@ class InMemoryHealthPromptStore implements HealthPromptStore {
   InMemoryHealthPromptStore([this.count = 0]);
 
   int count;
+  DateTime? shownAt;
 
   @override
   Future<int> askedCount() async => count;
 
   @override
   Future<void> recordAsked() async => count++;
+
+  @override
+  Future<DateTime?> explainerShownAt() async => shownAt;
+
+  @override
+  Future<void> recordExplainerShown(DateTime at) async => shownAt = at;
 }
 
 /// Registers the blocs the Active route asks `getIt` for, built on [repository]
@@ -152,10 +216,45 @@ class InMemoryHealthPromptStore implements HealthPromptStore {
 void registerHealthBlocs([HealthRepository? repository]) {
   final repo = repository ?? FakeHealthRepository();
   final runs = FakeRunsRepository();
+  final auth = MockAuthRepository();
+  when(auth.restoreSession).thenAnswer((_) async => null);
+  final service = HealthSyncService(
+    repo,
+    auth,
+    SyncActivity(repo, runs, FakeSyncStateRepository()),
+  );
   getIt
     ..registerFactory<HealthGateBloc>(() => HealthGateBloc(repo))
-    ..registerFactory<ActivityBloc>(
-      () => ActivityBloc(SyncActivity(repo, runs)),
-    )
-    ..registerFactory<MyChallengesBloc>(() => MyChallengesBloc(runs));
+    ..registerFactory<ActivityBloc>(() => ActivityBloc(service))
+    ..registerFactory<MyChallengesBloc>(() => MyChallengesBloc(runs))
+    ..registerFactory<HealthNoticeBloc>(() {
+      final notice = MockHealthNoticeBloc();
+      whenListen(
+        notice,
+        const Stream<HealthNoticeState>.empty(),
+        initialState: const HealthNoticeState(),
+      );
+      return notice;
+    });
+}
+
+class MockHealthNoticeBloc
+    extends MockBloc<HealthNoticeEvent, HealthNoticeState>
+    implements HealthNoticeBloc {}
+
+/// Puts a [HealthNoticeBloc] stuck on [notice] above [child], as the Active
+/// route does. A test that checks what the screen sends passes its own [bloc].
+Widget withHealthNotice(
+  Widget child, [
+  HealthNotice notice = HealthNotice.none,
+  MockHealthNoticeBloc? bloc,
+]) {
+  bloc ??= MockHealthNoticeBloc();
+  when(() => bloc!.isClosed).thenReturn(false);
+  whenListen(
+    bloc,
+    const Stream<HealthNoticeState>.empty(),
+    initialState: HealthNoticeState(notice: notice),
+  );
+  return BlocProvider<HealthNoticeBloc>.value(value: bloc, child: child);
 }

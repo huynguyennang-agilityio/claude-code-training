@@ -5,22 +5,26 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/bloc/change_email_bloc.dart';
 import '../../features/auth/presentation/bloc/change_password_bloc.dart';
+import '../../features/auth/presentation/bloc/delete_account_bloc.dart';
 import '../../features/auth/presentation/bloc/sign_in_bloc.dart';
 import '../../features/auth/presentation/bloc/sign_up_bloc.dart';
 import '../../features/auth/presentation/pages/change_email_page.dart';
 import '../../features/auth/presentation/pages/change_password_page.dart';
+import '../../features/auth/presentation/pages/delete_account_page.dart';
 import '../../features/auth/presentation/pages/sign_in_page.dart';
 import '../../features/auth/presentation/pages/sign_up_page.dart';
 import '../../features/challenges/presentation/bloc/challenge_detail_bloc.dart';
 import '../../features/challenges/presentation/bloc/challenges_bloc.dart';
 import '../../features/challenges/presentation/pages/challenge_detail_page.dart';
 import '../../features/challenges/presentation/pages/challenges_page.dart';
+import '../../features/challenges/presentation/widgets/health_explainer_on_join.dart';
 import '../../features/home/presentation/pages/home_shell.dart';
 import '../../features/medals/presentation/pages/medals_page.dart';
 import '../../features/profile/presentation/bloc/profile_info_bloc.dart';
 import '../../features/profile/presentation/pages/profile_info_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/runs/presentation/bloc/health_gate_bloc.dart';
+import '../../features/runs/presentation/bloc/health_notice_bloc.dart';
 import '../../features/runs/presentation/pages/active_challenges_page.dart';
 import '../di/injection.dart';
 
@@ -41,6 +45,7 @@ const protectedPaths = <String>{
   ProfileInfoPage.path,
   ChangeEmailPage.path,
   ChangePasswordPage.path,
+  DeleteAccountPage.path,
 };
 
 final appRoutes = <RouteBase>[
@@ -57,10 +62,23 @@ final appRoutes = <RouteBase>[
         routes: [
           GoRoute(
             path: ChallengesPage.path,
-            builder: (context, state) => BlocProvider(
-              create: (_) =>
-                  getIt<ChallengesBloc>()..add(const ChallengesStarted()),
-              child: const ChallengesPage(),
+            builder: (context, state) => MultiBlocProvider(
+              providers: [
+                BlocProvider(
+                  create: (_) =>
+                      getIt<ChallengesBloc>()..add(const ChallengesStarted()),
+                ),
+                BlocProvider(
+                  create: (_) =>
+                      getIt<HealthNoticeBloc>()
+                        ..add(const HealthNoticeStarted()),
+                ),
+              ],
+              child:
+                  const HealthExplainerOnJoin<ChallengesBloc, ChallengesState>(
+                    joined: challengesJoined,
+                    child: ChallengesPage(),
+                  ),
             ),
           ),
         ],
@@ -69,9 +87,18 @@ final appRoutes = <RouteBase>[
         routes: [
           GoRoute(
             path: ActiveChallengesPage.path,
-            builder: (context, state) => BlocProvider(
-              create: (_) =>
-                  getIt<HealthGateBloc>()..add(const HealthGateStarted()),
+            builder: (context, state) => MultiBlocProvider(
+              providers: [
+                BlocProvider(
+                  create: (_) =>
+                      getIt<HealthGateBloc>()..add(const HealthGateStarted()),
+                ),
+                BlocProvider(
+                  create: (_) =>
+                      getIt<HealthNoticeBloc>()
+                        ..add(const HealthNoticeStarted()),
+                ),
+              ],
               child: const ActiveChallengesPage(),
             ),
           ),
@@ -100,13 +127,24 @@ final appRoutes = <RouteBase>[
     path: ChallengeDetailPage.path,
     builder: (context, state) {
       final id = int.tryParse(state.pathParameters['id'] ?? '');
-      return BlocProvider(
-        create: (_) {
-          final bloc = getIt<ChallengeDetailBloc>();
-          if (id != null) bloc.add(ChallengeDetailStarted(id));
-          return bloc;
-        },
-        child: ChallengeDetailPage(challengeId: id ?? 0),
+      return MultiBlocProvider(
+        providers: [
+          BlocProvider(
+            create: (_) {
+              final bloc = getIt<ChallengeDetailBloc>();
+              if (id != null) bloc.add(ChallengeDetailStarted(id));
+              return bloc;
+            },
+          ),
+          BlocProvider(
+            create: (_) =>
+                getIt<HealthNoticeBloc>()..add(const HealthNoticeStarted()),
+          ),
+        ],
+        child: HealthExplainerOnJoin<ChallengeDetailBloc, ChallengeDetailState>(
+          joined: challengeDetailJoined,
+          child: ChallengeDetailPage(challengeId: id ?? 0),
+        ),
       );
     },
   ),
@@ -131,6 +169,13 @@ final appRoutes = <RouteBase>[
     builder: (context, state) => BlocProvider(
       create: (_) => getIt<ChangePasswordBloc>(),
       child: const ChangePasswordPage(),
+    ),
+  ),
+  GoRoute(
+    path: DeleteAccountPage.path,
+    builder: (context, state) => BlocProvider(
+      create: (_) => getIt<DeleteAccountBloc>(),
+      child: const DeleteAccountPage(),
     ),
   ),
   GoRoute(

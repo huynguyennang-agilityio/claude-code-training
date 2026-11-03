@@ -3,8 +3,9 @@ enum TokenRefreshResult {
   /// A new token pair is stored.
   refreshed,
 
-  /// The backend rejected the refresh token (`invalid_refresh_token`): the
-  /// session is over.
+  /// The backend rejected the refresh token (`invalid_refresh_token`,
+  /// `session_replaced`): the session is over. Call
+  /// [AuthTokenHandler.expireSession] next.
   rejected,
 
   /// Nothing changed: no one is signed in, or the refresh failed for a reason
@@ -23,6 +24,7 @@ abstract interface class AuthTokenHandler {
   Future<TokenRefreshResult> refreshTokens();
 
   /// Clears the stored session after a rejected refresh and tells the app the
-  /// user has been signed out.
+  /// user has been signed out, with the reason the last rejected
+  /// [refreshTokens] gave. Call it once after each `rejected` result.
   Future<void> expireSession();
 }

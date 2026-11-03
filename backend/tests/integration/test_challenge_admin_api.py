@@ -21,6 +21,8 @@ from app.modules.auth.models import UserRole
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.service import AuthService
 from app.modules.challenges.deps import get_storage
+from app.modules.runs.repository import RunRepository
+from app.modules.runs.service import RunService
 from tests.api_docs import load_example
 from tests.integration.enrollment_helpers import add_user, join_directly
 from tests.integration.query_counter import QueryCounter
@@ -86,9 +88,9 @@ async def client(session: AsyncSession, storage: FakeStorage) -> AsyncIterator[A
 @pytest.fixture
 async def admin(client: AsyncClient, session: AsyncSession) -> dict[str, str]:
     tokens = (await sign_up(client, email="admin@example.com"))["tokens"]
-    await AuthService(session, AuthRepository(session), get_auth_settings()).set_role(
-        "admin@example.com", UserRole.ADMIN
-    )
+    await AuthService(
+        session, AuthRepository(session), get_auth_settings(), RunService(RunRepository(session))
+    ).set_role("admin@example.com", UserRole.ADMIN)
     return bearer(tokens["access_token"])
 
 

@@ -10,7 +10,7 @@ from app.modules.auth.models import LoginAttempt, RefreshToken, User
 from app.modules.challenges.models import Challenge, Quest
 from app.modules.medals.models import Medal
 from app.modules.profile.models import UserProfile
-from app.modules.runs.models import Run, StepSample
+from app.modules.runs.models import Run, StepHour, StepSample
 
 __all__ = [
     "Challenge",
@@ -19,6 +19,7 @@ __all__ = [
     "Quest",
     "RefreshToken",
     "Run",
+    "StepHour",
     "StepSample",
     "User",
     "UserProfile",

@@ -9,6 +9,7 @@ import 'package:stridequest/core/di/injection.dart';
 import 'package:stridequest/core/router/app_router.dart';
 import 'package:stridequest/core/router/go_router_refresh_stream.dart';
 import 'package:stridequest/features/auth/domain/entities/auth_user.dart';
+import 'package:stridequest/features/auth/domain/entities/session_end_reason.dart';
 import 'package:stridequest/features/auth/domain/repositories/auth_repository.dart';
 import 'package:stridequest/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:stridequest/features/challenges/presentation/pages/challenges_page.dart';
@@ -45,7 +46,7 @@ final _routes = [
 
 void main() {
   late _MockRepository repository;
-  late StreamController<void> sessionExpired;
+  late StreamController<SessionEndReason> sessionEnded;
   late AuthBloc bloc;
 
   Future<void> pumpRouter(
@@ -85,10 +86,11 @@ void main() {
 
   setUp(() {
     repository = _MockRepository();
-    sessionExpired = StreamController<void>.broadcast();
+    sessionEnded = StreamController<SessionEndReason>.broadcast();
+    when(() => repository.sessionEnded).thenAnswer((_) => sessionEnded.stream);
     when(
-      () => repository.sessionExpired,
-    ).thenAnswer((_) => sessionExpired.stream);
+      () => repository.accountDeleted,
+    ).thenAnswer((_) => const Stream<void>.empty());
     when(
       () => repository.userUpdated,
     ).thenAnswer((_) => const Stream<AuthUser>.empty());
@@ -102,7 +104,7 @@ void main() {
 
   tearDown(() async {
     await bloc.close();
-    await sessionExpired.close();
+    await sessionEnded.close();
   });
 
   testWidgets('a signed-in user sees a protected page', (tester) async {
@@ -124,7 +126,7 @@ void main() {
   testWidgets('an expired session redirects to sign in', (tester) async {
     await pumpRouter(tester, signedIn: true, at: _runsPath);
 
-    sessionExpired.add(null);
+    sessionEnded.add(SessionEndReason.expired);
     await tester.pumpAndSettle();
 
     expect(find.text('Welcome back'), findsOneWidget);

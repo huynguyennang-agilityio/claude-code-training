@@ -1,0 +1,3 @@
+# Append-only progress logs: keep the lines of both sides on a merge (plan 039).
+backend/PROGRESS.md merge=union
+mobile/PROGRESS.md merge=union

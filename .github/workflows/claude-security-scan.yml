@@ -3,7 +3,8 @@
 # The same shape and hardening as claude-review.yml (plan 014, Approach 3):
 #   gate    no checkout, no secret: stops for closed PRs, forks, drafts, other base branches and
 #           docs-only PRs (fail closed)
-#   scan    Claude with read-only permissions; returns the report as structured output
+#   scan    Claude with read-only permissions; returns the report as structured output, which
+#           a fixed secret check passes before it is uploaded as an artifact
 #   post    a fixed script, no AI: edits the one comment marked <!-- claude-security-scan -->
 #           or creates it
 #
@@ -78,8 +79,6 @@ jobs:
       contents: read
       pull-requests: read
       issues: read
-    outputs:
-      result: ${{ steps.claude.outputs.structured_output }}
     env:
       PR: ${{ github.event.pull_request.number || github.event.issue.number }}
     steps:
@@ -161,6 +160,44 @@ jobs:
 
             Do not post anything: you have no command that comments, and a separate job posts it.
 
+      # The check script from the commit this workflow runs from (the merge commit for a
+      # pull_request event, develop for "@claude security"), never from the PR head.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: trusted
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      # GitHub drops a job output that holds a masked value without saying which, so the
+      # report reaches the post job as an artifact instead (plan 029). This check stands in
+      # for that filter: on a match it names the rule, never the value, and nothing is
+      # uploaded. The report arrives through an environment variable and is never
+      # interpolated into the script; the decoded strings are checked as well as the JSON.
+      - name: Check the report for secrets
+        env:
+          RESULT: ${{ steps.claude.outputs.structured_output }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_JOB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RESULT" ]; then
+            echo "Claude returned no report." >&2
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/claude-security-scan"
+          printf '%s' "$RESULT" >"$RUNNER_TEMP/claude-security-scan/result.json"
+          jq -r '.. | strings' "$RUNNER_TEMP/claude-security-scan/result.json" >"$RUNNER_TEMP/report-strings.txt"
+          for f in "$RUNNER_TEMP/claude-security-scan/result.json" "$RUNNER_TEMP/report-strings.txt"; do
+            bash trusted/.github/scripts/check-no-secrets.sh "$f" CLAUDE_CODE_OAUTH_TOKEN GH_JOB_TOKEN
+          done
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: claude-security-scan-result
+          path: ${{ runner.temp }}/claude-security-scan/result.json
+          retention-days: 1
+          if-no-files-found: error
+
       # Audit trail without publishing the transcript (this repo is public).
       - name: Summarise the run
         if: always() && steps.claude.outputs.execution_file != ''
@@ -191,22 +228,26 @@ jobs:
     permissions:
       pull-requests: write
     steps:
+      # The scan job uploads its result only when the secret check passed; without the
+      # artifact this job does not run, or fails here, and posts nothing.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: claude-security-scan-result
+          path: ${{ runner.temp }}/claude-security-scan
+
       # Only a comment that ends with the marker is this scan's own: the review comment, posted
       # by the same bot user, may quote the marker in its text.
-      # The report arrives through an environment variable and is never interpolated into
-      # the script. GitHub drops a job output that contains a masked secret, so such a report
-      # arrives empty and this job fails instead of posting it.
       - env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number || github.event.issue.number }}
-          RESULT: ${{ needs.scan.outputs.result }}
+          RESULT_FILE: ${{ runner.temp }}/claude-security-scan/result.json
         run: |
           set -euo pipefail
           # Every "<!--" in the report becomes "< !--", so the report can neither carry this or
           # the review's marker nor hide text; only the marker appended below is a real HTML
           # comment (plan 018).
-          REPORT=$(printf '%s' "$RESULT" | jq -r '.report // empty | gsub("<!--"; "< !--")' 2>/dev/null || true)
-          HIGH=$(printf '%s' "$RESULT" | jq -r '.high | select(type == "number") | floor' 2>/dev/null || true)
+          REPORT=$(jq -r '.report // empty | gsub("<!--"; "< !--")' "$RESULT_FILE" 2>/dev/null || true)
+          HIGH=$(jq -r '.high | select(type == "number") | floor' "$RESULT_FILE" 2>/dev/null || true)
           if [ -z "$REPORT" ] || [ -z "$HIGH" ]; then
             echo "The report is empty or has no high count; nothing posted." >&2
             exit 1

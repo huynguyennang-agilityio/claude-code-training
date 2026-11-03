@@ -33,7 +33,9 @@ abstract final class AppTheme {
     secondary: _lime,
     onSecondary: _darkest,
     error: _error,
-    onError: _white,
+    // Dark, not white: white on the error red is 3.8:1, below the 4.5:1
+    // guideline for button text.
+    onError: _darkest,
     errorContainer: _errorContainer,
     onErrorContainer: _onErrorContainer,
     secondaryContainer: _default,

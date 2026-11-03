@@ -16,7 +16,9 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
   FakeAuthRemoteDataSource({
     this.latency = Duration.zero,
     DateTime Function()? now,
-  }) : _now = now ?? DateTime.now;
+    Set<String> lastAdminEmails = const {},
+  }) : _now = now ?? DateTime.now,
+       _lastAdminEmails = {...lastAdminEmails};
 
   static const maxFailedSignIns = 5;
   static const signInFailureWindow = Duration(minutes: 15);
@@ -31,9 +33,18 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
   final Duration latency;
 
   final DateTime Function() _now;
+
+  /// Emails the fake treats as the only remaining admin: deleting them fails
+  /// with `last_admin`.
+  final Set<String> _lastAdminEmails;
   final _users = <String, ({AuthUserModel user, String password})>{};
   final _failedSignIns = <String, List<DateTime>>{};
   final _refreshTokens = <String, AuthUserModel>{};
+  // Every refresh token issued, and the token counter of each user's latest
+  // sign-in: a revoked token issued before that sign-in, whatever revoked it,
+  // is `session_replaced`, not `invalid_refresh_token`.
+  final _issuedRefreshTokens = <String, ({String userId, int counter})>{};
+  final _latestSignIn = <String, int>{};
   // The user of the latest session: the fake has no access token to look up.
   AuthUserModel? _currentUser;
   var _nextId = 1;
@@ -92,10 +103,11 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
       throw AuthFailure(AuthFailureCode.invalidCredentials);
     }
     _failedSignIns.remove(key);
-    return AuthSessionModel(
-      user: account.user,
-      tokens: _issueTokens(account.user),
-    );
+    // One session per account: this sign-in revokes the earlier tokens.
+    _refreshTokens.removeWhere((_, user) => user.id == account.user.id);
+    final tokens = _issueTokens(account.user);
+    _latestSignIn[account.user.id] = _tokenCounter;
+    return AuthSessionModel(user: account.user, tokens: tokens);
   }
 
   @override
@@ -103,7 +115,15 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
     await Future<void>.delayed(latency);
     final user = _refreshTokens.remove(refreshToken);
     if (user == null) {
-      throw AuthFailure(AuthFailureCode.invalidRefreshToken);
+      final issued = _issuedRefreshTokens[refreshToken];
+      final replaced =
+          issued != null &&
+          issued.counter < (_latestSignIn[issued.userId] ?? 0);
+      throw AuthFailure(
+        replaced
+            ? AuthFailureCode.sessionReplaced
+            : AuthFailureCode.invalidRefreshToken,
+      );
     }
     return _issueTokens(user);
   }
@@ -209,6 +229,48 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
     return _issueTokens(current);
   }
 
+  /// Checks like the backend, in the order of `docs/api/auth.md`: the field
+  /// rule (422), the rate
+  /// limit (429), the current password (403), the last admin (409). On success
+  /// the user and their refresh tokens are gone.
+  @override
+  Future<void> deleteAccount({required String currentPassword}) async {
+    await Future<void>.delayed(latency);
+    final current = _currentUser;
+    if (current == null) throw AuthFailure(AuthFailureCode.notAuthenticated);
+    if (currentPassword.isEmpty || currentPassword.length > 128) {
+      throw AuthFailure(
+        AuthFailureCode.validation,
+        fieldErrors: const {
+          'current_password':
+              'Enter your current password (up to 128 '
+              'characters).',
+        },
+      );
+    }
+
+    final failures = _recentFailures(current.email);
+    if (failures.length >= maxFailedSignIns) {
+      throw AuthFailure(
+        AuthFailureCode.rateLimited,
+        retryAfter: failures.first.add(signInFailureWindow).difference(_now()),
+      );
+    }
+    final account = _users[current.email];
+    if (account == null || account.password != currentPassword) {
+      failures.add(_now());
+      throw AuthFailure(AuthFailureCode.incorrectPassword);
+    }
+    _failedSignIns.remove(current.email);
+
+    if (_lastAdminEmails.contains(current.email)) {
+      throw AuthFailure(AuthFailureCode.lastAdmin);
+    }
+    _users.remove(current.email);
+    _refreshTokens.removeWhere((_, user) => user.id == current.id);
+    _currentUser = null;
+  }
+
   @override
   Future<void> signOut(String refreshToken) async {
     await Future<void>.delayed(latency);
@@ -257,6 +319,10 @@ class FakeAuthRemoteDataSource implements AuthRemoteDataSource {
     _tokenCounter++;
     final refreshToken = 'fake-refresh-${user.id}-$_tokenCounter';
     _refreshTokens[refreshToken] = user;
+    _issuedRefreshTokens[refreshToken] = (
+      userId: user.id,
+      counter: _tokenCounter,
+    );
     _currentUser = user;
     return TokenPairModel(
       accessToken: 'fake-access-${user.id}-$_tokenCounter',

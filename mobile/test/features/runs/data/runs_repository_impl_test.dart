@@ -3,10 +3,12 @@ import 'package:stridequest/features/runs/data/datasources/runs_remote_data_sour
 import 'package:stridequest/features/runs/data/models/runs_models.dart';
 import 'package:stridequest/features/runs/data/repositories/runs_repository_impl.dart';
 import 'package:stridequest/features/runs/domain/entities/activity.dart';
+import 'package:stridequest/features/runs/domain/failures/runs_failure.dart';
 
 class _FakeRemote implements RunsRemoteDataSource {
   final stepRequests = <List<Map<String, Object>>>[];
   final dayRequests = <List<Map<String, Object>>>[];
+  int? failDayRequest;
   final pages = <MyChallengePageModel>[];
   final cursors = <String?>[];
 
@@ -18,9 +20,23 @@ class _FakeRemote implements RunsRemoteDataSource {
     return StepSyncResultModel(accepted: samples.length - 1, ignored: 1);
   }
 
+  final hourRequests = <List<Map<String, Object>>>[];
+
   @override
-  Future<void> saveDailyActivity(List<Map<String, Object>> days) async =>
-      dayRequests.add(days);
+  Future<StepSyncResultModel> syncStepHours(
+    List<Map<String, Object>> hours,
+  ) async {
+    hourRequests.add(hours);
+    return StepSyncResultModel(accepted: hours.length - 1, ignored: 1);
+  }
+
+  @override
+  Future<void> saveDailyActivity(List<Map<String, Object>> days) async {
+    if (failDayRequest == dayRequests.length + 1) {
+      throw const RunsFailure(RunsFailureCode.network);
+    }
+    dayRequests.add(days);
+  }
 
   @override
   Future<MyChallengePageModel> myChallenges({
@@ -39,7 +55,12 @@ StepRecord _record(int number) => StepRecord(
   steps: number + 1,
 );
 
-Map<String, dynamic> _item(String type, String status, String joined) => {
+Map<String, dynamic> _item(
+  String type,
+  String status,
+  String joined, {
+  String startsAt = '2026-10-01T00:00:00Z',
+}) => {
   'challenge': {
     'id': 1,
     'title': 'T',
@@ -50,7 +71,7 @@ Map<String, dynamic> _item(String type, String status, String joined) => {
     'city': null,
     'landmark': null,
     'status': 'published',
-    'starts_at': '2026-10-01T00:00:00Z',
+    'starts_at': startsAt,
     'ends_at': '2026-12-01T00:00:00Z',
     'participant_count': 1,
     'enrollment': {'status': status, 'joined_at': joined},
@@ -102,6 +123,32 @@ void main() {
     });
   });
 
+  group('syncStepHours', () {
+    StepHour hour(int i) => StepHour(
+      hourStart: DateTime.utc(2026, 10).add(Duration(hours: i)),
+      steps: i,
+    );
+
+    test('sends 744 hours at most per request and adds the answers', () async {
+      final result = await repository.syncStepHours([
+        for (var i = 0; i < 1500; i++) hour(i),
+      ]);
+
+      expect(remote.hourRequests.map((r) => r.length), [744, 744, 12]);
+      expect((result.accepted, result.ignored), (1497, 3));
+      expect(remote.hourRequests.first.first, {
+        'hour_start': '2026-10-01T00:00:00Z',
+        'steps': 0,
+      });
+    });
+
+    test('no hours means no request', () async {
+      await repository.syncStepHours(const []);
+
+      expect(remote.hourRequests, isEmpty);
+    });
+  });
+
   group('saveDailyActivity', () {
     test('a day carries only the figures that exist', () async {
       await repository.saveDailyActivity([
@@ -125,6 +172,34 @@ void main() {
       ]);
 
       expect(remote.dayRequests.map((r) => r.length), [7, 2]);
+    });
+
+    test('31 days go out in requests of 7, 7, 7, 7 and 3', () async {
+      await repository.saveDailyActivity([
+        for (var i = 0; i < 31; i++)
+          DailyFigures(date: DateTime(2026, 10, 1 + i)),
+      ]);
+
+      expect(remote.dayRequests.map((r) => r.length), [7, 7, 7, 7, 3]);
+    });
+
+    test('a failing later request throws', () async {
+      remote.failDayRequest = 2;
+
+      await expectLater(
+        repository.saveDailyActivity([
+          for (var i = 1; i <= 9; i++)
+            DailyFigures(date: DateTime(2026, 11, i)),
+        ]),
+        throwsA(isA<RunsFailure>()),
+      );
+      expect(remote.dayRequests, hasLength(1));
+    });
+
+    test('no days means no request', () async {
+      await repository.saveDailyActivity(const []);
+
+      expect(remote.dayRequests, isEmpty);
     });
   });
 
@@ -157,6 +232,58 @@ void main() {
       );
 
       expect(await repository.earliestRunJoin(), isNull);
+    });
+  });
+
+  group('earliestRunCounting', () {
+    test(
+      'is the later of join and start, earliest among active runs',
+      () async {
+        remote.pages.add(
+          _page([
+            _item(
+              'run',
+              'active',
+              '2026-10-02T08:00:00Z',
+              startsAt: '2026-10-20T00:00:00Z',
+            ),
+            _item('run', 'active', '2026-10-10T08:00:00Z'),
+            _item('run', 'paused', '2026-09-01T08:00:00Z'),
+            _item('swim', 'active', '2026-08-01T08:00:00Z'),
+          ]),
+        );
+
+        expect(
+          await repository.earliestRunCounting(),
+          DateTime.utc(2026, 10, 10, 8),
+        );
+      },
+    );
+
+    test('is the start of a challenge joined before it began', () async {
+      remote.pages.add(
+        _page([
+          _item(
+            'run',
+            'active',
+            '2026-10-02T08:00:00Z',
+            startsAt: '2026-10-20T00:00:00Z',
+          ),
+        ]),
+      );
+
+      expect(
+        await repository.earliestRunCounting(),
+        DateTime.utc(2026, 10, 20),
+      );
+    });
+
+    test('is null with no active run challenge', () async {
+      remote.pages.add(
+        _page([_item('swim', 'active', '2026-10-20T08:00:00Z')]),
+      );
+
+      expect(await repository.earliestRunCounting(), isNull);
     });
   });
 

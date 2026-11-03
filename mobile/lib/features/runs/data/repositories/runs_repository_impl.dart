@@ -13,6 +13,9 @@ class RunsRepositoryImpl implements RunsRepository {
   /// The most samples one request carries (`docs/api/runs.md`).
   static const maxSamplesPerRequest = 500;
 
+  /// The most hours one request carries (`docs/api/runs.md`).
+  static const maxHoursPerRequest = 744;
+
   /// The most days one request carries.
   static const maxDaysPerRequest = 7;
 
@@ -33,6 +36,25 @@ class RunsRepositoryImpl implements RunsRepository {
       );
       final result = await _remote.syncSteps([
         for (final record in chunk) stepRecordJson(record),
+      ]);
+      accepted += result.accepted;
+      ignored += result.ignored;
+    }
+    return StepSyncResult(accepted: accepted, ignored: ignored);
+  }
+
+  @override
+  Future<StepSyncResult> syncStepHours(List<StepHour> hours) async {
+    var accepted = 0;
+    var ignored = 0;
+    for (var start = 0; start < hours.length; start += maxHoursPerRequest) {
+      final end = start + maxHoursPerRequest;
+      final result = await _remote.syncStepHours([
+        for (final hour in hours.sublist(
+          start,
+          end > hours.length ? hours.length : end,
+        ))
+          stepHourJson(hour),
       ]);
       accepted += result.accepted;
       ignored += result.ignored;
@@ -62,7 +84,20 @@ class RunsRepositoryImpl implements RunsRepository {
       (await _remote.myChallenges(cursor: cursor, limit: limit)).toEntity();
 
   @override
-  Future<DateTime?> earliestRunJoin() async {
+  Future<DateTime?> earliestRunJoin() =>
+      _earliestActiveRun((challenge, joined) => joined);
+
+  @override
+  Future<DateTime?> earliestRunCounting() => _earliestActiveRun(
+    (challenge, joined) =>
+        joined.isAfter(challenge.startsAt) ? joined : challenge.startsAt,
+  );
+
+  /// The earliest [at] among the caller's active run challenges, over every
+  /// page, or null when there is none.
+  Future<DateTime?> _earliestActiveRun(
+    DateTime Function(ChallengeSummary challenge, DateTime joined) at,
+  ) async {
     DateTime? earliest;
     String? cursor;
     do {
@@ -74,8 +109,8 @@ class RunsRepositoryImpl implements RunsRepository {
             enrollment?.status != EnrollmentStatus.active) {
           continue;
         }
-        final joined = enrollment!.joinedAt;
-        if (earliest == null || joined.isBefore(earliest)) earliest = joined;
+        final time = at(challenge, enrollment!.joinedAt);
+        if (earliest == null || time.isBefore(earliest)) earliest = time;
       }
       cursor = page.nextCursor;
     } while (cursor != null);

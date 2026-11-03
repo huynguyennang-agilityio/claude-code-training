@@ -2,6 +2,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:stridequest/features/challenges/domain/entities/challenge.dart';
 import 'package:stridequest/features/runs/domain/entities/activity.dart';
 import 'package:stridequest/features/runs/domain/repositories/runs_repository.dart';
+import 'package:stridequest/features/runs/domain/repositories/sync_state_repository.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart';
 
@@ -15,10 +16,18 @@ class MockMyChallengesBloc
 /// A [RunsRepository] that answers from memory and records what it was sent.
 class FakeRunsRepository implements RunsRepository {
   DateTime? earliest;
+  DateTime? counting;
   Object? error;
   final syncedRecords = <List<StepRecord>>[];
   final savedDays = <List<DailyFigures>>[];
+  final syncedHours = <List<StepHour>>[];
+
+  /// The 1-based number of the `saveDailyActivity` call that fails with
+  /// [error], or null when [error] fails every call.
+  int? failDaysCall;
+  var daysCalls = 0;
   var earliestCalls = 0;
+  var countingCalls = 0;
   MyChallengePage page = const MyChallengePage(items: []);
 
   @override
@@ -29,8 +38,18 @@ class FakeRunsRepository implements RunsRepository {
   }
 
   @override
+  Future<StepSyncResult> syncStepHours(List<StepHour> hours) async {
+    if (error != null && failDaysCall == null) throw error!;
+    syncedHours.add(hours);
+    return StepSyncResult(accepted: hours.length, ignored: 0);
+  }
+
+  @override
   Future<void> saveDailyActivity(List<DailyFigures> days) async {
-    if (error != null) throw error!;
+    daysCalls++;
+    if (error != null && (failDaysCall == null || failDaysCall == daysCalls)) {
+      throw error!;
+    }
     savedDays.add(days);
   }
 
@@ -43,9 +62,48 @@ class FakeRunsRepository implements RunsRepository {
   @override
   Future<DateTime?> earliestRunJoin() async {
     earliestCalls++;
-    if (error != null) throw error!;
+    if (error != null && failDaysCall == null) throw error!;
     return earliest;
   }
+
+  @override
+  Future<DateTime?> earliestRunCounting() async {
+    countingCalls++;
+    if (error != null) throw error!;
+    return counting;
+  }
+}
+
+/// A [SyncStateRepository] that keeps its times in memory.
+class FakeSyncStateRepository implements SyncStateRepository {
+  DateTime? stored;
+  DateTime? first;
+  var loads = 0;
+
+  /// The `now` of the latest [load].
+  DateTime? loadedAt;
+
+  @override
+  Future<SyncState> load(DateTime now) async {
+    loads++;
+    loadedAt = now;
+    return _FakeSyncState(this, stored, first ??= now);
+  }
+}
+
+class _FakeSyncState implements SyncState {
+  _FakeSyncState(this._repository, this.watermark, this.firstSyncAt);
+
+  final FakeSyncStateRepository _repository;
+
+  @override
+  final DateTime? watermark;
+
+  @override
+  final DateTime firstSyncAt;
+
+  @override
+  Future<void> saveWatermark(DateTime at) async => _repository.stored = at;
 }
 
 /// A challenge the caller is in, with progress. By default a run challenge that

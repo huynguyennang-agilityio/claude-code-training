@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.runs.models import Run
@@ -52,8 +52,9 @@ async def mine(client: AsyncClient, who: dict[str, str], query: str = "") -> Any
 
 
 async def count_from_long_ago(session: AsyncSession) -> None:
-    """Joining counts from now, so move it back for samples that ended hours ago."""
-    await session.execute(update(Run).values(counting_from=now() - 3 * DAY))
+    """Joining counts from now, so move it back for samples that ended hours ago. Joining also
+    sets `hours_from` to now, and a sample counts only before it, so move it a day ahead."""
+    await session.execute(update(Run).values(counting_from=now() - 3 * DAY, hours_from=now() + DAY))
     await session.flush()
     session.expire_all()
 
@@ -134,6 +135,26 @@ async def test_steps_from_the_future_are_ignored(
 
     assert (body["accepted"], body["ignored"]) == (0, 1)
     assert body["enrollments"][0]["progress"]["current_value"] == 0
+
+
+@pytest.mark.anyio
+async def test_steps_starting_at_or_after_hours_from_are_ignored(
+    client: AsyncClient, admin: dict[str, str], user: dict[str, str], session: AsyncSession
+) -> None:
+    await join_running(client, admin, user, session)
+    hours_from = now() - 3 * HOUR
+    await session.execute(update(Run).values(hours_from=hours_from))
+    await session.flush()
+    session.expire_all()
+    before = sample("before", 700, ended_ago=4 * HOUR)  # 5 to 4 hours ago
+    after = sample("after", 300, ended_ago=HOUR)  # 2 to 1 hours ago
+
+    body = (await sync(client, user, before, after)).json()
+
+    assert (body["accepted"], body["ignored"]) == (1, 1)
+    assert body["enrollments"][0]["progress"]["current_value"] == 700
+    run = (await session.scalars(select(Run))).one()
+    assert run.total_steps == 700
 
 
 @pytest.mark.anyio
@@ -418,5 +439,5 @@ async def test_resuming_restarts_the_counting_time(
     await act(client, user, challenge, "resume")
 
     session.expire_all()
-    run = (await session.scalars(__import__("sqlalchemy").select(Run))).one()
+    run = (await session.scalars(select(Run))).one()
     assert run.counting_from is not None and run.counting_from >= before

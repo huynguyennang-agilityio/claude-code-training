@@ -47,8 +47,10 @@ AUTH_MODULE_ERROR_CODES = frozenset(
         "invalid_credentials",
         "invalid_refresh_token",
         "invalid_token",
+        "session_replaced",
         "token_expired",
         "rate_limited",
+        "last_admin",
     }
 )
 

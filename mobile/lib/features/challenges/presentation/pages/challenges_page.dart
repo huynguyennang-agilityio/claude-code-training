@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_tokens.dart';
+import '../../../runs/presentation/bloc/health_notice_bloc.dart';
 import '../../domain/entities/challenge.dart';
 import '../bloc/challenges_bloc.dart';
 import '../widgets/challenge_card.dart';
@@ -51,9 +52,12 @@ class _ChallengesPageState extends State<ChallengesPage> {
 
   Future<void> _open(ChallengeSummary challenge) async {
     final bloc = context.read<ChallengesBloc>();
+    final notice = context.read<HealthNoticeBloc>();
     await context.push(ChallengeDetailPage.locationFor(challenge.id));
     // What the user did there (joined, paused) shows on the card.
     if (!bloc.isClosed) bloc.add(const ChallengesRefreshed());
+    // The detail screen has its own notice bloc: it may have granted access.
+    if (!notice.isClosed) notice.add(const HealthNoticeRefreshed());
   }
 
   @override

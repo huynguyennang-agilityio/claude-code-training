@@ -1,4 +1,5 @@
 import '../entities/auth_user.dart';
+import '../entities/session_end_reason.dart';
 import '../failures/auth_failure.dart';
 
 /// Signs users in and out and keeps their session.
@@ -40,6 +41,15 @@ abstract interface class AuthRepository {
     required String newPassword,
   });
 
+  /// Deletes the account for good (`POST /users/me/delete`). Only after the
+  /// backend confirmed does it clear the local session, then announce it on
+  /// [accountDeleted]; on any failure nothing local changes.
+  ///
+  /// Extra failures: [AuthFailureCode.incorrectPassword] (403),
+  /// [AuthFailureCode.lastAdmin] (409), [AuthFailureCode.validation] (422)
+  /// and [AuthFailureCode.rateLimited] (429, with `retryAfter`).
+  Future<void> deleteAccount({required String currentPassword});
+
   /// Clears the local session and revokes the refresh token on the backend.
   Future<void> signOut();
 
@@ -52,7 +62,13 @@ abstract interface class AuthRepository {
   /// the `AuthBloc` shows it without the form that made the change telling it.
   Stream<AuthUser> get userUpdated;
 
-  /// Emits when the session ends without the user signing out, for example
-  /// when a token refresh fails.
-  Stream<void> get sessionExpired;
+  /// Emits when the session ends without the user signing out, with the
+  /// reason: [SessionEndReason.replaced] when a refresh was answered with
+  /// `session_replaced` (the account signed in on another device), otherwise
+  /// [SessionEndReason.expired], for example when a token refresh fails.
+  Stream<SessionEndReason> get sessionEnded;
+
+  /// Emits after [deleteAccount] succeeded and the local session is cleared,
+  /// so the `AuthBloc` can send the user to sign in with a "deleted" notice.
+  Stream<void> get accountDeleted;
 }

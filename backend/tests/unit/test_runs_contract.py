@@ -5,6 +5,7 @@ from app.modules.runs.schemas import (
     DailyActivityRequest,
     DailyActivityResult,
     MyChallengePage,
+    StepHoursRequest,
     StepSyncRequest,
     StepSyncResult,
 )
@@ -44,3 +45,8 @@ def test_the_page_example_is_a_valid_page() -> None:
 def test_the_daily_activity_examples_are_valid() -> None:
     DailyActivityRequest.model_validate(load_example("runs/daily_activity_request.json"))
     DailyActivityResult.model_validate(load_example("runs/daily_activity_result.json"))
+
+
+def test_the_step_hours_examples_are_valid() -> None:
+    StepHoursRequest.model_validate(load_example("runs/step_hours_request.json"))
+    StepSyncResult.model_validate(load_example("runs/step_hours_result.json"))

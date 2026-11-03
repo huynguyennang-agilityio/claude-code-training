@@ -88,6 +88,7 @@ class ChallengesBloc extends Bloc<ChallengesEvent, ChallengesState> {
       emit(
         state.copyWith(
           joiningId: null,
+          joinedCount: state.joinedCount + 1,
           items: [
             for (final item in state.items)
               if (item.id == joined.id) joined else item,

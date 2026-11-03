@@ -54,13 +54,15 @@ jsonpath "$.error.code" == "validation_error"
 jsonpath "$.error.fields[0].field" == "password"
 jsonpath "$.error.fields[0].message" == "Password must contain at least one digit."
 
-# Sign in
+# Sign in (it starts a new session and revokes the sign-up refresh token, so keep the new one)
 POST {{base}}/auth/signin
 {
   "email": "{{email}}",
   "password": "run4medals"
 }
 HTTP 200
+[Captures]
+refresh_token: jsonpath "$.tokens.refresh_token"
 [Asserts]
 jsonpath "$.user.email" == "{{email}}"
 jsonpath "$.tokens.access_token" isString
@@ -153,6 +155,44 @@ POST {{base}}/auth/refresh
 HTTP 401
 [Asserts]
 jsonpath "$.error.code" == "invalid_refresh_token"
+
+# One session per account: a second sign-in revokes the refresh token of the first, and
+# refreshing with it returns session_replaced (not invalid_refresh_token)
+POST {{base}}/auth/signin
+{
+  "email": "{{email}}",
+  "password": "run4medals"
+}
+HTTP 200
+[Captures]
+first_session_refresh_token: jsonpath "$.tokens.refresh_token"
+
+POST {{base}}/auth/signin
+{
+  "email": "{{email}}",
+  "password": "run4medals"
+}
+HTTP 200
+[Captures]
+second_session_refresh_token: jsonpath "$.tokens.refresh_token"
+
+POST {{base}}/auth/refresh
+{
+  "refresh_token": "{{first_session_refresh_token}}"
+}
+HTTP 401
+[Asserts]
+jsonpath "$.error.code" == "session_replaced"
+jsonpath "$.error.message" == "Your account was signed in on another device."
+jsonpath "$.error.fields" count == 0
+
+POST {{base}}/auth/refresh
+{
+  "refresh_token": "{{second_session_refresh_token}}"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.refresh_token" isString
 
 # Missing body fields are validation errors
 POST {{base}}/auth/refresh
@@ -353,11 +393,85 @@ POST {{base}}/auth/signin
   "password": "newrun5medals"
 }
 HTTP 200
+[Captures]
+del_access_token: jsonpath "$.tokens.access_token"
+del_refresh_token: jsonpath "$.tokens.refresh_token"
 
 POST {{base}}/auth/signin
 {
   "email": "new-{{email}}",
   "password": "run4medals"
+}
+HTTP 401
+[Asserts]
+jsonpath "$.error.code" == "invalid_credentials"
+
+# Delete the account (the password is newrun5medals now)
+
+# 401 without a token
+POST {{base}}/users/me/delete
+{
+  "current_password": "newrun5medals"
+}
+HTTP 401
+[Asserts]
+jsonpath "$.error.code" == "not_authenticated"
+
+# 422: an empty password, naming current_password
+POST {{base}}/users/me/delete
+Authorization: Bearer {{del_access_token}}
+{
+  "current_password": ""
+}
+HTTP 422
+[Asserts]
+jsonpath "$.error.code" == "validation_error"
+jsonpath "$.error.fields[0].field" == "current_password"
+
+# 403 incorrect_password: nothing is deleted
+POST {{base}}/users/me/delete
+Authorization: Bearer {{del_access_token}}
+{
+  "current_password": "wrong-pass1"
+}
+HTTP 403
+[Asserts]
+jsonpath "$.error.code" == "incorrect_password"
+jsonpath "$.error.fields" count == 0
+
+GET {{base}}/users/me
+Authorization: Bearer {{del_access_token}}
+HTTP 200
+
+# 204 with no body
+POST {{base}}/users/me/delete
+Authorization: Bearer {{del_access_token}}
+{
+  "current_password": "newrun5medals"
+}
+HTTP 204
+[Asserts]
+body == ""
+
+# The account is gone: the old access token, the refresh token and the password all fail
+GET {{base}}/users/me
+Authorization: Bearer {{del_access_token}}
+HTTP 401
+[Asserts]
+jsonpath "$.error.code" == "invalid_token"
+
+POST {{base}}/auth/refresh
+{
+  "refresh_token": "{{del_refresh_token}}"
+}
+HTTP 401
+[Asserts]
+jsonpath "$.error.code" == "invalid_refresh_token"
+
+POST {{base}}/auth/signin
+{
+  "email": "new-{{email}}",
+  "password": "newrun5medals"
 }
 HTTP 401
 [Asserts]

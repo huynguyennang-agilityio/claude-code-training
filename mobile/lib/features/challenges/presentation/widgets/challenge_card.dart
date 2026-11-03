@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_tokens.dart';
+import '../../../runs/presentation/widgets/health_notice_banner.dart';
 import '../../domain/entities/challenge.dart';
 import '../format.dart';
 import 'challenge_cover.dart';
@@ -10,7 +11,9 @@ import 'meta_item.dart';
 
 /// One challenge in the list: the cover with the type and the city, the title,
 /// the dates and goal, how many joined, and the Join button (or Joined or
-/// Paused when the caller is in it).
+/// Paused when the caller is in it). A challenge the caller is in also shows
+/// the health notice banner when steps are not tracked; that needs a
+/// `HealthNoticeBloc` above the card.
 class ChallengeCard extends StatelessWidget {
   const ChallengeCard({
     super.key,
@@ -123,6 +126,9 @@ class ChallengeCard extends StatelessWidget {
                   ],
                 ),
               ),
+              // The banner has its own padding and its own tap, which wins
+              // over the card's.
+              if (challenge.enrollment != null) const HealthNoticeBanner(),
             ],
           ),
         ),

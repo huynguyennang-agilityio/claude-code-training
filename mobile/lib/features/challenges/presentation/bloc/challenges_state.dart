@@ -17,6 +17,7 @@ final class ChallengesState extends Equatable {
     this.joiningId,
     this.notice,
     this.noticeCount = 0,
+    this.joinedCount = 0,
   });
 
   final ChallengesStatus status;
@@ -38,6 +39,10 @@ final class ChallengesState extends Equatable {
   final ChallengeFailure? notice;
   final int noticeCount;
 
+  /// Grows only when a Join succeeds, even if the joined card has left [items]
+  /// since (the filter changed). The page reacts to it once per join.
+  final int joinedCount;
+
   bool get isFiltered => type != null || query.isNotEmpty;
 
   /// Nullable fields use a sentinel so `null` can be set on purpose.
@@ -53,6 +58,7 @@ final class ChallengesState extends Equatable {
     Object? joiningId = _keep,
     Object? notice = _keep,
     int? noticeCount,
+    int? joinedCount,
   }) {
     return ChallengesState(
       status: status ?? this.status,
@@ -74,6 +80,7 @@ final class ChallengesState extends Equatable {
           ? this.notice
           : notice as ChallengeFailure?,
       noticeCount: noticeCount ?? this.noticeCount,
+      joinedCount: joinedCount ?? this.joinedCount,
     );
   }
 
@@ -90,6 +97,7 @@ final class ChallengesState extends Equatable {
     joiningId,
     notice,
     noticeCount,
+    joinedCount,
   ];
 }
 

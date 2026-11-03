@@ -9,9 +9,12 @@ import 'package:stridequest/features/challenges/domain/entities/challenge.dart';
 import 'package:stridequest/features/challenges/domain/failures/challenge_failure.dart';
 import 'package:stridequest/features/challenges/presentation/bloc/challenge_detail_bloc.dart';
 import 'package:stridequest/features/challenges/presentation/pages/challenge_detail_page.dart';
+import 'package:stridequest/features/runs/domain/entities/health_access.dart';
+import 'package:stridequest/features/runs/presentation/widgets/health_notice_banner.dart';
 
 import '../../../../helpers/challenge_fixtures.dart';
 import '../../../../helpers/expect_accessible.dart';
+import '../../../../helpers/health_fixtures.dart';
 import '../../../../helpers/mock_challenge_blocs.dart';
 import '../../../../helpers/pump_screen.dart';
 
@@ -28,6 +31,7 @@ void main() {
     WidgetTester tester,
     ChallengeDetailState state, {
     DateTime? now,
+    HealthNotice notice = HealthNotice.none,
     Size size = smallPhone,
     double textScale = 1,
     bool settle = true,
@@ -39,9 +43,12 @@ void main() {
     );
     await pumpScreen(
       tester,
-      BlocProvider<ChallengeDetailBloc>.value(
-        value: bloc,
-        child: ChallengeDetailPage(challengeId: 1, clock: () => now ?? _now),
+      withHealthNotice(
+        BlocProvider<ChallengeDetailBloc>.value(
+          value: bloc,
+          child: ChallengeDetailPage(challengeId: 1, clock: () => now ?? _now),
+        ),
+        notice,
       ),
       size: size,
       textScale: textScale,
@@ -213,6 +220,65 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('first', findRichText: true), findsOneWidget);
+    });
+  });
+
+  group('the health notice', () {
+    Future<void> joined(
+      WidgetTester tester,
+      EnrollmentStatus status, [
+      HealthNotice notice = HealthNotice.askable,
+    ]) => pumpPage(
+      tester,
+      loaded(challenge(enrollment: enrolled(status))),
+      notice: notice,
+    );
+
+    for (final size in [smallPhone, largePhone]) {
+      for (final textScale in [1.0, 2.0]) {
+        testWidgets(
+          'the banner fits and is accessible on $size at text x$textScale',
+          (tester) async {
+            await pumpPage(
+              tester,
+              loaded(challenge(enrollment: enrolled())),
+              notice: HealthNotice.askable,
+              size: size,
+              textScale: textScale,
+            );
+
+            expect(find.byType(HealthNoticeBanner), findsOneWidget);
+            expectNoLayoutException(tester);
+            await expectAccessible(tester);
+          },
+        );
+      }
+    }
+
+    for (final status in EnrollmentStatus.values) {
+      testWidgets('a ${status.name} challenge shows the banner', (
+        tester,
+      ) async {
+        await joined(tester, status);
+
+        expect(find.byType(HealthNoticeBanner), findsOneWidget);
+        expect(find.textContaining('Steps aren'), findsOneWidget);
+      });
+    }
+
+    testWidgets('nothing shows when the notice is none', (tester) async {
+      await joined(tester, EnrollmentStatus.active, HealthNotice.none);
+
+      expect(find.textContaining('Steps aren'), findsNothing);
+    });
+
+    testWidgets('a challenge the user has not joined has no banner', (
+      tester,
+    ) async {
+      await pumpPage(tester, loaded(), notice: HealthNotice.askable);
+
+      expect(find.byType(HealthNoticeBanner), findsNothing);
+      expect(find.textContaining('Steps aren'), findsNothing);
     });
   });
 
