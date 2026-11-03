@@ -11,6 +11,7 @@ import '../widgets/challenge_cover.dart';
 import '../widgets/countdown_card.dart';
 import '../widgets/details_card.dart';
 import '../widgets/enrollment_pill.dart';
+import '../widgets/health_explainer_on_join.dart';
 import '../widgets/leave_sheet.dart';
 import '../widgets/markdown_text.dart';
 import '../widgets/medal_tiles.dart';
@@ -37,75 +38,79 @@ class ChallengeDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<ChallengeDetailBloc, ChallengeDetailState>(
-      // A refused action says why, once.
-      listenWhen: (before, after) =>
-          after is ChallengeDetailLoaded &&
-          after.notice != null &&
-          (before is! ChallengeDetailLoaded || before.notice != after.notice),
-      listener: (context, state) {
-        final notice = (state as ChallengeDetailLoaded).notice;
-        if (notice == null) return;
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(notice.message)));
-      },
-      builder: (context, state) => Scaffold(
-        body: switch (state) {
-          ChallengeDetailLoading() => const _Frame(
-            child: Center(child: CircularProgressIndicator()),
-          ),
-          ChallengeDetailFailed(:final failure) => _Frame(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      failure.message,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return HealthExplainerOnJoin<ChallengeDetailBloc, ChallengeDetailState>(
+      joined: challengeDetailJoined,
+      child: BlocConsumer<ChallengeDetailBloc, ChallengeDetailState>(
+        // A refused action says why, once.
+        listenWhen: (before, after) =>
+            after is ChallengeDetailLoaded &&
+            after.notice != null &&
+            (before is! ChallengeDetailLoaded || before.notice != after.notice),
+        listener: (context, state) {
+          final notice = (state as ChallengeDetailLoaded).notice;
+          if (notice == null) return;
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(notice.message)));
+        },
+        builder: (context, state) => Scaffold(
+          body: switch (state) {
+            ChallengeDetailLoading() => const _Frame(
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            ChallengeDetailFailed(:final failure) => _Frame(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        failure.message,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    OutlinedButton(
-                      onPressed: () => context.read<ChallengeDetailBloc>().add(
-                        ChallengeDetailStarted(challengeId),
+                      const SizedBox(height: AppSpacing.md),
+                      OutlinedButton(
+                        onPressed: () => context
+                            .read<ChallengeDetailBloc>()
+                            .add(ChallengeDetailStarted(challengeId)),
+                        child: const Text('Try again'),
                       ),
-                      child: const Text('Try again'),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          ChallengeDetailLoaded(:final challenge) => _Detail(
-            challenge: challenge,
-            clock: clock,
-          ),
-        },
-        bottomNavigationBar: switch (state) {
-          ChallengeDetailLoaded(:final challenge, :final busy) =>
-            ChallengeActionBar(
+            ChallengeDetailLoaded(:final challenge) => _Detail(
               challenge: challenge,
-              now: clock(),
-              busy: busy,
-              onAction: (action) => context.read<ChallengeDetailBloc>().add(
-                ChallengeActionRequested(action),
-              ),
-              onLeave: () async {
-                final bloc = context.read<ChallengeDetailBloc>();
-                if (await confirmLeave(context, challenge) && !bloc.isClosed) {
-                  bloc.add(
-                    const ChallengeActionRequested(ChallengeAction.leave),
-                  );
-                }
-              },
+              clock: clock,
             ),
-          _ => null,
-        },
+          },
+          bottomNavigationBar: switch (state) {
+            ChallengeDetailLoaded(:final challenge, :final busy) =>
+              ChallengeActionBar(
+                challenge: challenge,
+                now: clock(),
+                busy: busy,
+                onAction: (action) => context.read<ChallengeDetailBloc>().add(
+                  ChallengeActionRequested(action),
+                ),
+                onLeave: () async {
+                  final bloc = context.read<ChallengeDetailBloc>();
+                  if (await confirmLeave(context, challenge) &&
+                      !bloc.isClosed) {
+                    bloc.add(
+                      const ChallengeActionRequested(ChallengeAction.leave),
+                    );
+                  }
+                },
+              ),
+            _ => null,
+          },
+        ),
       ),
     );
   }

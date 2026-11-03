@@ -8,6 +8,7 @@ import '../../../../core/theme/app_tokens.dart';
 import '../../domain/entities/challenge.dart';
 import '../bloc/challenges_bloc.dart';
 import '../widgets/challenge_card.dart';
+import '../widgets/health_explainer_on_join.dart';
 import '../widgets/type_filter_chips.dart';
 import 'challenge_detail_page.dart';
 
@@ -61,81 +62,88 @@ class _ChallengesPageState extends State<ChallengesPage> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Challenges')),
-      body: BlocListener<ChallengesBloc, ChallengesState>(
-        // A refused Join says why, once.
-        listenWhen: (before, after) => before.noticeCount != after.noticeCount,
-        listener: (context, state) {
-          final message = state.notice?.message;
-          if (message == null) return;
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(content: Text(message)));
-        },
-        child: Column(
-          // Stretch, so the chip row starts at the left edge instead of shrinking and centring.
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: TextField(
-                controller: _search,
-                onChanged: _onQueryChanged,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  hintText: 'Search challenges',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: ValueListenableBuilder(
-                    valueListenable: _search,
-                    builder: (context, value, _) => value.text.isEmpty
-                        ? const SizedBox.shrink()
-                        : IconButton(
-                            tooltip: 'Clear search',
-                            icon: const Icon(Icons.close),
-                            onPressed: () {
-                              _search.clear();
-                              _debounce?.cancel();
-                              _filter(
-                                context.read<ChallengesBloc>().state.type,
-                                '',
-                              );
-                            },
-                          ),
+      body: HealthExplainerOnJoin<ChallengesBloc, ChallengesState>(
+        joined: challengesJoined,
+        child: BlocListener<ChallengesBloc, ChallengesState>(
+          // A refused Join says why, once.
+          listenWhen: (before, after) =>
+              before.noticeCount != after.noticeCount,
+          listener: (context, state) {
+            final message = state.notice?.message;
+            if (message == null) return;
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(content: Text(message)));
+          },
+          child: Column(
+            // Stretch, so the chip row starts at the left edge instead of shrinking and centring.
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: TextField(
+                  controller: _search,
+                  onChanged: _onQueryChanged,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'Search challenges',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: ValueListenableBuilder(
+                      valueListenable: _search,
+                      builder: (context, value, _) => value.text.isEmpty
+                          ? const SizedBox.shrink()
+                          : IconButton(
+                              tooltip: 'Clear search',
+                              icon: const Icon(Icons.close),
+                              onPressed: () {
+                                _search.clear();
+                                _debounce?.cancel();
+                                _filter(
+                                  context.read<ChallengesBloc>().state.type,
+                                  '',
+                                );
+                              },
+                            ),
+                    ),
                   ),
                 ),
               ),
-            ),
-            BlocSelector<ChallengesBloc, ChallengesState, ChallengeType?>(
-              selector: (state) => state.type,
-              builder: (context, type) => TypeFilterChips(
-                selected: type,
-                onSelected: (selected) => _filter(selected, _search.text),
+              BlocSelector<ChallengesBloc, ChallengesState, ChallengeType?>(
+                selector: (state) => state.type,
+                builder: (context, type) => TypeFilterChips(
+                  selected: type,
+                  onSelected: (selected) => _filter(selected, _search.text),
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Expanded(
-              child: BlocBuilder<ChallengesBloc, ChallengesState>(
-                builder: (context, state) => switch (state.status) {
-                  ChallengesStatus.loading => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                  ChallengesStatus.failed => _Message(
-                    text: state.failure?.message ?? 'Something went wrong.',
-                    actionLabel: 'Try again',
-                    onAction: () => context.read<ChallengesBloc>().add(
-                      const ChallengesStarted(),
+              const SizedBox(height: AppSpacing.xs),
+              Expanded(
+                child: BlocBuilder<ChallengesBloc, ChallengesState>(
+                  builder: (context, state) => switch (state.status) {
+                    ChallengesStatus.loading => const Center(
+                      child: CircularProgressIndicator(),
                     ),
-                  ),
-                  ChallengesStatus.ready when state.items.isEmpty => _Message(
-                    text: state.isFiltered
-                        ? 'No challenges match your search.'
-                        : 'No challenges are open yet. Check back soon.',
-                    textStyle: theme.textTheme.bodyLarge,
-                  ),
-                  ChallengesStatus.ready => _List(state: state, onOpen: _open),
-                },
+                    ChallengesStatus.failed => _Message(
+                      text: state.failure?.message ?? 'Something went wrong.',
+                      actionLabel: 'Try again',
+                      onAction: () => context.read<ChallengesBloc>().add(
+                        const ChallengesStarted(),
+                      ),
+                    ),
+                    ChallengesStatus.ready when state.items.isEmpty => _Message(
+                      text: state.isFiltered
+                          ? 'No challenges match your search.'
+                          : 'No challenges are open yet. Check back soon.',
+                      textStyle: theme.textTheme.bodyLarge,
+                    ),
+                    ChallengesStatus.ready => _List(
+                      state: state,
+                      onOpen: _open,
+                    ),
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -10,3 +10,4 @@ Loaded through `mobile/CLAUDE.md`, with every `mobile/decisions/<area>.md`, when
 ## Entries
 
 - **2026-11-02, #270.** Fixtures have fixed dates, so a test that opens `ChallengeDetailPage` through the router must pass a fixed `clock`: rebuild only the detail route in `createAppRouter(routes: ...)` (see `challenges_flow_test.dart`), never rely on `DateTime.now`.
+- **2026-11-03, #264.** A join asks `getIt` for `GetHealthNotice` and `HealthRepository`: `registerChallengeBlocs` registers a `none` notice and `FakeHealthRepository` only when none is registered, so a test that wants the explainer registers its own first.
