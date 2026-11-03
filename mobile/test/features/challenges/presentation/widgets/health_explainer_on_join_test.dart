@@ -74,7 +74,10 @@ void main() {
             create: (_) =>
                 getIt<ChallengesBloc>()..add(const ChallengesStarted()),
           ),
-          BlocProvider(create: (_) => getIt<HealthNoticeBloc>()),
+          BlocProvider(
+            create: (_) =>
+                getIt<HealthNoticeBloc>()..add(const HealthNoticeStarted()),
+          ),
         ],
         child: const HealthExplainerOnJoin<ChallengesBloc, ChallengesState>(
           joined: challengesJoined,
@@ -99,7 +102,10 @@ void main() {
                 getIt<ChallengeDetailBloc>()
                   ..add(const ChallengeDetailStarted(1)),
           ),
-          BlocProvider(create: (_) => getIt<HealthNoticeBloc>()),
+          BlocProvider(
+            create: (_) =>
+                getIt<HealthNoticeBloc>()..add(const HealthNoticeStarted()),
+          ),
         ],
         child: HealthExplainerOnJoin<ChallengeDetailBloc, ChallengeDetailState>(
           joined: challengeDetailJoined,
@@ -209,6 +215,8 @@ void main() {
 
       testWidgets('a refused join opens nothing', (tester) async {
         await pumpScreen(tester, entry.page());
+        // Forget the check that loads the banner when the route opens.
+        clearInteractions(getNotice);
         challenges.failure = const ChallengeFailure(
           ChallengeFailureCode.challengeEnded,
         );
@@ -356,15 +364,17 @@ void main() {
       testWidgets('the join is unaffected when the health check throws', (
         tester,
       ) async {
-        when(
-          () => getNotice(clock: any(named: 'clock')),
-        ).thenAnswer((_) async => throw StateError('no health'));
         final reported = <Object>[];
         final previous = FlutterError.onError;
         FlutterError.onError = (details) => reported.add(details.exception);
         addTearDown(() => FlutterError.onError = previous);
-
-        await join(tester);
+        await pumpScreen(tester, entry.page());
+        when(
+          () => getNotice(clock: any(named: 'clock')),
+        ).thenAnswer((_) async => throw StateError('no health'));
+        reported.clear();
+        await tester.tap(find.widgetWithText(FilledButton, entry.join).first);
+        await tester.pumpAndSettle();
 
         expect(find.text('Joined'), findsOneWidget);
         expect(find.byType(HealthExplainerSheet), findsNothing);
@@ -377,6 +387,8 @@ void main() {
     testWidgets('pausing and resuming never ask', (tester) async {
       challenges.detail = challenge(enrollment: enrolled());
       await pumpScreen(tester, entries.values.last.page());
+      // Forget the check that loads the banner when the route opens.
+      clearInteractions(getNotice);
       final bloc = tester
           .element(find.byType(ChallengeDetailPage))
           .read<ChallengeDetailBloc>();

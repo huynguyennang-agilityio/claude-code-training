@@ -46,7 +46,10 @@ final _routes = [
                   return bloc;
                 },
               ),
-              BlocProvider(create: (_) => getIt<HealthNoticeBloc>()),
+              BlocProvider(
+                create: (_) =>
+                    getIt<HealthNoticeBloc>()..add(const HealthNoticeStarted()),
+              ),
             ],
             child:
                 HealthExplainerOnJoin<
