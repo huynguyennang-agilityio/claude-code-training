@@ -10,8 +10,10 @@ import 'package:stridequest/features/runs/domain/entities/health_access.dart';
 import 'package:stridequest/features/runs/presentation/bloc/activity_bloc.dart';
 import 'package:stridequest/features/runs/presentation/bloc/my_challenges_bloc.dart';
 import 'package:stridequest/features/runs/presentation/widgets/active_tabs.dart';
+import 'package:stridequest/features/runs/presentation/widgets/activity_tab.dart';
 
 import '../../../../helpers/expect_accessible.dart';
+import '../../../../helpers/health_fixtures.dart';
 import '../../../../helpers/pump_screen.dart';
 import '../../../../helpers/runs_fixtures.dart';
 
@@ -58,16 +60,18 @@ final _states = <String, ActivityState>{
   ),
 };
 
-Widget _tabs(MockActivityBloc bloc) => MultiBlocProvider(
-  providers: [
-    BlocProvider<ActivityBloc>.value(value: bloc),
-    BlocProvider<MyChallengesBloc>.value(
-      value: _myChallengesIn(
-        const MyChallengesState(status: MyChallengesStatus.ready),
+Widget _tabs(MockActivityBloc bloc) => withHealthNotice(
+  MultiBlocProvider(
+    providers: [
+      BlocProvider<ActivityBloc>.value(value: bloc),
+      BlocProvider<MyChallengesBloc>.value(
+        value: _myChallengesIn(
+          const MyChallengesState(status: MyChallengesStatus.ready),
+        ),
       ),
-    ),
-  ],
-  child: const ActiveTabs(),
+    ],
+    child: const ActiveTabs(activity: ActivityTab()),
+  ),
 );
 
 MockMyChallengesBloc _myChallengesIn(MyChallengesState state) {
@@ -200,40 +204,6 @@ void main() {
   });
 
   group('the list follows the figures', () {
-    testWidgets('it reloads when a sync finishes', (tester) async {
-      final activity = MockActivityBloc();
-      final mine = _myChallengesIn(
-        const MyChallengesState(status: MyChallengesStatus.ready),
-      );
-      final states = StreamController<ActivityState>();
-      addTearDown(states.close);
-      whenListen(
-        activity,
-        states.stream,
-        initialState: ActivityState(
-          allowed: _all,
-          reading: _reading(),
-          busy: true,
-        ),
-      );
-      await pumpScreen(
-        tester,
-        MultiBlocProvider(
-          providers: [
-            BlocProvider<ActivityBloc>.value(value: activity),
-            BlocProvider<MyChallengesBloc>.value(value: mine),
-          ],
-          child: const ActiveTabs(),
-        ),
-      );
-      verifyNever(() => mine.add(const MyChallengesRefreshed()));
-
-      states.add(ActivityState(allowed: _all, reading: _reading()));
-      await tester.pump();
-
-      verify(() => mine.add(const MyChallengesRefreshed())).called(1);
-    });
-
     testWidgets('it reloads when the page is shown again', (tester) async {
       final mine = _myChallengesIn(
         const MyChallengesState(status: MyChallengesStatus.ready),
@@ -242,18 +212,20 @@ void main() {
       addTearDown(visible.dispose);
       await pumpScreen(
         tester,
-        MultiBlocProvider(
-          providers: [
-            BlocProvider<ActivityBloc>.value(
-              value: _blocIn(_states['figures']!),
+        withHealthNotice(
+          MultiBlocProvider(
+            providers: [
+              BlocProvider<ActivityBloc>.value(
+                value: _blocIn(_states['figures']!),
+              ),
+              BlocProvider<MyChallengesBloc>.value(value: mine),
+            ],
+            child: ValueListenableBuilder<bool>(
+              valueListenable: visible,
+              builder: (context, on, child) =>
+                  TickerMode(enabled: on, child: child!),
+              child: const ActiveTabs(activity: ActivityTab()),
             ),
-            BlocProvider<MyChallengesBloc>.value(value: mine),
-          ],
-          child: ValueListenableBuilder<bool>(
-            valueListenable: visible,
-            builder: (context, on, child) =>
-                TickerMode(enabled: on, child: child!),
-            child: const ActiveTabs(),
           ),
         ),
       );

@@ -83,9 +83,18 @@ final appRoutes = <RouteBase>[
         routes: [
           GoRoute(
             path: ActiveChallengesPage.path,
-            builder: (context, state) => BlocProvider(
-              create: (_) =>
-                  getIt<HealthGateBloc>()..add(const HealthGateStarted()),
+            builder: (context, state) => MultiBlocProvider(
+              providers: [
+                BlocProvider(
+                  create: (_) =>
+                      getIt<HealthGateBloc>()..add(const HealthGateStarted()),
+                ),
+                BlocProvider(
+                  create: (_) =>
+                      getIt<HealthNoticeBloc>()
+                        ..add(const HealthNoticeStarted()),
+                ),
+              ],
               child: const ActiveChallengesPage(),
             ),
           ),
