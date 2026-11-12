@@ -778,6 +778,8 @@ void main() {
       expect(await ask(), isFalse);
       answer((_) async => 'unknown');
       expect(await ask(), isNull);
+      answer((_) async => null);
+      expect(await ask(), isNull);
     });
 
     test('a channel error is null', () async {

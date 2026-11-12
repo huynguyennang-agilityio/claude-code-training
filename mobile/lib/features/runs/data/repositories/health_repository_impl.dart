@@ -44,13 +44,16 @@ class HealthRepositoryImpl implements HealthRepository {
   @override
   Future<HealthAccess> checkAccess() async {
     if (!await _source.isAvailable()) return const HealthAccess.unavailable();
-    final asked = await _prompts.askedCount();
     final allowed = await _source.allowedMetrics();
     if (allowed == null) {
       // HealthKit knows whether it would still show its dialog, which the
       // keychain counter cannot: that outlives an uninstall.
-      final needed = await _source.requestNeeded();
-      if (needed ?? asked <= 0) return const HealthAccess.denied();
+      final dialogPending = switch (await _source.requestNeeded()) {
+        true => true,
+        false => false,
+        null => await _prompts.askedCount() == 0,
+      };
+      if (dialogPending) return const HealthAccess.denied();
       return HealthAccess(
         HealthAccessStatus.granted,
         allowed: HealthMetric.values.toSet(),
@@ -60,7 +63,7 @@ class HealthRepositoryImpl implements HealthRepository {
     if (allowed.contains(HealthMetric.steps)) {
       return HealthAccess(HealthAccessStatus.granted, allowed: allowed);
     }
-    return asked >= androidDialogLimit
+    return await _prompts.askedCount() >= androidDialogLimit
         ? const HealthAccess.permanentlyDenied()
         : const HealthAccess.denied();
   }

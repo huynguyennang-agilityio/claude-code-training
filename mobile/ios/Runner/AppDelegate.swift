@@ -43,7 +43,7 @@ import UIKit
         result(FlutterMethodNotImplemented)
         return
       }
-      guard let identifiers = call.arguments as? [String] else {
+      guard let identifiers = call.arguments as? [String], !identifiers.isEmpty else {
         result(FlutterError(code: "bad_args", message: "Expected a list of identifiers", details: nil))
         return
       }

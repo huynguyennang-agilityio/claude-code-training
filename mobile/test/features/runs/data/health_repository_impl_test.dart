@@ -196,6 +196,19 @@ void main() {
         expect(access.allowed, _all);
       },
     );
+
+    test(
+      'after a reinstall, a dialog that could not be shown stays denied',
+      () async {
+        prompts.count = 1;
+        source
+          ..needed = true
+          ..dialogShown = false;
+
+        expect(await repository.requestAccess(), const HealthAccess.denied());
+        expect(prompts.count, 1);
+      },
+    );
   });
 
   test('Android never asks HealthKit', () async {

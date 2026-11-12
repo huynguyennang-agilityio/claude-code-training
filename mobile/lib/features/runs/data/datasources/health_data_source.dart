@@ -64,15 +64,14 @@ class PluginHealthDataSource implements HealthDataSource {
   }) : _health = health ?? Health(),
        _ios = ios ?? Platform.isIOS,
        _settings = settings ?? const MethodChannel(_settingsChannel),
-       _healthChannel =
-           healthChannel ?? const MethodChannel(_healthChannelName);
+       _healthKit = healthChannel ?? const MethodChannel(_healthChannel);
 
   static const _settingsChannel = 'stridequest/settings';
-  static const _healthChannelName = 'stridequest/health';
+  static const _healthChannel = 'stridequest/health';
 
   final Health _health;
   final MethodChannel _settings;
-  final MethodChannel _healthChannel;
+  final MethodChannel _healthKit;
   final bool _ios;
 
   HealthDataType _type(HealthMetric metric) => switch (metric) {
@@ -90,15 +89,15 @@ class PluginHealthDataSource implements HealthDataSource {
   ];
 
   /// The HealthKit identifier of each type read on iOS, for the native
-  /// `requestStatus` call.
-  static String _identifier(HealthDataType type) => switch (type) {
+  /// `requestStatus` call; null for a type HealthKit does not read here.
+  static String? _identifier(HealthDataType type) => switch (type) {
     HealthDataType.STEPS => 'HKQuantityTypeIdentifierStepCount',
     HealthDataType.ACTIVE_ENERGY_BURNED =>
       'HKQuantityTypeIdentifierActiveEnergyBurned',
     HealthDataType.DISTANCE_WALKING_RUNNING =>
       'HKQuantityTypeIdentifierDistanceWalkingRunning',
     HealthDataType.SLEEP_ASLEEP => 'HKCategoryTypeIdentifierSleepAnalysis',
-    _ => throw ArgumentError.value(type, 'type', 'not read on iOS'),
+    _ => null,
   };
 
   @override
@@ -119,10 +118,13 @@ class PluginHealthDataSource implements HealthDataSource {
   @override
   Future<bool?> requestNeeded() async {
     if (!_ios) return null;
+    final identifiers = [for (final type in _types) _identifier(type)];
+    // A type without an identifier would leave it out of the status.
+    if (identifiers.contains(null)) return null;
     try {
-      final status = await _healthChannel.invokeMethod<String>(
+      final status = await _healthKit.invokeMethod<String>(
         'requestStatus',
-        [for (final type in _types) _identifier(type)],
+        identifiers,
       );
       return switch (status) {
         'shouldRequest' => true,
