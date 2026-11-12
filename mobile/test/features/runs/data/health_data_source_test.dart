@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:health/health.dart';
 import 'package:mocktail/mocktail.dart';
@@ -733,6 +734,67 @@ void main() {
           recordingMethodsToFilter: [RecordingMethod.manual],
         ),
       ).called(1);
+    });
+  });
+
+  group('requestNeeded', () {
+    const channel = MethodChannel('stridequest/health');
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final calls = <MethodCall>[];
+
+    void answer(Future<Object?> Function(MethodCall call) handler) {
+      messenger.setMockMethodCallHandler(channel, (call) {
+        calls.add(call);
+        return handler(call);
+      });
+    }
+
+    setUp(calls.clear);
+    tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    Future<bool?> ask({bool ios = true}) =>
+        PluginHealthDataSource(health: health, ios: ios).requestNeeded();
+
+    test('sends the HealthKit identifiers of the read types', () async {
+      answer((_) async => 'shouldRequest');
+
+      await ask();
+
+      expect(calls.single.method, 'requestStatus');
+      expect(calls.single.arguments, [
+        'HKQuantityTypeIdentifierStepCount',
+        'HKQuantityTypeIdentifierActiveEnergyBurned',
+        'HKQuantityTypeIdentifierDistanceWalkingRunning',
+        'HKCategoryTypeIdentifierSleepAnalysis',
+      ]);
+    });
+
+    test('maps the native status', () async {
+      answer((_) async => 'shouldRequest');
+      expect(await ask(), isTrue);
+      answer((_) async => 'unnecessary');
+      expect(await ask(), isFalse);
+      answer((_) async => 'unknown');
+      expect(await ask(), isNull);
+    });
+
+    test('a channel error is null', () async {
+      answer((_) async => throw PlatformException(code: 'health_error'));
+
+      expect(await ask(), isNull);
+    });
+
+    test('no native side is null', () async {
+      expect(await ask(), isNull);
+    });
+
+    test('Android is null and never calls the channel', () async {
+      answer((_) async => 'shouldRequest');
+
+      expect(await ask(ios: false), isNull);
+      expect(calls, isEmpty);
     });
   });
 }

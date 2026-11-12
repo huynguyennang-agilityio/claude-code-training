@@ -148,6 +148,62 @@ void main() {
       expect(await repository.requestAccess(), const HealthAccess.denied());
       expect(prompts.count, 0);
     });
+
+    test(
+      'HealthKit would show its dialog: denied, even if asked before',
+      () async {
+        source.needed = true;
+        for (final asked in [0, 1]) {
+          prompts.count = asked;
+
+          expect(await repository.checkAccess(), const HealthAccess.denied());
+        }
+      },
+    );
+
+    test('HealthKit would not show it: granted, unconfirmed', () async {
+      source.needed = false;
+
+      final access = await repository.checkAccess();
+
+      expect(access.status, HealthAccessStatus.granted);
+      expect(access.allowed, _all);
+      expect(access.confirmed, isFalse);
+    });
+
+    test('HealthKit will not say: the asked count decides', () async {
+      prompts.count = 1;
+      expect(
+        (await repository.checkAccess()).status,
+        HealthAccessStatus.granted,
+      );
+
+      prompts.count = 0;
+      expect(await repository.checkAccess(), const HealthAccess.denied());
+    });
+
+    test(
+      'asking after a reinstall shows the dialog, then is granted',
+      () async {
+        prompts.count = 1;
+        source.needed = true;
+        expect(await repository.checkAccess(), const HealthAccess.denied());
+
+        final access = await repository.requestAccess();
+
+        expect(source.requests, 1);
+        expect(access.status, HealthAccessStatus.granted);
+        expect(access.allowed, _all);
+      },
+    );
+  });
+
+  test('Android never asks HealthKit', () async {
+    source.allowed = {HealthMetric.steps};
+    source.needed = true;
+
+    expect((await repository.checkAccess()).status, HealthAccessStatus.granted);
+    expect(source.neededCalls, 0);
   });
 
   group('reading', () {

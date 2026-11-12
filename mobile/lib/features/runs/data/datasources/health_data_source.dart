@@ -18,6 +18,12 @@ abstract interface class HealthDataSource {
   /// Health hides whether a read was refused, for privacy.
   Future<Set<HealthMetric>?> allowedMetrics();
 
+  /// True when the system would show its permission dialog for the read types:
+  /// they were never asked on this install, as after a reinstall. False when it
+  /// would not. Null when the platform will not say (Android, an unknown status
+  /// or a channel error).
+  Future<bool?> requestNeeded();
+
   /// Shows the system permission dialog for every metric. True when it was
   /// shown without error; it does not say what the user chose.
   Future<bool> requestAuthorization();
@@ -53,15 +59,20 @@ class PluginHealthDataSource implements HealthDataSource {
   PluginHealthDataSource({
     @ignoreParam Health? health,
     @ignoreParam MethodChannel? settings,
+    @ignoreParam MethodChannel? healthChannel,
     @ignoreParam bool? ios,
   }) : _health = health ?? Health(),
        _ios = ios ?? Platform.isIOS,
-       _settings = settings ?? const MethodChannel(_settingsChannel);
+       _settings = settings ?? const MethodChannel(_settingsChannel),
+       _healthChannel =
+           healthChannel ?? const MethodChannel(_healthChannelName);
 
   static const _settingsChannel = 'stridequest/settings';
+  static const _healthChannelName = 'stridequest/health';
 
   final Health _health;
   final MethodChannel _settings;
+  final MethodChannel _healthChannel;
   final bool _ios;
 
   HealthDataType _type(HealthMetric metric) => switch (metric) {
@@ -78,6 +89,18 @@ class PluginHealthDataSource implements HealthDataSource {
     for (final metric in HealthMetric.values) _type(metric),
   ];
 
+  /// The HealthKit identifier of each type read on iOS, for the native
+  /// `requestStatus` call.
+  static String _identifier(HealthDataType type) => switch (type) {
+    HealthDataType.STEPS => 'HKQuantityTypeIdentifierStepCount',
+    HealthDataType.ACTIVE_ENERGY_BURNED =>
+      'HKQuantityTypeIdentifierActiveEnergyBurned',
+    HealthDataType.DISTANCE_WALKING_RUNNING =>
+      'HKQuantityTypeIdentifierDistanceWalkingRunning',
+    HealthDataType.SLEEP_ASLEEP => 'HKCategoryTypeIdentifierSleepAnalysis',
+    _ => throw ArgumentError.value(type, 'type', 'not read on iOS'),
+  };
+
   @override
   Future<bool> isAvailable() => _health.isHealthConnectAvailable();
 
@@ -91,6 +114,26 @@ class PluginHealthDataSource implements HealthDataSource {
       }
     }
     return allowed;
+  }
+
+  @override
+  Future<bool?> requestNeeded() async {
+    if (!_ios) return null;
+    try {
+      final status = await _healthChannel.invokeMethod<String>(
+        'requestStatus',
+        [for (final type in _types) _identifier(type)],
+      );
+      return switch (status) {
+        'shouldRequest' => true,
+        'unnecessary' => false,
+        _ => null,
+      };
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
   }
 
   @override
