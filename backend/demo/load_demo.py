@@ -49,15 +49,16 @@ DEMO_CHALLENGES = [
         title="Old Quarter 50K Steps",
         type="run",
         target_value=50_000,
-        starts_at="2026-10-01T00:00:00+07:00",
-        ends_at="2026-10-31T23:59:59+07:00",
+        starts_at="2026-11-01T00:00:00+07:00",
+        ends_at="2027-01-31T23:59:59+07:00",
         city="Hà Nội",
         landmark="Hồ Hoàn Kiếm",
         cover="cover-old-quarter-50k-steps.png",
         medals=(("Lake Stroller", 20_000), ("Lake Strider", 35_000), ("Lake Master", 50_000)),
         description_md=(
-            "Walk or run **50,000 steps** in October around the Old Quarter and Hoàn Kiếm Lake.\n\n"
-            "Every step you take counts, in one go or spread over the month."
+            "Walk or run **50,000 steps** between November and January around the Old Quarter "
+            "and Hoàn Kiếm Lake.\n\n"
+            "Every step you take counts, in one go or spread over the three months."
         ),
         terms_md="Steps are read from Apple Health or Health Connect.",
     ),
@@ -66,14 +67,14 @@ DEMO_CHALLENGES = [
         type="swim",
         target_value=20_000,
         starts_at="2026-11-01T00:00:00+07:00",
-        ends_at="2026-11-30T23:59:59+07:00",
+        ends_at="2027-02-28T23:59:59+07:00",
         city="Đà Nẵng",
         landmark="Bãi biển Mỹ Khê",
         cover="cover-my-khe-bay-20km.png",
         medals=(("Shallows", 5_000), ("Open Water", 12_000), ("Bay Crosser", 20_000)),
         description_md=(
-            "Swim **20 km** across November, the length of Mỹ Khê Beach and back, a few "
-            "laps at a time."
+            "Swim **20 km** between November and February, the length of Mỹ Khê Beach and "
+            "back, a few laps at a time."
         ),
         terms_md="Swims are read from workouts recorded on your device.",
     ),
@@ -82,7 +83,7 @@ DEMO_CHALLENGES = [
         type="cycle",
         target_value=100_000,
         starts_at="2026-10-10T00:00:00+07:00",
-        ends_at="2026-12-10T23:59:59+07:00",
+        ends_at="2027-03-31T23:59:59+07:00",
         city="TP. Hồ Chí Minh",
         landmark="Landmark 81",
         cover="cover-saigon-riverside-100km.png",
@@ -100,13 +101,13 @@ BLOCKED_DEMO = DemoChallenge(
     title="Hanoi Autumn 30K Steps",
     type="run",
     target_value=30_000,
-    starts_at="2026-10-15T00:00:00+07:00",
-    ends_at="2026-11-15T23:59:59+07:00",
+    starts_at="2026-11-15T00:00:00+07:00",
+    ends_at="2027-01-15T23:59:59+07:00",
     city="Hà Nội",
     landmark="Hồ Tây",
     cover="cover-hanoi-autumn-30k-steps.png",
     medals=(("First Loop", 10_000), ("Second Loop", 20_000), ("Autumn Walker", 30_000)),
-    description_md="Walk or run **30,000 steps** between mid-October and mid-November.",
+    description_md="Walk or run **30,000 steps** between mid-November and mid-January.",
     terms_md="Steps are read from Apple Health or Health Connect.",
 )
 
