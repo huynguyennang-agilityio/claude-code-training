@@ -13,10 +13,13 @@ import '../datasources/health_prompt_store.dart';
 /// - **Android** says which metrics are allowed. Steps allowed: granted. Not
 ///   allowed: denied, and permanently denied once the dialog has been shown
 ///   twice, when Health Connect stops asking.
-/// - **iOS** never says whether a read was refused. The dialog is shown once;
-///   after it was shown the app can only treat access as granted, and a refused
-///   read shows as 0 steps. Before it was shown the status is denied. That
-///   granted is a guess, so it is not `confirmed`.
+/// - **iOS** never says whether a read was refused. HealthKit's request status
+///   says whether its dialog would still show: if so the status is denied (also
+///   after a reinstall); if not, the dialog was shown and the app can only treat
+///   access as granted, and a refused read shows as 0 steps. That granted is a
+///   guess, so it is not `confirmed`. Only when HealthKit will not say does the
+///   keychain counter of shown dialogs decide, since the keychain outlives an
+///   uninstall.
 ///
 /// It also remembers when the health explainer was last shown, so it comes
 /// back after [explainerInterval].
@@ -41,22 +44,26 @@ class HealthRepositoryImpl implements HealthRepository {
   @override
   Future<HealthAccess> checkAccess() async {
     if (!await _source.isAvailable()) return const HealthAccess.unavailable();
-    final asked = await _prompts.askedCount();
     final allowed = await _source.allowedMetrics();
     if (allowed == null) {
-      // The platform will not say: the dialog having been shown is all we know.
-      return asked > 0
-          ? HealthAccess(
-              HealthAccessStatus.granted,
-              allowed: HealthMetric.values.toSet(),
-              confirmed: false,
-            )
-          : const HealthAccess.denied();
+      // HealthKit knows whether it would still show its dialog, which the
+      // keychain counter cannot: that outlives an uninstall.
+      final dialogPending = switch (await _source.requestNeeded()) {
+        true => true,
+        false => false,
+        null => await _prompts.askedCount() == 0,
+      };
+      if (dialogPending) return const HealthAccess.denied();
+      return HealthAccess(
+        HealthAccessStatus.granted,
+        allowed: HealthMetric.values.toSet(),
+        confirmed: false,
+      );
     }
     if (allowed.contains(HealthMetric.steps)) {
       return HealthAccess(HealthAccessStatus.granted, allowed: allowed);
     }
-    return asked >= androidDialogLimit
+    return await _prompts.askedCount() >= androidDialogLimit
         ? const HealthAccess.permanentlyDenied()
         : const HealthAccess.denied();
   }

@@ -125,6 +125,11 @@ class FakeHealthDataSource implements HealthDataSource {
   /// What the platform says is allowed; null is "will not say" (iOS).
   Set<HealthMetric>? allowed;
 
+  /// What HealthKit's request status says: true is "would show its dialog",
+  /// null is "will not say".
+  bool? needed;
+  var neededCalls = 0;
+
   /// What the system dialog does: the metrics it allows, when shown.
   Set<HealthMetric> grantsOnRequest = {};
   bool dialogShown = true;
@@ -148,8 +153,16 @@ class FakeHealthDataSource implements HealthDataSource {
   Future<Set<HealthMetric>?> allowedMetrics() async => allowed;
 
   @override
+  Future<bool?> requestNeeded() async {
+    neededCalls++;
+    return needed;
+  }
+
+  @override
   Future<bool> requestAuthorization() async {
     requests++;
+    // Once shown, HealthKit would not show it again.
+    if (dialogShown && needed == true) needed = false;
     if (dialogShown && allowed != null) {
       allowed = {...allowed!, ...grantsOnRequest};
     }
