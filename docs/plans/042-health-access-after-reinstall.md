@@ -2,7 +2,7 @@
 
 Status: approved
 Approved: 2026-11-12, by the user in chat: "/approve-plan 042"
-Issues: <filled in after approval>
+Issues: #293
 Draft: https://claude.ai/artifact/3CwVVuNYjCuDwEwpzGjNg1, version 1794469997-bcdc
 
 ## Context
